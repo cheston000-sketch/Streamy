@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamy - Watch Movies & TV Shows</title>
+    <meta name="description" content="Stream your favorite movies, TV shows, and anime in high quality.">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <i class="fa-solid fa-play"></i>
+                Streamy
+            </a>
+            <div class="search-bar">
+                <input type="text" placeholder="Search for movies, tv shows, anime...">
+                <button><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#" class="active">Home</a></li>
+                <li><a href="#">Movies</a></li>
+                <li><a href="#">TV Shows</a></li>
+                <li><a href="#">Anime</a></li>
+                <li><a href="#">Live</a></li>
+            </ul>
+            <div class="user-actions">
+                <button class="btn-login">Login</button>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+                <span class="badge">New Release</span>
+                <h1 id="hero-title">Cyber City 2077</h1>
+                <p id="hero-desc">When the grid goes down, a lone hacker must navigate the neon-lit streets to uncover a conspiracy that goes straight to the top of the megacorps.</p>
+                <div class="hero-details">
+                    <span><i class="fa-solid fa-star"></i> 9.8</span>
+                    <span>2026</span>
+                    <span>Sci-Fi / Action</span>
+                    <span>2h 15m</span>
+                </div>
+                <div class="hero-buttons">
+                    <button class="btn-primary"><i class="fa-solid fa-play"></i> Watch Now</button>
+                    <button class="btn-secondary"><i class="fa-solid fa-plus"></i> Watchlist</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="content-section">
+            <div class="section-header">
+                <h2>Trending Now</h2>
+                <a href="#" class="view-all">View All <i class="fa-solid fa-chevron-right"></i></a>
+            </div>
+            <div class="grid-container" id="trending-grid">
+                <!-- Javascript will populate this -->
+            </div>
+        </section>
+
+        <section class="content-section">
+            <div class="section-header">
+                <h2>Popular TV Shows</h2>
+                <a href="#" class="view-all">View All <i class="fa-solid fa-chevron-right"></i></a>
+            </div>
+            <div class="grid-container" id="tv-grid">
+                <!-- Javascript will populate this -->
+            </div>
+        </section>
+
+        <section class="content-section">
+            <div class="section-header">
+                <h2>Latest Anime</h2>
+                <a href="#" class="view-all">View All <i class="fa-solid fa-chevron-right"></i></a>
+            </div>
+            <div class="grid-container" id="anime-grid">
+                <!-- Javascript will populate this -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="brand">
+                <div class="logo">
+                    <i class="fa-solid fa-play"></i>
+                    Streamy
+                </div>
+                <p>Stream your favorite content in high quality. No files are stored on our servers.</p>
+            </div>
+            <div class="links">
+                <h4>Navigation</h4>
+                <ul>
+                    <li><a href="#">Home</a></li>
+                    <li><a href="#">Movies</a></li>
+                    <li><a href="#">History</a></li>
+                </ul>
+            </div>
+            <div class="links">
+                <h4>Legal</h4>
+                <ul>
+                    <li><a href="#">Terms of Service</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">DMCA</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="copyright">
+            &copy; 2026 Streamy. All rights reserved.
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
