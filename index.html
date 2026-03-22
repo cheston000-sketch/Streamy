@@ -2,86 +2,173 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Streamy - Watch Movies & TV Shows</title>
-    <meta name="description" content="Stream your favorite movies, TV shows, and anime in high quality.">
-    <link rel="stylesheet" href="styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- PWA / Web App Manifest Data -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#141414">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/icon.svg">
+    
+    <title>StreamOS</title>
+    <meta name="description" content="Stream your favorite movies, TV shows, and anime in high quality without ads.">
+    <link rel="stylesheet" href="styles.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-container">
-            <a href="#" class="logo">
-                <i class="fa-solid fa-play"></i>
-                Streamy
-            </a>
-            <div class="search-bar">
-                <input type="text" placeholder="Search for movies, tv shows, anime...">
-                <button><i class="fa-solid fa-magnifying-glass"></i></button>
-            </div>
-            <ul class="nav-links">
-                <li><a href="#" class="active">Home</a></li>
-                <li><a href="#">Movies</a></li>
-                <li><a href="#">TV Shows</a></li>
-                <li><a href="#">Anime</a></li>
-                <li><a href="#">Live</a></li>
-            </ul>
-            <div class="user-actions">
-                <button class="btn-login">Login</button>
-            </div>
+        <div class="logo" id="logo-btn">
+            <i class="fa-solid fa-film"></i>
+            Streamy
+        </div>
+        <form class="search-container" id="search-form">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="search-input" placeholder="Search for movies, tv shows...">
+        </form>
+        <div class="nav-links">
+            <a href="#" id="nav-home" class="active">Home</a>
+            <a href="#movies" id="nav-movies">Movies</a>
+            <a href="#tv" id="nav-tv">TV Shows</a>
+            <a href="#watchlist" id="nav-watchlist">My List</a>
         </div>
     </nav>
 
-    <main>
-        <section class="hero">
-            <div class="hero-overlay"></div>
-            <div class="hero-content">
-                <span class="badge">New Release</span>
-                <h1 id="hero-title">Cyber City 2077</h1>
-                <p id="hero-desc">When the grid goes down, a lone hacker must navigate the neon-lit streets to uncover a conspiracy that goes straight to the top of the megacorps.</p>
-                <div class="hero-details">
-                    <span><i class="fa-solid fa-star"></i> 9.8</span>
-                    <span>2026</span>
-                    <span>Sci-Fi / Action</span>
-                    <span>2h 15m</span>
+    <main class="main-content" id="main-content">
+        <!-- Home View -->
+        <div id="home-view">
+            <section class="hero" id="hero-section">
+                <div class="hero-overlay"></div>
+                <div class="hero-content">
+                    <span class="badge">Featured</span>
+                    <h1 id="hero-title">Loading...</h1>
+                    <p id="hero-desc">Discovering the best content for you.</p>
+                    <div class="hero-details" id="hero-meta">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="hero-buttons">
+                        <button class="btn-primary" id="hero-watch-btn"><i class="fa-solid fa-play"></i> Watch Now</button>
+                    </div>
                 </div>
-                <div class="hero-buttons">
-                    <button class="btn-primary"><i class="fa-solid fa-play"></i> Watch Now</button>
-                    <button class="btn-secondary"><i class="fa-solid fa-plus"></i> Watchlist</button>
+            </section>
+
+            <section class="content-section" id="trending-movies-section">
+                <div class="section-header">
+                    <h2>Trending Movies</h2>
+                </div>
+                <div class="grid-container" id="trending-movies-grid">
+                    <!-- Javascript will populate this -->
+                </div>
+            </section>
+
+            <section class="content-section" id="trending-tv-section">
+                <div class="section-header">
+                    <h2>Popular TV Shows</h2>
+                </div>
+                <div class="grid-container" id="trending-tv-grid">
+                    <!-- Javascript will populate this -->
+                </div>
+            </section>
+        </div>
+
+        <!-- Search Results View -->
+        <div id="search-view" class="hidden" style="padding-top: 100px;">
+            <section class="content-section">
+                <div class="section-header">
+                    <h2 id="search-results-title">Search Results</h2>
+                </div>
+                <div class="grid-container" id="search-results-grid">
+                    <!-- Javascript will populate this -->
+                </div>
+            </section>
+        </div>
+
+        <!-- Movies View -->
+        <div id="movies-view" class="hidden" style="padding-top: 20px;">
+            <section class="content-section">
+                <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2 class="section-title">All Movies</h2>
+                    <select id="movie-category" class="theme-select">
+                        <option value="trending">Trending (All)</option>
+                        <option value="28">Action</option>
+                        <option value="35">Comedy</option>
+                        <option value="company-2">Disney</option>
+                        <option value="18">Drama</option>
+                        <option value="10751">Family</option>
+                        <option value="16">Kids / Animation</option>
+                        <option value="27">Horror</option>
+                        <option value="878">Sci-Fi</option>
+                    </select>
+                </div>
+                <div class="wrap-grid" id="movies-grid"></div>
+            </section>
+        </div>
+
+        <!-- TV Shows View -->
+        <div id="tv-view" class="hidden" style="padding-top: 20px;">
+            <section class="content-section">
+                <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2 class="section-title">All TV Shows</h2>
+                    <select id="tv-category" class="theme-select">
+                        <option value="trending">Trending (All)</option>
+                        <option value="10759">Action & Adventure</option>
+                        <option value="16">Animation</option>
+                        <option value="35">Comedy</option>
+                        <option value="network-2739|54">Disney</option>
+                        <option value="18">Drama</option>
+                        <option value="10751">Family</option>
+                        <option value="10762">Kids</option>
+                        <option value="10765">Sci-Fi & Fantasy</option>
+                    </select>
+                </div>
+                <div class="wrap-grid" id="tv-grid"></div>
+            </section>
+        </div>
+
+        <!-- Watchlist View -->
+        <div id="watchlist-view" class="hidden" style="padding-top: 20px;">
+            <section class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">My List <i class="fa-solid fa-bookmark" style="font-size:0.8em; margin-left:10px; color:var(--text-secondary);"></i></h2>
+                </div>
+                <div class="wrap-grid" id="watchlist-grid">
+                    <!-- Javascript will populate this -->
+                </div>
+            </section>
+        </div>
+
+        <!-- Player View -->
+        <div id="player-view" class="hidden">
+            <div class="player-header">
+                <button id="back-btn" class="btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                <h2 id="player-title">Movie Title</h2>
+                <button id="player-watchlist-btn" class="btn-secondary" style="margin-left: auto;">
+                    <i class="fa-solid fa-plus"></i> Add to List
+                </button>
+            </div>
+            
+            <div class="player-container">
+                <div id="tv-controls" class="hidden tv-controls">
+                    <select id="season-select" class="theme-select"></select>
+                    <select id="episode-select" class="theme-select"></select>
+                    <button id="load-episode-btn" class="btn-primary">Load Episode</button>
+                </div>
+                
+                <button id="tv-fullscreen-btn" class="btn-primary" tabindex="0" style="width: 100%; margin-bottom: 1.5rem; display: flex; justify-content: center; font-size: 1.3rem; padding: 1rem; border-radius: 12px; font-weight: 800; box-shadow: 0 8px 25px rgba(138,43,226,0.3);">
+                    <i class="fa-solid fa-expand" style="margin-right: 10px;"></i> ENLARGE TO FULLSCREEN (TV REMOTE)
+                </button>
+
+                <div class="iframe-wrapper">
+                    <video id="video-player" controls preload="metadata"></video>
+                </div>
+                <div class="player-warning" style="background: rgba(46, 204, 113, 0.1); border-left: 4px solid #2ecc71;">
+                    <p style="color: #2ecc71;"><i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Native Ad-Free Secure Player. No popups or tracker layers allowed.</p>
+                </div>
+                    <p><i class="fa-solid fa-shield-halved"></i> Ad-Free Interface. Be aware that the third-party video host may still display popups inside the video player. We recommend using a browser ad-blocker like uBlock Origin for a 100% ad-free experience.</p>
                 </div>
             </div>
-        </section>
-
-        <section class="content-section">
-            <div class="section-header">
-                <h2>Trending Now</h2>
-                <a href="#" class="view-all">View All <i class="fa-solid fa-chevron-right"></i></a>
-            </div>
-            <div class="grid-container" id="trending-grid">
-                <!-- Javascript will populate this -->
-            </div>
-        </section>
-
-        <section class="content-section">
-            <div class="section-header">
-                <h2>Popular TV Shows</h2>
-                <a href="#" class="view-all">View All <i class="fa-solid fa-chevron-right"></i></a>
-            </div>
-            <div class="grid-container" id="tv-grid">
-                <!-- Javascript will populate this -->
-            </div>
-        </section>
-
-        <section class="content-section">
-            <div class="section-header">
-                <h2>Latest Anime</h2>
-                <a href="#" class="view-all">View All <i class="fa-solid fa-chevron-right"></i></a>
-            </div>
-            <div class="grid-container" id="anime-grid">
-                <!-- Javascript will populate this -->
-            </div>
-        </section>
+        </div>
     </main>
 
     <footer>
@@ -91,23 +178,7 @@
                     <i class="fa-solid fa-play"></i>
                     Streamy
                 </div>
-                <p>Stream your favorite content in high quality. No files are stored on our servers.</p>
-            </div>
-            <div class="links">
-                <h4>Navigation</h4>
-                <ul>
-                    <li><a href="#">Home</a></li>
-                    <li><a href="#">Movies</a></li>
-                    <li><a href="#">History</a></li>
-                </ul>
-            </div>
-            <div class="links">
-                <h4>Legal</h4>
-                <ul>
-                    <li><a href="#">Terms of Service</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
-                    <li><a href="#">DMCA</a></li>
-                </ul>
+                <p>Stream your favorite content in high quality. No files are stored on our servers, pure UI.</p>
             </div>
         </div>
         <div class="copyright">
@@ -115,6 +186,6 @@
         </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script type="module" src="js/app.js?v=14"></script>
 </body>
 </html>

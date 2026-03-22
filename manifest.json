@@ -1,0 +1,17 @@
+{
+  "name": "StreamOS",
+  "short_name": "StreamOS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#E50914",
+  "description": "Stream HD Movies and TV Shows",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
