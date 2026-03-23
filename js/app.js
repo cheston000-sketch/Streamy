@@ -1,6 +1,6 @@
-import { DOM, createCard, updateHero, enableDragScroll } from './ui.js?v=5';
+import { DOM, createCard, updateHero, enableDragScroll } from './ui.js?v=6';
 import { fetchFromTMDB, discoverByCategory } from './api.js?v=5';
-import { openPlayer, switchServer } from './player.js?v=5';
+import { openPlayer, switchServer, cycleServer } from './player.js?v=14';
 import { setupRouter, handleRoute, navigateTo } from './router.js?v=5';
 
 setupRouter();
@@ -135,14 +135,28 @@ if(DOM.navTv) DOM.navTv.addEventListener('click', (e) => { e.preventDefault(); n
 if(DOM.navWatchlist) DOM.navWatchlist.addEventListener('click', (e) => { e.preventDefault(); navigateTo('#watchlist'); });
 if(DOM.logoBtn) DOM.logoBtn.addEventListener('click', (e) => { e.preventDefault(); navigateTo('#home'); });
 if(DOM.backBtn) DOM.backBtn.addEventListener('click', () => { globalThis.history.back(); });
+if(DOM.tvServerBtn) DOM.tvServerBtn.addEventListener('click', cycleServer);
 
-// Search Form
-DOM.searchForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const query = DOM.searchInput.value.trim();
+// Debounce Utility
+function debounce(func, delay) {
+    let timeoutId;
+    return function (...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+async function handleSearch(query) {
     if(!query) return;
 
-    navigateTo(`#search?q=${encodeURIComponent(query)}`);
+    if (!globalThis.location.hash.startsWith('#search')) {
+        navigateTo(`#search?q=${encodeURIComponent(query)}`);
+    } else {
+        const newUrl = new URL(globalThis.location);
+        newUrl.hash = `#search?q=${encodeURIComponent(query)}`;
+        globalThis.history.replaceState(null, '', newUrl.toString());
+    }
+
     DOM.searchResultsGrid.innerHTML = '<p>Searching...</p>';
     
     try {
@@ -158,7 +172,19 @@ DOM.searchForm.addEventListener('submit', async (e) => {
     } catch(err) {
         DOM.searchResultsGrid.innerHTML = '<p>Error searching TMDB.</p>';
     }
+}
+
+const debouncedSearch = debounce((e) => {
+    handleSearch(e.target.value.trim());
+}, 500);
+
+// Search Form
+DOM.searchForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleSearch(DOM.searchInput.value.trim());
 });
+
+DOM.searchInput.addEventListener('input', debouncedSearch);
 
 // Server buttons listener
 document.addEventListener('click', (e) => {

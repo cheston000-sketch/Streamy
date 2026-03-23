@@ -40,7 +40,8 @@ export const DOM = {
     episodeSelect: document.getElementById('episode-select'),
     loadEpisodeBtn: document.getElementById('load-episode-btn'),
     playerWatchlistBtn: document.getElementById('player-watchlist-btn'),
-    tvFullscreenBtn: document.getElementById('tv-fullscreen-btn')
+    tvFullscreenBtn: document.getElementById('tv-fullscreen-btn'),
+    tvServerBtn: document.getElementById('tv-server-btn')
 };
 
 export function enableDragScroll(slider) {

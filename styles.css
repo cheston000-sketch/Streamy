@@ -24,6 +24,10 @@ body {
     overflow-x: hidden;
 }
 
+/* Android WebView SurfaceView Video Hole-Punching Fixes */
+body.video-playing { background-color: transparent !important; background-image: none !important; }
+body.video-playing .player-container { background: transparent !important; box-shadow: none !important; border-color: transparent !important; }
+
 /* Navbar */
 .navbar {
     height: var(--navbar-height);
@@ -124,8 +128,8 @@ body {
 .back-btn { font-size: 1.5rem; color: var(--text-secondary); cursor: pointer; transition: color 0.3s; }
 .back-btn:hover { color: white; }
 .player-container { background: var(--card-bg); border-radius: 20px; padding: 1.5rem; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-.iframe-wrapper { position: relative; width: 100%; padding-bottom: 56.25%; border-radius: 12px; overflow: hidden; background: #000; box-shadow: inset 0 0 50px rgba(0,0,0,0.8); }
-.iframe-wrapper iframe, .iframe-wrapper video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+.iframe-wrapper { position: relative; width: 100%; padding-bottom: 56.25%; background: transparent; z-index: 10; }
+.iframe-wrapper iframe, .iframe-wrapper video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; background: transparent; z-index: 20; }
 
 /* Control Panels */
 .server-controls, .tv-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; align-items: center; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 12px; }

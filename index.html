@@ -18,6 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
+    
     <nav class="navbar">
         <div class="logo" id="logo-btn">
             <i class="fa-solid fa-film"></i>
@@ -143,6 +144,7 @@
             <div class="player-header">
                 <button id="back-btn" class="btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back</button>
                 <h2 id="player-title">Movie Title</h2>
+                <button id="tv-server-btn" class="btn-secondary" tabindex="0" style="margin-left: 15px;"><i class="fa-solid fa-server"></i> VIDSRC</button>
                 <button id="player-watchlist-btn" class="btn-secondary" style="margin-left: auto;">
                     <i class="fa-solid fa-plus"></i> Add to List
                 </button>
@@ -155,17 +157,14 @@
                     <button id="load-episode-btn" class="btn-primary">Load Episode</button>
                 </div>
                 
-                <button id="tv-fullscreen-btn" class="btn-primary" tabindex="0" style="width: 100%; margin-bottom: 1.5rem; display: flex; justify-content: center; font-size: 1.3rem; padding: 1rem; border-radius: 12px; font-weight: 800; box-shadow: 0 8px 25px rgba(138,43,226,0.3);">
-                    <i class="fa-solid fa-expand" style="margin-right: 10px;"></i> ENLARGE TO FULLSCREEN (TV REMOTE)
-                </button>
+                <div class="source-list-wrapper" style="margin-top: 1rem;">
+                    <ul id="source-list" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Scraped streams will be injected here as buttons -->
+                    </ul>
+                </div>
 
-                <div class="iframe-wrapper">
-                    <video id="video-player" controls preload="metadata"></video>
-                </div>
-                <div class="player-warning" style="background: rgba(46, 204, 113, 0.1); border-left: 4px solid #2ecc71;">
-                    <p style="color: #2ecc71;"><i class="fa-solid fa-check-circle" style="color: #2ecc71;"></i> Native Ad-Free Secure Player. No popups or tracker layers allowed.</p>
-                </div>
-                    <p><i class="fa-solid fa-shield-halved"></i> Ad-Free Interface. Be aware that the third-party video host may still display popups inside the video player. We recommend using a browser ad-blocker like uBlock Origin for a 100% ad-free experience.</p>
+                <div class="player-warning" style="background: rgba(46, 204, 113, 0.1); border-left: 4px solid #2ecc71; margin-top: 1.5rem;">
+                    <p style="color: #2ecc71;"><i class="fa-solid fa-bolt" style="color: #2ecc71;"></i> BeeTV Architecture Enabled. Click a link above to launch the raw stream in your Fire TV's preferred External Player (VLC, MX Player).</p>
                 </div>
             </div>
         </div>
@@ -186,6 +185,6 @@
         </div>
     </footer>
 
-    <script type="module" src="js/app.js?v=14"></script>
+    <script type="module" src="js/app.js?v=28"></script>
 </body>
 </html>

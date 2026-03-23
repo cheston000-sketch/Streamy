@@ -10,6 +10,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Ghost Thread] Blocked rogue unhandled rejection:', reason?.message || reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[Ghost Thread] Blocked fatal crash:', err.message);
+});
+
 app.use(cors());
 app.use(express.static(path.join(__dirname, '../')));
 
@@ -26,29 +33,70 @@ app.get('/api/stream', async (req, res) => {
     }
 
     try {
-        console.log(`[Extractor] Hunting raw stream for: ${title} (${year})`);
+        console.log(`[Extractor] Hunting raw streams for: ${title} (${year})`);
         
         const media = (type === 'tv' || type === 'show') 
             ? { type: 'show', title, releaseYear: Number(year), tmdbId: tmdb, season: { number: Number(season) }, episode: { number: Number(episode) } }
             : { type: 'movie', title, releaseYear: Number(year), tmdbId: tmdb };
 
+        // To simulate BeeTV, we will run all providers and accumulate all streams
         const output = await providers.runAll({ media });
+        console.log("[Extractor] runAll RAW OUTPUT:", JSON.stringify(output, null, 2));
 
-        const streamUrl = output?.stream?.playlist || output?.stream?.url || output?.stream?.[0]?.url || output?.stream?.[0]?.playlistUrl;
+        let finalLinks = [];
         
-        if (streamUrl) {
-            console.log(`[Extractor] SUCCESS: ${streamUrl}`);
-            return res.json({ success: true, url: streamUrl });
+        if (output && output.stream) {
+            // Handle if stream is an array
+            const streamArray = Array.isArray(output.stream) ? output.stream : [output.stream];
+            
+            streamArray.forEach(streamObj => {
+                if (!streamObj) return;
+
+                // Single URL formats
+                if (streamObj.url) {
+                    finalLinks.push({ server: `${output.sourceId}`, url: streamObj.url, type: 'mp4' });
+                }
+                if (streamObj.playlistUrl) {
+                    finalLinks.push({ server: `${output.sourceId} (Auto)`, url: streamObj.playlistUrl, type: 'hls' });
+                }
+                if (streamObj.playlist) {
+                    finalLinks.push({ server: `${output.sourceId} (Auto)`, url: streamObj.playlist, type: 'hls' });
+                }
+                
+                // Multiple qualities inside a single stream object
+                if (streamObj.qualities) {
+                    for (let q in streamObj.qualities) {
+                        if (streamObj.qualities[q] && streamObj.qualities[q].url) {
+                            finalLinks.push({ server: `${output.sourceId} - ${q}`, url: streamObj.qualities[q].url, type: 'mp4' });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Deduplicate
+        finalLinks = finalLinks.filter((value, index, self) =>
+            index === self.findIndex((t) => (t.url === value.url))
+        );
+
+        // Inject Guaranteed Fallback Web Players if raw streams fail
+        if (finalLinks.length === 0) {
+            console.log(`[Extractor] ANTI-BOT BLOCKED EXTRACTOR. Deploying WebPlayer Fallbacks.`);
+            finalLinks.push({ server: 'VidLink (Ad-Free Web Player)', url: type === 'movie' ? `https://vidlink.pro/movie/${tmdb}` : `https://vidlink.pro/tv/${tmdb}/${season}/${episode}`, type: 'iframe' });
+            finalLinks.push({ server: 'SuperEmbed (Web Player)', url: type === 'movie' ? `https://multiembed.mov/?video_id=${tmdb}&tmdb=1` : `https://multiembed.mov/?video_id=${tmdb}&tmdb=1&s=${season}&e=${episode}`, type: 'iframe' });
+            finalLinks.push({ server: 'VidSrc (Secondary Proxy)', url: type === 'movie' ? `https://vidsrc.me/embed/movie?tmdb=${tmdb}` : `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`, type: 'iframe' });
+        }
+
+        if (finalLinks.length > 0) {
+            console.log(`[Extractor] SUCCESS: Found ${finalLinks.length} total streams / fallbacks.`);
+            return res.json({ success: true, links: finalLinks });
         } else {
-            console.log(`[Extractor] ANTI-BOT BLOCKED: Passing hybrid fallback directive to client.`);
-            const fallbackUrl = (type === 'tv' || type === 'show')
-                 ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season || 1}&episode=${episode || 1}`
-                 : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
-            return res.json({ success: false, fallbackIframe: fallbackUrl });
+            console.log(`[Extractor] ABSOLUTE FAILURE.`);
+            return res.json({ success: false, links: [] });
         }
     } catch (error) {
         console.error("[Extractor] Error:", error.message);
-        res.status(500).json({ error: "Extractor failed runtime" });
+        res.status(500).json({ error: "Extractor failed runtime", links: [] });
     }
 });
 

@@ -30,20 +30,26 @@ export function handleRoute() {
     }
 
     if (hash.startsWith('#search')) {
+        document.body.classList.remove('video-playing');
         if(DOM.searchView) DOM.searchView.classList.remove('hidden');
     } else if (hash.startsWith('#player')) {
+        document.body.classList.add('video-playing');
         if(DOM.playerView) DOM.playerView.classList.remove('hidden');
     } else if (hash === '#watchlist') {
+        document.body.classList.remove('video-playing');
         if(DOM.watchlistView) DOM.watchlistView.classList.remove('hidden');
         if(DOM.navWatchlist) DOM.navWatchlist.classList.add('active');
         globalThis.dispatchEvent(new Event('watchlist-updated'));
     } else if (hash === '#movies') {
+        document.body.classList.remove('video-playing');
         if(DOM.moviesView) DOM.moviesView.classList.remove('hidden');
         if(DOM.navMovies) DOM.navMovies.classList.add('active');
     } else if (hash === '#tv') {
+        document.body.classList.remove('video-playing');
         if(DOM.tvView) DOM.tvView.classList.remove('hidden');
         if(DOM.navTv) DOM.navTv.classList.add('active');
     } else {
+        document.body.classList.remove('video-playing');
         // default home
         if(DOM.homeView) DOM.homeView.classList.remove('hidden');
         if(DOM.navHome) DOM.navHome.classList.add('active');

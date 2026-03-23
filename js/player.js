@@ -1,14 +1,14 @@
 import { DOM, isInWatchlist, toggleWatchlist } from './ui.js?v=5';
 import { fetchTVSeasons } from './api.js?v=5';
 
-let currentServerIndex = 1; // Default to VidLink (ad-free) for the fallback!
+export let currentServerIndex = 0; // Default to VidSrc
 let currentPlayingItem = null;
 
-const SERVERS = [
-    { name: 'VidSrc (Primary)', getMovieUrl: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}&autoplay=false`, getTvUrl: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}&autoplay=false` },
-    { name: 'VidLink (Ad-Free)', getMovieUrl: (id) => `https://vidlink.pro/movie/${id}?autoplay=false`, getTvUrl: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=false` },
-    { name: 'SuperEmbed (Minimal Ads)', getMovieUrl: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1&autoplay=false`, getTvUrl: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&autoplay=false` },
-    { name: 'Embed.su (Backup)', getMovieUrl: (id) => `https://embed.su/embed/movie/${id}&autoplay=false`, getTvUrl: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}&autoplay=false` }
+export const SERVERS = [
+    { name: 'VidSrc (Primary)', getMovieUrl: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}`, getTvUrl: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
+    { name: 'VidLink (Ad-Free)', getMovieUrl: (id) => `https://vidlink.pro/movie/${id}`, getTvUrl: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}` },
+    { name: 'SuperEmbed (Minimal Ads)', getMovieUrl: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`, getTvUrl: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` },
+    { name: 'Embed.su (Backup)', getMovieUrl: (id) => `https://embed.su/embed/movie/${id}`, getTvUrl: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}` }
 ];
 
 export async function updateVideoSource() {
@@ -17,7 +17,7 @@ export async function updateVideoSource() {
     const title = currentPlayingItem.title || currentPlayingItem.name;
     const year = (currentPlayingItem.release_date || currentPlayingItem.first_air_date || '2026').substring(0,4);
     
-    let url = `/api/stream?tmdb=${currentPlayingItem.id}&type=${type}&title=${encodeURIComponent(title)}&year=${year}`;
+    let url = `http://${globalThis.location.hostname}:3000/api/stream?tmdb=${currentPlayingItem.id}&type=${type}&title=${encodeURIComponent(title)}&year=${year}`;
     let s = 1, e = 1;
     if (type === 'tv') {
         s = DOM.seasonSelect.value || 1;
@@ -27,24 +27,84 @@ export async function updateVideoSource() {
 
     const fallbackIframe = type === 'tv' ? SERVERS[currentServerIndex].getTvUrl(currentPlayingItem.id, s, e) : SERVERS[currentServerIndex].getMovieUrl(currentPlayingItem.id);
 
+    // Show loading state
+    DOM.videoPlayer.style.display = 'none';
+    let overlay = document.getElementById('iframe-activation-overlay') || document.createElement('div');
+    if (!overlay.id) {
+        overlay.id = 'iframe-activation-overlay';
+        overlay.style.position = 'absolute';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.background = 'rgba(0,0,0,0.85)';
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.zIndex = '999999';
+        DOM.iframeWrapper.appendChild(overlay);
+    }
+    overlay.innerHTML = `<h2 style="color:white;"><i class="fa-solid fa-spinner fa-spin"></i> Locating Stream Matrix...</h2>`;
+    overlay.style.display = 'flex';
+
+    // Strict Timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
     try {
-        const res = await fetch(url);
+        let apiUrl = `http://192.168.4.65:3000/api/stream?tmdb=${id}&type=${type}&title=${encodeURIComponent(DOM.playerTitle.textContent)}&year=2024`;
+        if (type === 'tv' || type === 'show') apiUrl += `&season=${season}&episode=${episode}`;
+
+        const res = await fetch(apiUrl);
         const data = await res.json();
         
-        if(data.success && data.url) {
-            playNativeVideo(data.url);
+        sourceList.innerHTML = ""; // Clear loader
+
+        if(data.success && data.links && data.links.length > 0) {
+            data.links.forEach((link, index) => {
+                const li = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.className = 'btn-primary';
+                btn.style.width = '100%';
+                btn.style.justifyContent = 'flex-start';
+                btn.style.padding = '1.2rem';
+                btn.style.fontSize = '1.1rem';
+                btn.innerHTML = `<i class="fa-solid fa-play"></i> Play Server ${index + 1} (${link.server})`;
+                
+                btn.onclick = () => {
+                    const mimeType = link.type === 'hls' ? 'application/x-mpegURL' : 'video/mp4';
+                    if (globalThis.__STREAMY_NATIVE__ && globalThis.StreamyPlayer) {
+                        // Pass directly to Android Native Intent Chooser
+                        globalThis.StreamyPlayer.playStream(link.url, mimeType, DOM.playerTitle.textContent);
+                    } else {
+                        alert("BeeTV Native Player Intent only works in the Fire TV App!");
+                        window.open(link.url, '_blank');
+                    }
+                };
+                
+                li.appendChild(btn);
+                sourceList.appendChild(li);
+            });
         } else {
-            console.warn("Backend extractor blocked by Cloudflare. Engaging hybrid Iframe fallback.");
-            playIframeFallback(fallbackIframe);
+            sourceList.innerHTML = '<li style="color:var(--red);"><i class="fa-solid fa-triangle-exclamation"></i> No raw streams found. Cloudflare blocked the extractor.</li>';
         }
-    } catch(err) {
-        console.error("Backend connection failed.", err);
-        playIframeFallback(fallbackIframe);
+    } catch (err) {
+        console.error("Stream extraction failed:", err);
+        sourceList.innerHTML = '<li style="color:var(--red);">Extraction Error: Ensure StreamOS server is running on 192.168.4.65:3000</li>';
     }
 }
 
 export function switchServer(index) {
     currentServerIndex = index;
+    updateVideoSource();
+}
+
+export function cycleServer() {
+    currentServerIndex = (currentServerIndex + 1) % SERVERS.length;
+    if (DOM.tvServerBtn) {
+        DOM.tvServerBtn.innerHTML = `<i class="fa-solid fa-server"></i> ${SERVERS[currentServerIndex].name.split(' ')[0].toUpperCase()}`;
+    }
     updateVideoSource();
 }
 
@@ -68,11 +128,67 @@ function playIframeFallback(iframeUrl) {
         iframe.setAttribute('allow', 'fullscreen; encrypted-media');
         DOM.iframeWrapper.appendChild(iframe);
     }
-    iframe.src = iframeUrl;
+    
+    let overlay = document.getElementById('iframe-activation-overlay');
+    // Clear the loading text and display the button
+    overlay.innerHTML = '';
+        
+    let startBtn = document.createElement('button');
+    startBtn.innerHTML = '<i class="fa-solid fa-play"></i> START STREAM (PRESS SELECT)';
+    startBtn.style.padding = '25px 40px';
+    startBtn.style.fontSize = '2rem';
+    startBtn.style.fontWeight = '800';
+    startBtn.style.background = '#8A2BE2';
+    startBtn.style.color = '#fff';
+    startBtn.style.border = '4px solid transparent';
+    startBtn.style.borderRadius = '12px';
+    startBtn.style.cursor = 'pointer';
+    startBtn.style.boxShadow = '0 10px 30px rgba(138,43,226,0.6)';
+    startBtn.tabIndex = 0; // Make D-Pad Focusable natively
+    
+    // Ensure visual focus
+    startBtn.addEventListener('focus', () => startBtn.style.border = '4px solid #fff');
+    startBtn.addEventListener('blur', () => startBtn.style.border = '4px solid transparent');
+    
+    let helpText = document.createElement('div');
+    helpText.innerText = "Click to authenticate TV hardware decoder";
+    helpText.style.color = '#aaa';
+    helpText.style.marginTop = '15px';
+    helpText.style.fontSize = '1.2rem';
+    
+    overlay.appendChild(startBtn);
+    overlay.appendChild(helpText);
+    
+    startBtn.onclick = () => {
+        iframe.src = overlay.getAttribute('data-src');
+        overlay.style.display = 'none';
+        if (DOM.tvFullscreenBtn) DOM.tvFullscreenBtn.focus();
+    };
+    
+    startBtn.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            startBtn.click();
+        }
+    });
+    
+    // Clear old src to prevent rogue autoplay ghosts if switching servers rapidly
+    iframe.removeAttribute('src'); 
+    
+    overlay.setAttribute('data-src', iframeUrl);
+    overlay.style.display = 'flex';
     iframe.style.display = 'block';
+    
+    // Auto-focus the overlay button for TV Remotes
+    setTimeout(() => {
+        let btn = overlay.querySelector('button');
+        if(btn) btn.focus();
+    }, 300);
 }
 
-function playNativeVideo(streamUrl) {
+function playNativeVideo(streamUrl, fallbackUrl) {
+    let overlay = document.getElementById('iframe-activation-overlay');
+    if (overlay) overlay.style.display = 'none';
     let iframe = document.getElementById('fallback-iframe');
     if (iframe) iframe.style.display = 'none';
     DOM.videoPlayer.style.display = 'block';
@@ -81,19 +197,80 @@ function playNativeVideo(streamUrl) {
     DOM.videoPlayer.muted = false;
     DOM.videoPlayer.volume = 1.0;
 
-    if (globalThis.Hls && Hls.isSupported()) {
+    // Auto-fallback system if the video track is missing (HEVC decoding failure on Android)
+    const handleVideoFallback = () => {
+        setTimeout(() => {
+            if (DOM.videoPlayer.videoWidth === 0 && fallbackUrl) {
+                console.warn("Hardware codec failure: Video track missing. Aborting and falling back to iframe.");
+                DOM.videoPlayer.pause();
+                DOM.videoPlayer.removeAttribute('src');
+                DOM.videoPlayer.load();
+                DOM.videoPlayer.style.display = 'none';
+                playIframeFallback(fallbackUrl);
+            }
+        }, 3000); // give it 3 seconds to decode the first keyframe
+    };
+
+    let nativeDecodeTimeout;
+    const clearNativeTimeout = () => clearTimeout(nativeDecodeTimeout);
+
+    DOM.videoPlayer.addEventListener('loadedmetadata', () => {
+        clearNativeTimeout();
+        DOM.videoPlayer.muted = false;
+        DOM.videoPlayer.volume = 1.0;
+        handleVideoFallback();
+    }, { once: true });
+
+    DOM.videoPlayer.addEventListener('error', function() {
+        clearNativeTimeout();
+        if (fallbackUrl) {
+            console.warn("Video thrown error. Falling back.");
+            playIframeFallback(fallbackUrl);
+        }
+    }, { once: true });
+    
+    // Strict 5.5 second timeout: If the video takes too long to even trigger metadata, abort and fallback.
+    nativeDecodeTimeout = setTimeout(() => {
+        console.warn("Native video decode stall detected. Forcing Iframe Fallback.");
+        if (fallbackUrl) playIframeFallback(fallbackUrl);
+    }, 5500);
+
+    const isM3U8 = streamUrl.includes('.m3u8');
+    const canPlayNativeHLS = DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl');
+
+    if (isM3U8 && !canPlayNativeHLS && globalThis.Hls && Hls.isSupported()) {
         const hls = new Hls();
         hls.loadSource(streamUrl);
         hls.attachMedia(DOM.videoPlayer);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-            DOM.videoPlayer.play();
+            DOM.videoPlayer.play().catch(e => console.warn(e));
         });
-    } else if (DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native support (Safari)
+        DOM.videoPlayer.addEventListener('playing', handleVideoFallback, { once: true });
+    } else {
+        // Raw MP4s or Native HLS Support
         DOM.videoPlayer.src = streamUrl;
-        DOM.videoPlayer.addEventListener('loadedmetadata', function() {
-            DOM.videoPlayer.play();
+        
+        let playAttempted = false;
+        DOM.videoPlayer.addEventListener('canplay', function() {
+            if (!playAttempted) {
+                playAttempted = true;
+                DOM.videoPlayer.play().catch(e => console.warn("Autoplay block:", e));
+            }
         });
+        
+        DOM.videoPlayer.addEventListener('loadedmetadata', function() {
+            DOM.videoPlayer.play().catch(e => console.warn("Autoplay block:", e));
+        });
+
+        DOM.videoPlayer.addEventListener('playing', handleVideoFallback, { once: true });
+        
+        // Also fallback instantly on error
+        DOM.videoPlayer.addEventListener('error', function() {
+            if (fallbackUrl) {
+                console.warn("Video thrown error. Falling back.");
+                playIframeFallback(fallbackUrl);
+            }
+        }, { once: true });
     }
 }
 
