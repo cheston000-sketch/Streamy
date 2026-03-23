@@ -1,0 +1,5 @@
+
+🚀 StreamOS Full-Stack Server Running!
+📂 App URI: http://localhost:3000
+📡 API URI: http://localhost:3000/api/stream
+

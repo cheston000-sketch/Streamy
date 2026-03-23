@@ -1,7 +1,10 @@
 services:
   - type: web
-    name: streamy
+    name: streamy-web
     runtime: node
     plan: free
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production

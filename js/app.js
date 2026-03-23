@@ -1,197 +1,378 @@
-import { DOM, createCard, updateHero, enableDragScroll } from './ui.js?v=6';
-import { fetchFromTMDB, discoverByCategory } from './api.js?v=5';
-import { openPlayer, switchServer, cycleServer } from './player.js?v=14';
-import { setupRouter, handleRoute, navigateTo } from './router.js?v=5';
+import { DOM, buildRow, renderGridItems, toggleWatchlist, enableDragScroll } from './ui.js?v=29';
+import { discoverByCategory, clearAPICache } from './api.js?v=29';
+import { openDetails } from './player.js?v=29';
+import { setupRouter, handleRoute, navigateTo } from './router.js?v=29';
 
-setupRouter();
+let activeProfile = null;
+let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-// Initial fetch for Home view
-const [trendingMovies, trendingTv] = await Promise.all([
-    fetchFromTMDB('/trending/movie/day'),
-    fetchFromTMDB('/trending/tv/day')
-]);
+const TV_NETWORKS = {
+    '213': 'Netflix',
+    '453': 'Hulu',
+    '1024': 'Amazon Prime',
+    '2552': 'Paramount+',
+    '3186': 'HBO Max',
+    '2739': 'Disney+'
+};
 
-if(trendingMovies.length > 0) {
-    updateHero(trendingMovies[0], openPlayer); 
-    DOM.trendingMoviesGrid.innerHTML = '';
-    trendingMovies.slice(1, 20).forEach(movie => {
-        DOM.trendingMoviesGrid.appendChild(createCard(movie, 'movie', openPlayer));
-    });
-}
+const MOVIE_GENRES = {
+    '28': 'Action',
+    '35': 'Comedy',
+    '18': 'Drama',
+    '27': 'Horror',
+    '878': 'Sci-Fi',
+    '10751': 'Family'
+};
 
-if(trendingTv.length > 0) {
-    DOM.trendingTvGrid.innerHTML = '';
-    trendingTv.slice(0, 20).forEach(tv => {
-        DOM.trendingTvGrid.appendChild(createCard(tv, 'tv', openPlayer));
-    });
-}
-
-// Inject Local Storage 'Continue Watching' row
-const historyRaw = globalThis.localStorage.getItem('streamy_history');
-if (historyRaw) {
-    try {
-        const historyList = JSON.parse(historyRaw);
-        if (historyList.length > 0 && !document.getElementById('history-section')) {
-            const historySection = document.createElement('section');
-            historySection.className = 'content-section';
-            historySection.id = 'history-section';
-            historySection.innerHTML = `<h2 class="section-title">Continue Watching <i class="fa-solid fa-clock-rotate-left" style="font-size:0.8em; margin-left:10px; color:var(--text-secondary);"></i></h2><div class="grid-container" id="history-grid"></div>`;
-            DOM.homeView.insertBefore(historySection, DOM.trendingMoviesSection);
-            const historyGrid = document.getElementById('history-grid');
-            historyList.slice(0, 20).forEach(item => {
-                historyGrid.appendChild(createCard(item, null, openPlayer));
-            });
-            enableDragScroll(historyGrid);
+function updateFilterDropdown(type) {
+    const filter = DOM.genreFilter;
+    if(type === 'movies') {
+        filter.innerHTML = '<option value="" style="background:#141414;">All Genres</option>';
+        for(let [id, name] of Object.entries(MOVIE_GENRES)) {
+             filter.innerHTML += `<option value="${id}" style="background:#141414;">${name}</option>`;
         }
-    } catch(e) { console.error("Error parsing history UI", e); }
-}
-
-enableDragScroll(DOM.trendingMoviesGrid);
-enableDragScroll(DOM.trendingTvGrid);
-
-// Initialize Catalogues & Infinite Scroll
-let currentMovieGenre = 'trending';
-let currentMoviePage = 1;
-let currentTvGenre = 'trending';
-let currentTvPage = 1;
-let isFetchingMovie = false;
-let isFetchingTv = false;
-
-const infiniteObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            infiniteObserver.unobserve(entry.target);
-            if (!DOM.moviesView.classList.contains('hidden')) {
-                currentMoviePage++;
-                loadCatalogue('movie', currentMovieGenre, DOM.moviesGrid, currentMoviePage);
-            } else if (!DOM.tvView.classList.contains('hidden')) {
-                currentTvPage++;
-                loadCatalogue('tv', currentTvGenre, DOM.tvGrid, currentTvPage);
-            }
+        filter.classList.remove('hidden');
+    } else if (type === 'tv') {
+        filter.innerHTML = '<option value="" style="background:#141414;">All Networks</option>';
+        filter.innerHTML += `<option value="16" style="background:#141414;">Animation</option>`;
+        for(let [id, name] of Object.entries(TV_NETWORKS)) {
+             filter.innerHTML += `<option value="network:${id}" style="background:#141414;">${name}</option>`;
         }
-    });
-}, { rootMargin: '600px' });
-
-async function loadCatalogue(type, genreId, gridElement, page = 1) {
-    if (type === 'movie' && isFetchingMovie) return;
-    if (type === 'tv' && isFetchingTv) return;
-
-    if (type === 'movie') isFetchingMovie = true;
-    else if (type === 'tv') isFetchingTv = true;
-    
-    if (page === 1) gridElement.innerHTML = '';
-    
-    const results = await discoverByCategory(type, genreId, page);
-    results.forEach(item => {
-        gridElement.appendChild(createCard(item, type, openPlayer));
-    });
-    
-    const lastCard = gridElement.lastElementChild;
-    if (lastCard) infiniteObserver.observe(lastCard);
-    
-    if (type === 'movie') isFetchingMovie = false;
-    else if (type === 'tv') isFetchingTv = false;
-}
-
-DOM.movieCategory.addEventListener('change', (e) => {
-    currentMovieGenre = e.target.value;
-    currentMoviePage = 1;
-    loadCatalogue('movie', currentMovieGenre, DOM.moviesGrid, currentMoviePage);
-});
-DOM.tvCategory.addEventListener('change', (e) => {
-    currentTvGenre = e.target.value;
-    currentTvPage = 1;
-    loadCatalogue('tv', currentTvGenre, DOM.tvGrid, currentTvPage);
-});
-
-// Initial load
-loadCatalogue('movie', currentMovieGenre, DOM.moviesGrid, 1);
-loadCatalogue('tv', currentTvGenre, DOM.tvGrid, 1);
-
-// Setup Watchlist Render Engine
-export function renderWatchlist() {
-    if(!DOM.watchlistGrid) return;
-    DOM.watchlistGrid.innerHTML = '';
-    const list = JSON.parse(globalThis.localStorage.getItem('streamy_watchlist') || '[]');
-    if(list.length === 0) {
-        DOM.watchlistGrid.innerHTML = '<p style="color:var(--text-secondary); grid-column:1/-1;">Your list is empty. Hover over movies and click the + icon to add them.</p>';
-        return;
+        filter.classList.remove('hidden');
+    } else {
+        filter.classList.add('hidden');
     }
-    list.forEach(item => {
-        DOM.watchlistGrid.appendChild(createCard(item, item.media_type, openPlayer));
-    });
 }
-globalThis.addEventListener('watchlist-updated', () => {
-    if (globalThis.location.hash === '#watchlist') renderWatchlist();
-});
 
-// Force route evaluation once DOM and content is ready
-handleRoute();
+// Profiles System
+function getProfiles() {
+    return JSON.parse(globalThis.localStorage.getItem('beetv_profiles') || '[]');
+}
+function saveProfiles(profiles) {
+    globalThis.localStorage.setItem('beetv_profiles', JSON.stringify(profiles));
+}
 
-// Global Nav Listeners
-DOM.navHome.addEventListener('click', (e) => { e.preventDefault(); navigateTo('#home'); });
-if(DOM.navMovies) DOM.navMovies.addEventListener('click', (e) => { e.preventDefault(); navigateTo('#movies'); });
-if(DOM.navTv) DOM.navTv.addEventListener('click', (e) => { e.preventDefault(); navigateTo('#tv'); });
-if(DOM.navWatchlist) DOM.navWatchlist.addEventListener('click', (e) => { e.preventDefault(); navigateTo('#watchlist'); });
-if(DOM.logoBtn) DOM.logoBtn.addEventListener('click', (e) => { e.preventDefault(); navigateTo('#home'); });
-if(DOM.backBtn) DOM.backBtn.addEventListener('click', () => { globalThis.history.back(); });
-if(DOM.tvServerBtn) DOM.tvServerBtn.addEventListener('click', cycleServer);
+function initProfiles() {
+    let profiles = getProfiles();
+    if (profiles.length === 0) {
+        profiles = [
+            { id: Date.now().toString(), name: 'Default', avatar: '1', primary: true, isKid: false }
+        ];
+        saveProfiles(profiles);
+    }
+    
+    const activeId = globalThis.localStorage.getItem('beetv_active_profile');
+    if (activeId) {
+        activeProfile = profiles.find(p => p.id === activeId);
+    }
+    if (!activeProfile) activeProfile = profiles[0];
+    
+    const activeIndex = profiles.findIndex(p => p.id === activeProfile.id);
+    renderProfilesScreen(profiles, activeIndex);
+    
+    document.getElementById('edit-profiles-btn').onclick = () => {
+        const grid = document.getElementById('profiles-grid');
+        const isEditing = grid.classList.toggle('edit-mode');
+        document.getElementById('edit-profiles-btn').innerHTML = isEditing ? '<i class="fa-solid fa-check"></i> Done Editing' : '<i class="fa-solid fa-pen"></i> Manage Profiles';
+        renderProfilesScreen(getProfiles(), -1, isEditing);
+    };
 
-// Debounce Utility
-function debounce(func, delay) {
-    let timeoutId;
-    return function (...args) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => func.apply(this, args), delay);
+    document.getElementById('add-profile-btn').onclick = () => openProfileModal(null);
+    DOM.settingManageProfiles.onclick = () => {
+        document.getElementById('profile-selection-screen').classList.remove('hidden');
+        document.getElementById('main-content').classList.add('hidden');
+        DOM.topBar.classList.add('hidden');
+        document.getElementById('edit-profiles-btn').click();
+    };
+
+    document.getElementById('cancel-profile-btn').onclick = () => {
+        document.getElementById('profile-edit-modal').classList.add('hidden');
     };
 }
 
-async function handleSearch(query) {
-    if(!query) return;
-
-    if (!globalThis.location.hash.startsWith('#search')) {
-        navigateTo(`#search?q=${encodeURIComponent(query)}`);
-    } else {
-        const newUrl = new URL(globalThis.location);
-        newUrl.hash = `#search?q=${encodeURIComponent(query)}`;
-        globalThis.history.replaceState(null, '', newUrl.toString());
-    }
-
-    DOM.searchResultsGrid.innerHTML = '<p>Searching...</p>';
+function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
+    const grid = document.getElementById('profiles-grid');
+    grid.innerHTML = '';
     
-    try {
-        const results = await fetchFromTMDB(`/search/multi?query=${encodeURIComponent(query)}`);
-        const filtered = results.filter(x => x.media_type === 'movie' || x.media_type === 'tv');
-
-        DOM.searchResultsGrid.innerHTML = '';
-        if(filtered.length === 0) {
-            DOM.searchResultsGrid.innerHTML = '<p>No results found.</p>';
-        } else {
-            filtered.forEach(item => DOM.searchResultsGrid.appendChild(createCard(item, null, openPlayer)));
-        }
-    } catch(err) {
-        DOM.searchResultsGrid.innerHTML = '<p>Error searching TMDB.</p>';
-    }
+    profiles.forEach((p, idx) => {
+        const card = document.createElement('button');
+        card.className = `profile-card ${isEditing ? 'edit-mode' : ''}`;
+        card.tabIndex = 0;
+        card.style.background = 'transparent'; card.style.border = 'none'; card.style.color = 'white';
+        
+        // Use basic fallback for avatar SVGs 
+        const svgContent = `<i class="fa-solid fa-user"></i>`;
+        
+        card.innerHTML = `
+            <div class="profile-avatar">${svgContent}${p.isKid ? '<span class="kid-badge">KIDS</span>' : ''}</div>
+            <div style="font-size: 1.5rem; font-weight: bold; text-shadow: 1px 1px 3px black;">${p.name}</div>
+        `;
+        
+        card.onclick = () => {
+            if (isEditing) { openProfileModal(p); }
+            else { selectProfile(p); }
+        };
+        card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+        grid.appendChild(card);
+        
+        if (focusIndex === idx) setTimeout(() => card.focus(), 100);
+    });
 }
 
-const debouncedSearch = debounce((e) => {
-    handleSearch(e.target.value.trim());
-}, 500);
+function openProfileModal(profile) {
+    const modal = document.getElementById('profile-edit-modal');
+    const title = document.getElementById('modal-profile-title');
+    const input = document.getElementById('profile-name-input');
+    const isKid = document.getElementById('profile-kid-checkbox');
+    const saveBtn = document.getElementById('save-profile-btn');
+    const delBtn = document.getElementById('delete-profile-btn');
+    
+    modal.dataset.editingId = profile ? profile.id : '';
+    title.textContent = profile ? 'Edit Profile' : 'Add Profile';
+    input.value = profile ? profile.name : '';
+    isKid.checked = profile ? !!profile.isKid : false;
+    
+    if (profile && !profile.primary) delBtn.classList.remove('hidden');
+    else delBtn.classList.add('hidden');
+    
+    // Simulate Avatar Selection Grid
+    document.getElementById('avatar-selection-grid').innerHTML = `
+        <button class="nav-tab active" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-user"></i></button>
+        <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-ghost"></i></button>
+        <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-robot"></i></button>
+    `;
 
-// Search Form
-DOM.searchForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    handleSearch(DOM.searchInput.value.trim());
-});
+    saveBtn.onclick = () => {
+        if (!input.value.trim()) return;
+        let profiles = getProfiles();
+        if (profile) {
+            const index = profiles.findIndex(x => x.id === profile.id);
+            if (index > -1) {
+                profiles[index].name = input.value.trim();
+                profiles[index].isKid = isKid.checked;
+            }
+        } else {
+            profiles.push({ id: Date.now().toString(), name: input.value.trim(), avatar: '1', isKid: isKid.checked });
+        }
+        saveProfiles(profiles);
+        modal.classList.add('hidden');
+        renderProfilesScreen(profiles, -1, true);
+    };
 
-DOM.searchInput.addEventListener('input', debouncedSearch);
+    delBtn.onclick = () => {
+        let profiles = getProfiles();
+        profiles = profiles.filter(x => x.id !== profile.id);
+        if (activeProfile && activeProfile.id === profile.id) activeProfile = profiles[0];
+        saveProfiles(profiles);
+        modal.classList.add('hidden');
+        renderProfilesScreen(profiles, -1, true);
+    };
 
-// Server buttons listener
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.server-btn');
-    if (btn) {
-        document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        switchServer(Number.parseInt(btn.dataset.server, 10));
-    }
-});
+    modal.classList.remove('hidden');
+    input.focus();
+}
+
+function selectProfile(profile) {
+    activeProfile = profile;
+    globalThis.localStorage.setItem('beetv_active_profile', profile.id);
+    document.getElementById('current-profile-name').textContent = profile.name;
+    document.getElementById('profile-selection-screen').classList.add('hidden');
+    document.getElementById('main-content').classList.remove('hidden');
+    DOM.topBar.classList.remove('hidden');
+    loadMovieRows();
+}
+
+// Data Fetching and Rows Array
+async function loadMovieRows() {
+    DOM.rowsContainer.innerHTML = '';
+    // Fetch History first
+    const histKey = 'beetv_history_' + (activeProfile ? activeProfile.id : 'default');
+    let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
+    if(hList.length > 0) buildRow('Continue Watching', hList, true, 'movie', true, null, openDetails, null);
+
+    const trending = await discoverByCategory('movie', 'trending', 1);
+    buildRow('Trending Now', trending, false, 'movie', hList.length === 0, 'trending', openDetails, openCategoryView);
+    
+    // Asynchronous loading
+    discoverByCategory('movie', '28', 1).then(action => {
+        buildRow('Action Blockbusters', action, false, 'movie', false, '28', openDetails, openCategoryView);
+    });
+    discoverByCategory('movie', '35', 1).then(comedy => {
+        buildRow('Comedy Gold', comedy, false, 'movie', false, '35', openDetails, openCategoryView);
+    });
+}
+
+async function loadTVRows() {
+    DOM.rowsContainer.innerHTML = '';
+    const trending = await discoverByCategory('tv', 'trending', 1);
+    buildRow('Trending Series', trending, false, 'tv', true, 'trending', openDetails, openCategoryView);
+    
+    discoverByCategory('tv', '18', 1).then(action => {
+        buildRow('Binge-Worthy Dramas', action, false, 'tv', false, '18', openDetails, openCategoryView);
+    });
+    discoverByCategory('tv', 'network:213', 1).then(comedy => {
+        buildRow('Netflix Originals', comedy, false, 'tv', false, 'network:213', openDetails, openCategoryView);
+    });
+}
+
+function loadWatchlist() {
+    DOM.rowsContainer.innerHTML = '';
+    const watchKey = 'beetv_watchlist_' + (activeProfile ? activeProfile.id : 'default');
+    let list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
+    if(list.length > 0) buildRow('My Watchlist', list, true, 'movie', true, 'watchlist', openDetails, null);
+    else DOM.rowsContainer.innerHTML = '<h2 style="padding: 100px; text-align:center; color:#555;">No Titles in Watchlist</h2>';
+}
+
+async function openCategoryView(title, val, typeFallback) {
+    currentFullCategory = { type: typeFallback, val: val, page: 1, title: title };
+    DOM.viewCategoryTitle.textContent = title;
+    DOM.categoryGrid.innerHTML = '<div style="color:#aaa;">Loading...</div>';
+    navigateTo('#category');
+    
+    let results = [];
+    if (val === 'trending') results = await discoverByCategory(typeFallback, 'trending', 1);
+    else results = await discoverByCategory(typeFallback, val, 1);
+    renderGridItems(results, DOM.categoryGrid, typeFallback, openDetails);
+    
+    DOM.categoryGrid.firstChild?.focus();
+}
+
+DOM.categoryLoadMore.onclick = async () => {
+    if (!currentFullCategory) return;
+    currentFullCategory.page++;
+    
+    let results = [];
+    if (currentFullCategory.val === 'trending') results = await discoverByCategory(currentFullCategory.type, 'trending', currentFullCategory.page);
+    else results = await discoverByCategory(currentFullCategory.type, currentFullCategory.val, currentFullCategory.page);
+    
+    // Append to grid naturally without losing focus
+    results.forEach(item => {
+        let parsed = { // minimal parse inline for simplicity
+             id: item.id || item.tmdbId,
+             type: currentFullCategory.type,
+             title: item.title || item.name,
+             year: String(item.release_date || item.first_air_date || item.year || "2024").split('-')[0],
+             poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+             backdrop: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
+             desc: item.overview,
+             rating: item.vote_average ? `${item.vote_average.toFixed(1)}/10 Match` : 'New'
+        };
+        if(!parsed.poster) return;
+        const card = document.createElement('div');
+        card.className = 'poster-card'; card.tabIndex = 0;
+        card.innerHTML = `<img loading="lazy" src="${parsed.poster}" alt="${parsed.title}">`;
+        card.onclick = () => openDetails(parsed);
+        card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+        DOM.categoryGrid.appendChild(card);
+    });
+};
+
+function initSearch() {
+    let timeoutId;
+    DOM.searchInput.addEventListener('input', (e) => {
+        clearTimeout(timeoutId);
+        const term = e.target.value.trim();
+        if (term.length < 3) {
+            DOM.searchGrid.innerHTML = '';
+            return;
+        }
+        timeoutId = setTimeout(async () => {
+            const res = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=a9b4a682953630df7df70fb2178528b8&query=${encodeURIComponent(term)}&page=1`);
+            const data = await res.json();
+            const valid = data.results.filter(r => r.media_type === 'movie' || r.media_type === 'tv');
+            renderGridItems(valid, DOM.searchGrid, 'movie', openDetails);
+        }, 500);
+    });
+}
+
+function setupDpadLogic() {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Backspace') {
+            globalThis.history.back();
+            e.preventDefault();
+        }
+        // Minimal browser spatial navigation wrapper over Tab
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Up','Down','Left','Right'].includes(e.key)) {
+            setTimeout(() => {
+                if (document.activeElement && typeof document.activeElement.scrollIntoView === 'function') {
+                    try { document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } catch(err) {}
+                }
+            }, 50);
+        }
+    });
+}
+
+function initApp() {
+    enableDragScroll(DOM.seasonTabs);
+    enableDragScroll(DOM.episodeList);
+    
+    initProfiles();
+    initSearch();
+    setupDpadLogic();
+    setupRouter();
+    
+    // Settings Binding
+    DOM.settingClearCache.onclick = async () => {
+        DOM.settingClearCache.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Purging...';
+        await clearAPICache();
+        setTimeout(() => DOM.settingClearCache.innerHTML = '<i class="fa-solid fa-check"></i> Purged Successfully', 800);
+    };
+
+    DOM.navTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+             const view = tab.getAttribute('data-view');
+             if(view === 'settings') DOM.settingsTab.click(); 
+             navigateTo(`#${view}`);
+        });
+        tab.addEventListener('keydown', (e) => { if(e.key==='Enter') tab.click(); });
+    });
+    
+    document.getElementById('switch-profile-tab').onclick = () => {
+        document.getElementById('profile-selection-screen').classList.remove('hidden');
+        document.getElementById('main-content').classList.add('hidden');
+        DOM.topBar.classList.add('hidden');
+        document.getElementById('profiles-grid').firstChild?.focus();
+    };
+    
+    // Bind dynamic filter drop-down
+    DOM.genreFilter.addEventListener('change', async (e) => {
+        const val = e.target.value;
+        DOM.rowsContainer.innerHTML = '<h2 style="color:#aaa;text-align:center;padding:100px;">Loading titles...</h2>'; // Fast clearer
+        const isTV = DOM.genreFilter.querySelector('option[value^="network:"]') !== null;
+        const type = isTV ? 'tv' : 'movie';
+        
+        if (!val) {
+            if(isTV) loadTVRows(); else loadMovieRows();
+            return;
+        }
+        
+        const [page1, page2] = await Promise.all([
+             discoverByCategory(type, val, 1),
+             discoverByCategory(type, val, 2)
+        ]);
+        const combined = [...page1, ...page2].slice(0, 33);
+        
+        const label = e.target.options[e.target.selectedIndex].text;
+        DOM.rowsContainer.innerHTML = '';
+        if(combined.length > 0) buildRow(`${label} - Top Picks`, combined.slice(0, 11), false, type, true, null, openDetails, null);
+        if(combined.length >= 12) buildRow(`${label} - Trending`, combined.slice(11, 22), false, type, false, null, openDetails, null);
+        if(combined.length >= 23) buildRow(`${label} - More Like This`, combined.slice(22, 33), false, type, false, val, openDetails, openCategoryView);
+    });
+    
+    globalThis.addEventListener('load-movie-rows', () => {
+        updateFilterDropdown('movies');
+        loadMovieRows();
+    });
+    globalThis.addEventListener('load-tv-rows', () => {
+        updateFilterDropdown('tv');
+        loadTVRows();
+    });
+    globalThis.addEventListener('load-watchlist-rows', () => {
+        updateFilterDropdown('watchlist');
+        loadWatchlist();
+    });
+    
+    // First paint happens inside initProfiles -> selectProfile
+}
+
+document.addEventListener('DOMContentLoaded', initApp);

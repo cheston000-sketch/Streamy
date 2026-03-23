@@ -1,172 +1,265 @@
-import { IMAGE_URL, BACKDROP_URL } from './api.js?v=4';
+import { IMAGE_URL, BACKDROP_URL } from './api.js?v=29';
 
 export const DOM = {
-    homeView: document.getElementById('home-view'),
-    searchView: document.getElementById('search-view'),
-    playerView: document.getElementById('player-view'),
-    moviesView: document.getElementById('movies-view'),
-    tvView: document.getElementById('tv-view'),
-    moviesGrid: document.getElementById('movies-grid'),
-    tvGrid: document.getElementById('tv-grid'),
-    movieCategory: document.getElementById('movie-category'),
-    tvCategory: document.getElementById('tv-category'),
-    trendingMoviesGrid: document.getElementById('trending-movies-grid'),
-    trendingTvGrid: document.getElementById('trending-tv-grid'),
-    searchResultsGrid: document.getElementById('search-results-grid'),
-    trendingMoviesSection: document.getElementById('trending-movies-section'),
-    trendingTvSection: document.getElementById('trending-tv-section'),
-    customFullscreenBtn: document.getElementById('custom-fullscreen-btn'),
-    iframeWrapper: document.querySelector('.iframe-wrapper'),
-    searchForm: document.getElementById('search-form'),
-    searchInput: document.getElementById('search-input'),
-    navHome: document.getElementById('nav-home'),
-    navMovies: document.getElementById('nav-movies'),
-    navTv: document.getElementById('nav-tv'),
-    navWatchlist: document.getElementById('nav-watchlist'),
-    watchlistView: document.getElementById('watchlist-view'),
-    watchlistGrid: document.getElementById('watchlist-grid'),
+    topBar: document.getElementById('top-bar'),
+    navTabs: document.querySelectorAll('.nav-tab[data-view]'),
+    genreFilter: document.getElementById('genre-filter'),
     
-    // Hero
-    heroSection: document.getElementById('hero-section'),
+    // Views
+    viewHome: document.getElementById('view-home'),
+    heroBanner: document.getElementById('hero-banner'),
     heroTitle: document.getElementById('hero-title'),
-    heroDesc: document.getElementById('hero-desc'),
     heroMeta: document.getElementById('hero-meta'),
-    heroWatchBtn: document.getElementById('hero-watch-btn'),
-
-    // Player
-    playerTitle: document.getElementById('player-title'),
-    videoPlayer: document.getElementById('video-player'),
+    heroDesc: document.getElementById('hero-desc'),
+    rowsContainer: document.getElementById('rows-container'),
+    
+    viewCategory: document.getElementById('view-category'),
+    viewCategoryTitle: document.getElementById('category-title'),
+    categoryGrid: document.getElementById('category-grid'),
+    categoryLoadMore: document.getElementById('category-load-more'),
+    
+    viewSearch: document.getElementById('view-search'),
+    searchInput: document.getElementById('search-input'),
+    searchBtn: document.getElementById('search-btn'),
+    searchGrid: document.getElementById('search-grid'),
+    
+    settingsTab: document.getElementById('settings-tab'),
+    viewSettings: document.getElementById('view-settings'),
+    settingClearCache: document.getElementById('setting-clear-cache'),
+    settingManageProfiles: document.getElementById('setting-manage-profiles'),
+    
+    viewDetails: document.getElementById('view-details'),
+    detBackdrop: document.getElementById('details-backdrop'),
+    detPoster: document.getElementById('details-poster'),
+    detTitle: document.getElementById('details-title'),
+    detMeta: document.getElementById('details-meta'),
+    detDesc: document.getElementById('details-desc'),
     tvControls: document.getElementById('tv-controls'),
-    episodeSelect: document.getElementById('episode-select'),
-    loadEpisodeBtn: document.getElementById('load-episode-btn'),
-    playerWatchlistBtn: document.getElementById('player-watchlist-btn'),
-    tvFullscreenBtn: document.getElementById('tv-fullscreen-btn'),
-    tvServerBtn: document.getElementById('tv-server-btn')
+    seasonTabs: document.getElementById('season-tabs'),
+    episodeList: document.getElementById('episode-list'),
+    playBtn: document.getElementById('play-btn'),
+    watchlistBtn: document.getElementById('watchlist-btn'),
+    
+    viewLinks: document.getElementById('view-links'),
+    linksTitle: document.getElementById('links-title'),
+    scraperStatus: document.getElementById('scraper-status'),
+    serverList: document.getElementById('server-list'),
+    
+    // Web Player
+    viewPlayer: document.getElementById('view-player'),
+    videoPlayer: document.getElementById('video-player'),
+    playerBackBtn: document.getElementById('player-back-btn'),
+    playerFullscreenBtn: document.getElementById('player-fullscreen-btn'),
+    playerServerCycleBtn: document.getElementById('player-server-cycle-btn'),
+    iframeWrapper: document.querySelector('.player-container')
 };
 
+export let cachedBackdrops = {};
+
+export function normalizeItem(item, typeFallback) {
+    let type = item.media_type || item.type || typeFallback;
+    let title = item.title || item.name;
+    let releaseStr = item.release_date || item.first_air_date || item.year || "";
+    let posterPath = item.poster_path ? `${IMAGE_URL}${item.poster_path}` : (item.poster || null);
+    let backdropPath = item.backdrop_path ? `${BACKDROP_URL}${item.backdrop_path}` : (item.backdrop || null);
+    let descText = item.overview || item.desc || "No comprehensive description natively available.";
+    let ratingText = item.vote_average ? `${item.vote_average.toFixed(1)} / 10 Match` : (item.rating || 'New');
+    
+    return {
+        id: item.id || item.tmdbId,
+        type: type,
+        title: title,
+        year: String(releaseStr).split('-')[0] || "2024",
+        poster: posterPath,
+        backdrop: backdropPath,
+        desc: descText,
+        rating: ratingText,
+        vote_average: item.vote_average
+    };
+}
+
+export function updateHeroBanner(movie) {
+    if (movie.backdrop && movie.backdrop !== 'none' && cachedBackdrops[movie.id] !== movie.backdrop) {
+        DOM.heroBanner.style.backgroundImage = `url('${movie.backdrop}')`;
+        cachedBackdrops[movie.id] = movie.backdrop;
+    }
+    DOM.heroTitle.textContent = movie.title;
+    DOM.heroDesc.textContent = movie.desc;
+    DOM.heroMeta.textContent = `${movie.year} • ${movie.type.toUpperCase()} • ${movie.rating}`;
+}
+
 export function enableDragScroll(slider) {
-    if(!slider) return;
     let isDown = false;
     let startX;
     let scrollLeft;
+    let isDragging = false;
+    let animationFrame;
 
-    slider.style.cursor = 'grab';
-    
     slider.addEventListener('mousedown', (e) => {
         isDown = true;
-        slider.style.cursor = 'grabbing';
-        slider.classList.add('drag-override');
+        isDragging = false;
+        slider.classList.add('drag-active');
         startX = e.pageX - slider.offsetLeft;
         scrollLeft = slider.scrollLeft;
+        cancelAnimationFrame(animationFrame);
     });
+
     slider.addEventListener('mouseleave', () => {
         isDown = false;
-        slider.style.cursor = 'grab';
-        slider.classList.remove('is-dragging');
-        slider.classList.remove('drag-override');
+        slider.classList.remove('drag-active');
+        slider.classList.remove('dragging');
+        cancelAnimationFrame(animationFrame);
     });
+
     slider.addEventListener('mouseup', () => {
         isDown = false;
-        slider.style.cursor = 'grab';
-        setTimeout(() => slider.classList.remove('is-dragging'), 50);
-        slider.classList.remove('drag-override');
+        slider.classList.remove('drag-active');
+        setTimeout(() => slider.classList.remove('dragging'), 50);
+        cancelAnimationFrame(animationFrame);
     });
+
     slider.addEventListener('mousemove', (e) => {
         if (!isDown) return;
         e.preventDefault();
         const x = e.pageX - slider.offsetLeft;
-        const walk = (x - startX) * 2;
-        if (Math.abs(walk) > 5) {
-            slider.classList.add('is-dragging');
+        const walk = (x - startX) * 2; 
+        
+        if (Math.abs(walk) > 10) {
+            isDragging = true;
+            slider.classList.add('dragging');
         }
-        slider.scrollLeft = scrollLeft - walk;
+        
+        cancelAnimationFrame(animationFrame);
+        animationFrame = requestAnimationFrame(() => {
+            slider.scrollLeft = scrollLeft - walk;
+        });
     });
-    slider.addEventListener('click', (e) => {
-        if (slider.classList.contains('is-dragging')) {
+    
+    slider.addEventListener('wheel', (e) => {
+        if (Math.abs(e.deltaX) === 0 && e.deltaY !== 0) {
             e.preventDefault();
-            e.stopPropagation();
+            try { 
+                slider.scrollBy({ left: e.deltaY > 0 ? 300 : -300, behavior: 'smooth' }); 
+            } catch(e) {}
         }
-    }, true);
+    }, {passive: false});
 }
 
+export function buildRow(title, items, isWatchlistDict, typeFallback, isFirstRow, categoryVal, onCardClick, onViewAllClick) {
+    if(!DOM.rowsContainer) return;
+    
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'content-row';
+    rowDiv.innerHTML = `<h2 class="row-header">${title}</h2>`;
+    
+    const slider = document.createElement('div');
+    slider.className = 'row-posters';
+    enableDragScroll(slider);
+    
+    items.forEach((item, index) => {
+        let parsed = isWatchlistDict ? item : normalizeItem(item, typeFallback);
+        if (!parsed.poster || parsed.poster === 'null') return;
+
+        const card = document.createElement('div');
+        card.className = 'poster-card';
+        card.tabIndex = 0;
+        
+        let progressHtml = ''; // Can implement later via localStorage progress
+        card.innerHTML = `<img loading="lazy" src="${parsed.poster}" alt="${parsed.title}" draggable="false">${progressHtml}`;
+        
+        card.addEventListener('focus', () => updateHeroBanner(parsed));
+        
+        // Mouse hover acts like D-Pad focus
+        card.addEventListener('mouseenter', () => {
+             card.focus();
+             updateHeroBanner(parsed);
+        });
+        
+        card.onclick = () => onCardClick(parsed);
+        card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+        
+        slider.appendChild(card);
+    });
+
+    if (categoryVal && categoryVal !== 'watchlist') {
+        const showAll = document.createElement('div');
+        showAll.className = 'poster-card show-all-card';
+        showAll.tabIndex = 0;
+        showAll.innerHTML = `<i class="fa-solid fa-arrow-right"></i><span>View All</span>`;
+        showAll.onclick = () => onViewAllClick(title, categoryVal, typeFallback);
+        showAll.onkeydown = (e) => { if(e.key === 'Enter') showAll.click(); };
+        slider.appendChild(showAll);
+    }
+
+    rowDiv.appendChild(slider);
+    DOM.rowsContainer.appendChild(rowDiv);
+}
+
+export function renderGridItems(items, container, typeFallback, onCardClick) {
+    container.innerHTML = '';
+    items.forEach(item => {
+        let parsed = normalizeItem(item, typeFallback);
+        if (!parsed.poster || parsed.poster === 'null') return;
+
+        const card = document.createElement('div');
+        card.className = 'poster-card';
+        card.tabIndex = 0;
+        
+        card.innerHTML = `<img loading="lazy" src="${parsed.poster}" alt="${parsed.title}" draggable="false">`;
+        
+        card.onclick = () => onCardClick(parsed);
+        card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+        container.appendChild(card);
+    });
+}
+
+// Watchlist Helpers
 export function isInWatchlist(id) {
-    const list = JSON.parse(globalThis.localStorage.getItem('streamy_watchlist') || '[]');
+    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
+    const watchKey = activeProfileRaw ? `beetv_watchlist_${activeProfileRaw}` : 'beetv_watchlist_default';
+    const list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
     return list.some(x => x.id === id);
 }
 
-export function toggleWatchlist(item, btnElement, isTextNode = false) {
-    let list = JSON.parse(globalThis.localStorage.getItem('streamy_watchlist') || '[]');
+export function toggleWatchlist(item, btnElement) {
+    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
+    const watchKey = activeProfileRaw ? `beetv_watchlist_${activeProfileRaw}` : 'beetv_watchlist_default';
+    let list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
     const index = list.findIndex(x => x.id === item.id);
     if (index > -1) {
         list.splice(index, 1);
         if(btnElement) {
-            btnElement.innerHTML = isTextNode ? '<i class="fa-solid fa-plus"></i> Add to List' : '<i class="fa-solid fa-plus"></i>';
-            btnElement.classList.remove('added');
+            btnElement.innerHTML = '<i class="fa-solid fa-plus"></i> WATCHLIST';
+            btnElement.style.color = "white";
+            btnElement.style.backgroundColor = 'rgba(109, 109, 110, 0.7)';
         }
     } else {
         list.push(item);
         if(btnElement) {
-            btnElement.innerHTML = isTextNode ? '<i class="fa-solid fa-check"></i> Added' : '<i class="fa-solid fa-check"></i>';
-            btnElement.classList.add('added');
+            btnElement.innerHTML = '<i class="fa-solid fa-check"></i> ON WATCHLIST';
+            btnElement.style.color = "black";
+            btnElement.style.backgroundColor = 'white';
         }
     }
-    globalThis.localStorage.setItem('streamy_watchlist', JSON.stringify(list));
+    globalThis.localStorage.setItem(watchKey, JSON.stringify(list));
     globalThis.dispatchEvent(new Event('watchlist-updated'));
 }
 
-export function updateHero(item, onWatchClick) {
-    if(!item) return;
-    const title = item.title || item.name;
-    const year = (item.release_date || item.first_air_date || '2026').substring(0,4);
-    DOM.heroTitle.innerText = title;
-    DOM.heroDesc.innerText = item.overview || "An exciting cinematic adventure.";
-    DOM.heroMeta.innerHTML = `
-        <span><i class="fa-solid fa-star"></i> ${item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}</span>
-        <span>${year}</span>
-        <span>${item.media_type === 'tv' ? 'TV Show' : 'Movie'}</span>
-    `;
-    DOM.heroSection.style.backgroundImage = `url(${BACKDROP_URL}${item.backdrop_path})`;
-    
-    DOM.heroWatchBtn.onclick = () => onWatchClick(item);
+export function getSeriesProgress(tmdbId) {
+    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
+    const key = `beetv_series_progress_${activeProfileRaw || 'default'}`;
+    const db = JSON.parse(localStorage.getItem(key) || '{}');
+    return db[tmdbId] || { last_season: 1, last_episode: 1, watched: [] };
 }
 
-export function createCard(item, typeOverride, onClick) {
-    const type = typeOverride || item.media_type || (item.name ? 'tv' : 'movie');
-    const title = item.title || item.name;
-    const year = (item.release_date || item.first_air_date || 'N/A').substring(0,4);
-    const poster = item.poster_path ? `${IMAGE_URL}${item.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image';
-    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.tabIndex = 0; // Essential for TV D-Pad Spatial Navigation
-    card.innerHTML = `
-        <img src="${poster}" alt="${title}" loading="lazy">
-        <div class="card-overlay">
-            <div class="play-button"><i class="fa-solid fa-play"></i></div>
-        </div>
-        <div class="card-content">
-            <h3 class="card-title">${title}</h3>
-            <div class="card-meta">
-                <span>${year}</span>
-                <span><i class="fa-solid fa-star" style="color: #F5C518;"></i> ${rating}</span>
-                <span>${type === 'tv' ? 'TV' : 'Movie'}</span>
-            </div>
-        </div>
-    `;
-
-    card.addEventListener('click', () => {
-        item.media_type = type;
-        onClick(item);
-    });
-    
-    card.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            item.media_type = type;
-            onClick(item);
-        }
-    });
-
-    return card;
+export function saveSeriesProgress(tmdbId, s, e) {
+    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
+    const key = `beetv_series_progress_${activeProfileRaw || 'default'}`;
+    const db = JSON.parse(localStorage.getItem(key) || '{}');
+    if (!db[tmdbId]) db[tmdbId] = { watched: [] };
+    db[tmdbId].last_season = parseInt(s);
+    db[tmdbId].last_episode = parseInt(e);
+    const epKey = `s${s}e${e}`;
+    if (!db[tmdbId].watched.includes(epKey)) db[tmdbId].watched.push(epKey);
+    localStorage.setItem(key, JSON.stringify(db));
 }

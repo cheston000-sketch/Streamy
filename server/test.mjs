@@ -1,0 +1,1 @@
+import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers'; const providers = makeProviders({ fetcher: makeStandardFetcher(fetch), target: targets.ANY }); console.log('Sources:', providers.listSources());
