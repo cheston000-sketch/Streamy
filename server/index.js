@@ -98,17 +98,34 @@ app.get('/api/stream', async (req, res) => {
     }
 });
 
-// OTA Update Endpoints
-app.get('/api/ota', (req, res) => {
-    res.json({
-        version: 30, // Tell it there's a V30 Update out there
-        url: `${req.protocol}://${req.get('host')}/api/ota/download`
-    });
+// ==========================================
+// OTA UPDATE SERVER (For Firestick App)
+// ==========================================
+const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
+
+app.get('/api/ota/check', (req, res) => {
+    // Read the current build.gradle version dynamically!
+    // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
+    const targetGradle = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build.gradle');
+    try {
+        const gradleContent = fs.readFileSync(targetGradle, 'utf8');
+        const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
+        if (vCodeMatch) {
+            return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
+        }
+    } catch(e) {}
+    res.json({ available: false });
 });
 
 app.get('/api/ota/download', (req, res) => {
-    const apkPath = path.join(__dirname, '../StreamOS.apk');
-    res.download(apkPath, 'Streamy.apk');
+    if (fs.existsSync(CLOUD_APK)) {
+        res.download(CLOUD_APK, 'StreamOS.apk');
+    } else if (fs.existsSync(LOCAL_APK)) {
+        res.download(LOCAL_APK, 'StreamOS.apk');
+    } else {
+        res.status(404).send("APK sequence entirely absent from Cloud Node.");
+    }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
