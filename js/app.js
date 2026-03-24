@@ -6,6 +6,39 @@ import { setupRouter, handleRoute, navigateTo } from './router.js?v=29';
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
+const APP_VERSION = 29;
+
+async function checkForUpdatesBackground() {
+    try {
+        const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
+        const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.version && APP_VERSION < data.version) {
+            showUpdateBanner(data.version, data.url);
+        }
+    } catch(e) { }
+}
+
+function showUpdateBanner(newVersionKey, downloadUrl) {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed; top:20px; right:20px; background:#e50914; color:white; padding:15px; border-radius:8px; z-index:999999; display:flex; align-items:center; gap:15px; box-shadow:0 4px 15px rgba{0,0,0,0.5}; font-weight:bold; cursor:pointer; font-size:18px; border:2px solid white;';
+    banner.tabIndex = 0;
+    const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
+    banner.innerHTML = `<i class="fa-solid fa-download" style="font-size:24px;"></i> <div>Streamy Update Available!<br><span style="font-size:12px;font-weight:normal;">Click to install v${newVersionKey}.0</span></div>`;
+    banner.onclick = () => {
+        localStorage.setItem('beetv_build_version', newVersionKey);
+        if(window.NativeBridge && window.NativeBridge.downloadUpdate) {
+            window.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
+        } else {
+            window.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
+        }
+        banner.remove();
+    };
+    banner.onkeydown = (e) => { if(e.key === 'Enter') banner.click(); };
+    document.body.appendChild(banner);
+}
+
 const TV_NETWORKS = {
     '213': 'Netflix',
     '453': 'Hulu',
@@ -33,10 +66,24 @@ function updateFilterDropdown(type) {
         }
         filter.classList.remove('hidden');
     } else if (type === 'tv') {
-        filter.innerHTML = '<option value="" style="background:#141414;">All Networks</option>';
-        filter.innerHTML += `<option value="16" style="background:#141414;">Animation</option>`;
-        for(let [id, name] of Object.entries(TV_NETWORKS)) {
-             filter.innerHTML += `<option value="network:${id}" style="background:#141414;">${name}</option>`;
+        if (activeProfile && activeProfile.isKid) {
+            filter.innerHTML = `
+                <option value="" style="background:#141414;">All Kids Shows</option>
+                <optgroup label="Kids Networks" style="background:#141414; color:#aaa;">
+                    <option value="company:165435" style="background:#141414; color:#d4af37;">Angel Studios Kids</option>
+                    <option value="company:73756" style="background:#141414; color:#28b24b;">PBS Kids</option>
+                    <option value="network:2739|84|1220" style="background:#141414; color:white;">Disney Channel</option>
+                    <option value="network:247" style="background:#141414; color:white;">YouTube Kids</option>
+                    <option value="network:13|35" style="background:#141414; color:white;">Nick Jr.</option>
+                    <option value="network:156|361" style="background:#141414; color:white;">Cartoon Network</option>
+                </optgroup>
+            `;
+        } else {
+            filter.innerHTML = '<option value="" style="background:#141414;">All Networks</option>';
+            filter.innerHTML += `<option value="16" style="background:#141414;">Animation</option>`;
+            for(let [id, name] of Object.entries(TV_NETWORKS)) {
+                 filter.innerHTML += `<option value="network:${id}" style="background:#141414;">${name}</option>`;
+            }
         }
         filter.classList.remove('hidden');
     } else {
@@ -88,6 +135,9 @@ function initProfiles() {
     document.getElementById('cancel-profile-btn').onclick = () => {
         document.getElementById('profile-edit-modal').classList.add('hidden');
     };
+
+    document.getElementById('setting-build-version').innerText = APP_VERSION + ".0";
+    checkForUpdatesBackground();
 }
 
 function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
@@ -172,6 +222,8 @@ function openProfileModal(profile) {
     input.focus();
 }
 
+// Removed redundant fetchTMDB function
+
 function selectProfile(profile) {
     activeProfile = profile;
     globalThis.localStorage.setItem('beetv_active_profile', profile.id);
@@ -179,6 +231,11 @@ function selectProfile(profile) {
     document.getElementById('profile-selection-screen').classList.add('hidden');
     document.getElementById('main-content').classList.remove('hidden');
     DOM.topBar.classList.remove('hidden');
+    
+    // We explicitly re-enable the genre-filter for Kids so they can access Angel Studios and Animation networks!
+    document.getElementById('genre-filter').classList.remove('hidden');
+    document.getElementById('genre-filter').value = '';
+    
     loadMovieRows();
 }
 
@@ -312,11 +369,37 @@ function initApp() {
     setupRouter();
     
     // Settings Binding
-    DOM.settingClearCache.onclick = async () => {
-        DOM.settingClearCache.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Purging...';
-        await clearAPICache();
-        setTimeout(() => DOM.settingClearCache.innerHTML = '<i class="fa-solid fa-check"></i> Purged Successfully', 800);
-    };
+    const settingClearCache = document.getElementById('setting-clear-cache');
+    if (settingClearCache) {
+        settingClearCache.onclick = async () => {
+            settingClearCache.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Purging...';
+            window.indexedDB.deleteDatabase('StreamOS_CacheDB');
+            setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-check"></i> Purged Successfully', 800);
+            setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-database"></i> Purge API Cache', 2500);
+        };
+    }
+    
+    const settingCheckUpdate = document.getElementById('setting-check-update');
+    if (settingCheckUpdate) {
+        settingCheckUpdate.onclick = async () => {
+            settingCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+            try {
+                const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
+                const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                if (data.version && APP_VERSION < data.version) {
+                    showUpdateBanner(data.version, data.url);
+                    settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> Update Found!';
+                } else {
+                    settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> You are up to date';
+                }
+            } catch(e) {
+                settingCheckUpdate.innerHTML = '<i class="fa-solid fa-xmark"></i> Server Unreachable';
+            }
+            setTimeout(() => settingCheckUpdate.innerHTML = '<i class="fa-solid fa-download"></i> Check for Updates', 3000);
+        };
+    }
 
     DOM.navTabs.forEach(tab => {
         tab.addEventListener('click', () => {

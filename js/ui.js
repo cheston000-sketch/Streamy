@@ -178,6 +178,10 @@ export function buildRow(title, items, isWatchlistDict, typeFallback, isFirstRow
         card.onclick = () => onCardClick(parsed);
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
         
+        if (isFirstRow && index === 0) {
+            setTimeout(() => card.focus(), 300);
+        }
+        
         slider.appendChild(card);
     });
 

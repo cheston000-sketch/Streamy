@@ -56,12 +56,21 @@ export async function clearAPICache() {
 }
 
 export async function fetchFromTMDB(endpoint) {
-    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
+    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
     if (activeProfileRaw) {
         try {
-            const profile = JSON.parse(activeProfileRaw);
-            if (profile.isKid) {
-                endpoint += (endpoint.includes('?') ? '&' : '?') + 'with_genres=10751,16';
+            const profilesRaw = globalThis.localStorage.getItem('beetv_profiles');
+            const profiles = JSON.parse(profilesRaw || '[]');
+            const profile = profiles.find(p => p.id === activeProfileRaw);
+
+            if (profile && profile.isKid) {
+                if (endpoint.includes('/movie') || endpoint.includes('movie')) {
+                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG';
+                } else if (endpoint.includes('/tv') || endpoint.includes('tv')) {
+                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=TV-PG';
+                } else {
+                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG';
+                }
             }
         } catch(e) {}
     }
@@ -92,13 +101,17 @@ export async function fetchFromTMDB(endpoint) {
 
 export async function discoverByCategory(type, payload, page = 1) {
     if (payload === 'trending') return await fetchFromTMDB(`/trending/${type}/day?page=${page}`);
-    if (payload.startsWith('company-')) {
-        const companyId = payload.split('-')[1];
+    if (payload.startsWith('company:')) {
+        const companyId = payload.split(':')[1];
         return await fetchFromTMDB(`/discover/${type}?with_companies=${companyId}&page=${page}`);
     }
     if (payload.startsWith('network:')) {
         const networkId = payload.split(':')[1];
         return await fetchFromTMDB(`/discover/${type}?with_networks=${networkId}&page=${page}`);
+    }
+    // Assume genre or explicit parameter list fallback
+    if (payload.includes('=')) {
+        return await fetchFromTMDB(`/discover/${type}?${payload}&page=${page}`);
     }
     return await fetchFromTMDB(`/discover/${type}?with_genres=${payload}&page=${page}`);
 }

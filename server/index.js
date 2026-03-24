@@ -1,3 +1,4 @@
+```
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -40,7 +41,10 @@ app.get('/api/stream', async (req, res) => {
             : { type: 'movie', title, releaseYear: Number(year), tmdbId: tmdb };
 
         // To simulate BeeTV, we will run all providers and accumulate all streams
-        const output = await providers.runAll({ media });
+        const output = await Promise.race([
+            providers.runAll({ media }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Headless Scraper Timeout Hit')), 12000))
+        ]);
         console.log("[Extractor] runAll RAW OUTPUT:", JSON.stringify(output, null, 2));
 
         let finalLinks = [];
@@ -79,13 +83,7 @@ app.get('/api/stream', async (req, res) => {
             index === self.findIndex((t) => (t.url === value.url))
         );
 
-        // Inject Guaranteed Fallback Web Players if raw streams fail
-        if (finalLinks.length === 0) {
-            console.log(`[Extractor] ANTI-BOT BLOCKED EXTRACTOR. Deploying WebPlayer Fallbacks.`);
-            finalLinks.push({ server: 'VidLink (Ad-Free Web Player)', url: type === 'movie' ? `https://vidlink.pro/movie/${tmdb}` : `https://vidlink.pro/tv/${tmdb}/${season}/${episode}`, type: 'iframe' });
-            finalLinks.push({ server: 'SuperEmbed (Web Player)', url: type === 'movie' ? `https://multiembed.mov/?video_id=${tmdb}&tmdb=1` : `https://multiembed.mov/?video_id=${tmdb}&tmdb=1&s=${season}&e=${episode}`, type: 'iframe' });
-            finalLinks.push({ server: 'VidSrc (Secondary Proxy)', url: type === 'movie' ? `https://vidsrc.me/embed/movie?tmdb=${tmdb}` : `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`, type: 'iframe' });
-        }
+        // Removed blind WebPlayer Fallbacks to ensure Auto-Play exclusively triggers for strictly verified .m3u8 extraction payloads natively
 
         if (finalLinks.length > 0) {
             console.log(`[Extractor] SUCCESS: Found ${finalLinks.length} total streams / fallbacks.`);
@@ -100,7 +98,20 @@ app.get('/api/stream', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+// OTA Update Endpoints
+app.get('/api/ota', (req, res) => {
+    res.json({
+        version: 30, // Tell it there's a V30 Update out there
+        url: `${req.protocol}://${req.get('host')}/api/ota/download`
+    });
+});
+
+app.get('/api/ota/download', (req, res) => {
+    const apkPath = path.join(__dirname, '../StreamOS.apk');
+    res.download(apkPath, 'Streamy.apk');
+});
+
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 StreamOS Full-Stack Server Running!`);
     console.log(`📂 App URI: http://localhost:${PORT}`);
     console.log(`📡 API URI: http://localhost:${PORT}/api/stream\n`);
