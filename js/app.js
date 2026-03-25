@@ -136,7 +136,9 @@ function initProfiles() {
         document.getElementById('profile-edit-modal').classList.add('hidden');
     };
 
-    document.getElementById('setting-build-version').innerText = APP_VERSION + ".0";
+    const versionEl = document.getElementById('setting-build-version');
+    if (versionEl) versionEl.innerText = APP_VERSION + ".0";
+    
     checkForUpdatesBackground();
 }
 
