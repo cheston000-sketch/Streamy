@@ -1,5 +1,5 @@
 export function setupRouter() {
-    globalThis.addEventListener('hashchange', handleRoute);
+    globalThis.addEventListener('hashchange', () => handleRoute());
 }
 
 export function navigateTo(hash) {
