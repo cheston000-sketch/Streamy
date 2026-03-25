@@ -3,7 +3,11 @@ export function setupRouter() {
 }
 
 export function navigateTo(hash) {
-    globalThis.location.hash = hash;
+    if (globalThis.location.hash === hash) {
+        handleRoute();
+    } else {
+        globalThis.location.hash = hash;
+    }
 }
 
 export function handleRoute() {
