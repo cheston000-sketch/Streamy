@@ -99,6 +99,41 @@ app.get('/api/stream', async (req, res) => {
 });
 
 // ==========================================
+// MUSIC PROXIES (Streamex & Deezer)
+// ==========================================
+app.use('/api/streamex', async (req, res) => {
+    const streamexPath = req.url.replace(/^\//, '');
+    const targetUrl = `https://streamex.sh/api/music/${streamexPath}`;
+    
+    try {
+        const response = await fetch(targetUrl, {
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://streamex.sh/music',
+                'Accept': 'application/json'
+            }
+        });
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.use('/api/deezer', async (req, res) => {
+    const deezerPath = req.url.replace(/^\//, '');
+    const targetUrl = `https://api.deezer.com/${deezerPath}`;
+    
+    try {
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
 const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');

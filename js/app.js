@@ -1,7 +1,8 @@
-import { DOM, buildRow, renderGridItems, toggleWatchlist, enableDragScroll } from './ui.js?v=29';
-import { discoverByCategory, clearAPICache } from './api.js?v=29';
+import { DOM, buildRow, renderGridItems, enableDragScroll, renderMusicView } from './ui.js?v=29';
+import { discoverByCategory } from './api.js?v=29';
 import { openDetails } from './player.js?v=29';
-import { setupRouter, handleRoute, navigateTo } from './router.js?v=29';
+import { setupRouter, navigateTo } from './router.js?v=29';
+import { initMusic } from './music.js';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -86,6 +87,8 @@ function updateFilterDropdown(type) {
             }
         }
         filter.classList.remove('hidden');
+    } else if (type === 'music') {
+        filter.classList.add('hidden');
     } else {
         filter.classList.add('hidden');
     }
@@ -367,6 +370,7 @@ function initApp() {
     
     initProfiles();
     initSearch();
+    initMusic();
     setupDpadLogic();
     setupRouter();
     
@@ -455,6 +459,11 @@ function initApp() {
     globalThis.addEventListener('load-watchlist-rows', () => {
         updateFilterDropdown('watchlist');
         loadWatchlist();
+    });
+    
+    globalThis.addEventListener('load-music-view', (e) => {
+        updateFilterDropdown('music');
+        renderMusicView(e.detail?.query || '');
     });
     
     // First paint happens inside initProfiles -> selectProfile

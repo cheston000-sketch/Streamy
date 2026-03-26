@@ -25,6 +25,7 @@
         <nav class="nav-tabs">
             <a href="#movies" class="nav-tab active" data-view="movies" tabindex="0">Movies</a>
             <a href="#tv" class="nav-tab" data-view="tv" tabindex="0">TV Shows</a>
+            <a href="#music" class="nav-tab" data-view="music" tabindex="0">Music</a>
             <a href="#watchlist" class="nav-tab" data-view="watchlist" tabindex="0"><i class="fa-solid fa-bookmark"></i> Watchlist</a>
             <a href="#search" class="nav-tab" data-view="search" tabindex="0"><i class="fa-solid fa-magnifying-glass"></i> Search</a>
             <a href="/api/ota/download" target="_blank" tabindex="0" style="color: #141414; background: #46d369; padding: 5px 15px; border-radius: 4px; font-weight: bold; text-decoration: none; display: flex; align-items: center; gap: 8px;"><i class="fa-brands fa-android"></i> Get App</a>
@@ -106,6 +107,30 @@
             <!-- DYNAMIC CATEGORY ROWS -->
             <div id="rows-container"></div>
             
+        </div>
+
+        <!-- MUSIC VIEW -->
+        <div id="view-music" class="view hidden" style="padding-top: 100px;">
+            <!-- HERO BANNER (REUSED FROM HOME OR SPECIFIC TO MUSIC) -->
+            <div id="music-hero-banner" class="hero-banner" style="height: 50vh; background-image: url('https://images.unsplash.com/photo-1493225457124-a1a2a5f5646a?q=80&w=2070&auto=format&fit=crop');">
+                <div class="hero-vignette"></div>
+                <div class="hero-content" style="display: block !important;">
+                    <h1 id="music-hero-title">Your Music Universe</h1>
+                    <p id="music-hero-desc">Discover lossless audio, curated charts, and your personal playlists natively.</p>
+                </div>
+            </div>
+
+            <!-- MUSIC SEARCH -->
+            <div style="padding: 0 40px; margin-top: -60px; position: relative; z-index: 30; display: flex; gap: 15px; align-items: center;">
+                <div style="position: relative; flex: 1; max-width: 600px;">
+                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: #888;"></i>
+                    <input type="text" id="music-search-input" placeholder="Search for songs, artists, or albums..." tabindex="0" style="width: 100%; padding: 15px 15px 15px 50px; font-size: 1.2rem; background: rgba(0,0,0,0.8); border: 1px solid #444; color: white; border-radius: 8px; outline: none;">
+                </div>
+                <button id="add-music-category-btn" class="nav-tab" tabindex="0" style="background: rgba(255,255,255,0.1); border: 1px solid #444;"><i class="fa-solid fa-plus"></i> Add Category</button>
+            </div>
+
+            <!-- DYNAMIC MUSIC ROWS -->
+            <div id="music-rows-container" style="margin-top: 20px; padding-bottom: 120px;"></div>
         </div>
 
         <!-- SEARCH VIEW -->
@@ -192,6 +217,40 @@
             </div>
         </div>
     </main>
+
+    <!-- MUSIC PLAYER BAR (PERSISTENT) -->
+    <div id="music-player-bar" class="hidden">
+        <div class="player-bar-content">
+            <div class="track-info">
+                <img id="player-bar-cover" src="" alt="Cover">
+                <div class="text-info">
+                    <span id="player-bar-title">Song Title</span>
+                    <span id="player-bar-artist">Artist Name</span>
+                </div>
+            </div>
+            <div class="player-controls">
+                <audio id="native-audio-player" preload="auto">
+                    <source id="native-audio-source" src="" type="audio/mpeg">
+                </audio>
+                <div class="control-btns">
+                    <button id="player-prev-btn" class="ctrl-btn" tabindex="0"><i class="fa-solid fa-backward-step"></i></button>
+                    <button id="player-toggle-btn" class="ctrl-btn play-pause" tabindex="0"><i class="fa-solid fa-play"></i></button>
+                    <button id="player-next-btn" class="ctrl-btn" tabindex="0"><i class="fa-solid fa-forward-step"></i></button>
+                </div>
+                <div class="progress-container">
+                    <span id="player-current-time">0:00</span>
+                    <div id="player-progress-bg" class="progress-bar-bg" tabindex="0">
+                        <div id="player-progress-fill" class="progress-bar-fill"></div>
+                    </div>
+                    <span id="player-duration">0:00</span>
+                </div>
+            </div>
+            <div class="extra-controls">
+                <button id="player-playlist-add-btn" class="ctrl-btn" tabindex="0" title="Add to Playlist"><i class="fa-solid fa-plus"></i></button>
+                <button id="player-close-btn" class="ctrl-btn" tabindex="0" title="Close Player"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="js/app.js?v=33"></script>
 </body>

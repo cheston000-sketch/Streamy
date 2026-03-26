@@ -218,6 +218,48 @@ body {
 /* Web Player Tweaks */
 #view-player video { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
 
+/* MUSIC PLAYER BAR */
+#music-player-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 100px; background: rgba(20, 20, 20, 0.95);
+    backdrop-filter: blur(15px); border-top: 1px solid rgba(255,255,255,0.1);
+    z-index: 5000; display: flex; align-items: center; padding: 0 40px;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+    transition: transform 0.3s ease;
+}
+
+#music-player-bar.hidden { transform: translateY(110px); display: flex !important; pointer-events: none; }
+
+.player-bar-content { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 30px; }
+
+.track-info { display: flex; align-items: center; gap: 20px; width: 300px; flex-shrink: 0; }
+#player-bar-cover { width: 70px; height: 70px; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+.text-info { display: flex; flex-direction: column; overflow: hidden; }
+#player-bar-title { color: white; font-weight: 900; font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#player-bar-artist { color: var(--text-secondary); font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.player-controls { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 800px; }
+.control-btns { display: flex; align-items: center; gap: 25px; }
+.ctrl-btn { background: transparent; border: none; color: white; font-size: 1.5rem; cursor: pointer; outline: none; transition: 0.2s; opacity: 0.8; }
+.ctrl-btn:hover, .ctrl-btn:focus { opacity: 1; transform: scale(1.2); color: var(--primary); }
+.ctrl-btn.play-pause { font-size: 2.5rem; }
+
+.progress-container { display: flex; align-items: center; gap: 15px; width: 100%; color: var(--text-secondary); font-size: 0.9rem; font-weight: bold; }
+.progress-bar-bg { flex: 1; height: 6px; background: #444; border-radius: 3px; position: relative; cursor: pointer; outline: none; }
+.progress-bar-bg:focus { box-shadow: 0 0 0 3px white; }
+.progress-bar-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--primary); border-radius: 3px; width: 0%; }
+
+.extra-controls { display: flex; gap: 20px; width: 300px; justify-content: flex-end; }
+
+/* MUSIC CARDS (1:1 Aspect Ratio) */
+.music-card {
+    flex: 0 0 200px; height: 200px;
+}
+
+.music-card:focus, .music-card:hover {
+    transform: scale(1.1); box-shadow: 0 0 0 4px var(--primary);
+}
+
 /* Drag Scroll Overrides */
 .row-posters.drag-active, #season-tabs.drag-active, #episode-list.drag-active { scroll-behavior: auto !important; cursor: grabbing !important; }
 .row-posters.dragging .poster-card, .row-posters.dragging .show-all-card, #season-tabs.dragging .nav-tab, #episode-list.dragging .episode-card { pointer-events: none !important; }

@@ -125,3 +125,28 @@ export async function fetchTVEpisodeList(tvId, seasonNum) {
     const data = await fetchFromTMDB(`/tv/${tvId}/season/${seasonNum}`);
     return data.episodes || [];
 }
+
+// MUSIC API (PROXIED)
+export async function fetchMusicFromProxy(endpoint) {
+    try {
+        const res = await fetch(`http://localhost:3000/api${endpoint}`);
+        const data = await res.json();
+        return data;
+    } catch (e) {
+        console.error("Music Proxy error:", e);
+        return { data: [], status: "error" };
+    }
+}
+
+export async function searchMusic(query) {
+    return await fetchMusicFromProxy(`/streamex/search?s=${encodeURIComponent(query)}&limit=20`);
+}
+
+export async function fetchMusicChart(id, type = 'chart') {
+    const endpoint = (type === 'playlist' || (id && id.length > 5)) ? `/deezer/playlist/${id}/tracks` : `/deezer/chart/${id}/tracks`;
+    return await fetchMusicFromProxy(`${endpoint}?limit=20`);
+}
+
+export async function fetchMusicManifest(trackId) {
+    return await fetchMusicFromProxy(`/streamex/track?id=${trackId}&quality=LOSSLESS`);
+}

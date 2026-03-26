@@ -51,24 +51,43 @@ export const DOM = {
     playerBackBtn: document.getElementById('player-back-btn'),
     playerFullscreenBtn: document.getElementById('player-fullscreen-btn'),
     playerServerCycleBtn: document.getElementById('player-server-cycle-btn'),
-    iframeWrapper: document.querySelector('.player-container')
+    iframeWrapper: document.querySelector('.player-container'),
+
+    // Music
+    viewMusic: document.getElementById('view-music'),
+    musicRowsContainer: document.getElementById('music-rows-container'),
+    musicSearchInput: document.getElementById('music-search-input'),
+    addMusicCategoryBtn: document.getElementById('add-music-category-btn')
 };
 
 export let cachedBackdrops = {};
-
 export function normalizeItem(item, typeFallback) {
     let type = item.media_type || item.type || typeFallback;
+    let isMusic = type === 'music' || type === 'deezer' || type === 'track';
     let title = item.title || item.name;
+    let artist = item.artist?.name || item.artistName || item.artist || "";
     let releaseStr = item.release_date || item.first_air_date || item.year || "";
+    
     let posterPath = item.poster_path ? `${IMAGE_URL}${item.poster_path}` : (item.poster || null);
+    if (isMusic && !posterPath) {
+        // Use the Tidal image proxy logic if needed
+        const coverUuid = item.album?.cover || item.cover || item.thumbnail;
+        if (coverUuid && typeof coverUuid === 'string' && coverUuid.includes('-')) {
+            posterPath = `https://resources.tidal.com/images/${coverUuid.replaceAll('-', '/')}/640x640.jpg`;
+        } else {
+            posterPath = coverUuid || `https://via.placeholder.com/600x600?text=${encodeURIComponent(title)}`;
+        }
+    }
+
     let backdropPath = item.backdrop_path ? `${BACKDROP_URL}${item.backdrop_path}` : (item.backdrop || null);
-    let descText = item.overview || item.desc || "No comprehensive description natively available.";
-    let ratingText = item.vote_average ? `${item.vote_average.toFixed(1)} / 10 Match` : (item.rating || 'New');
+    let descText = item.overview || item.desc || (isMusic ? `Track by ${artist}` : "No comprehensive description natively available.");
+    let ratingText = item.vote_average ? `${item.vote_average.toFixed(1)} / 10 Match` : (item.rating || (isMusic ? 'Hi-Fi' : 'New'));
     
     return {
-        id: item.id || item.tmdbId,
-        type: type,
+        id: item.id || item.tmdbId || item.trackId,
+        type: isMusic ? 'music' : type,
         title: title,
+        artist: artist,
         year: String(releaseStr).split('-')[0] || "2024",
         poster: posterPath,
         backdrop: backdropPath,
@@ -266,4 +285,97 @@ export function saveSeriesProgress(tmdbId, s, e) {
     const epKey = `s${s}e${e}`;
     if (!db[tmdbId].watched.includes(epKey)) db[tmdbId].watched.push(epKey);
     localStorage.setItem(key, JSON.stringify(db));
+}
+
+// MUSIC UI
+import { MusicState, playTrack } from './music.js';
+import { fetchMusicChart, searchMusic } from './api.js';
+
+export async function renderMusicView(query = '') {
+    if (!DOM.musicRowsContainer) return;
+    DOM.musicRowsContainer.innerHTML = '';
+
+    if (query) {
+        const results = await searchMusic(query);
+        const tracks = results?.data?.items || [];
+        buildMusicRow(`Search Results for "${query}"`, tracks, true);
+        return;
+    }
+
+    // Default discovery rows
+    for (const cat of MusicState.categories) {
+        const result = await fetchMusicChart(cat.id, cat.type);
+        const tracks = result?.data || result?.tracks?.data || [];
+        if (tracks.length > 0) {
+            buildMusicRow(cat.title, tracks);
+        }
+    }
+
+    if (MusicState.recent.length > 0) {
+        buildMusicRow("Recently Played", MusicState.recent);
+    }
+}
+
+export function buildMusicRow(title, items, isFirstRow = false) {
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'content-row';
+    rowDiv.innerHTML = `<h2 class="row-header">${title}</h2>`;
+    
+    const slider = document.createElement('div');
+    slider.className = 'row-posters';
+    enableDragScroll(slider);
+    
+    items.forEach((item, index) => {
+        const parsed = normalizeItem(item, 'music');
+        const card = createMusicCard(parsed, items);
+        
+        if (isFirstRow && index === 0) {
+            setTimeout(() => card.focus(), 300);
+        }
+        
+        slider.appendChild(card);
+    });
+
+    rowDiv.appendChild(slider);
+    DOM.musicRowsContainer.appendChild(rowDiv);
+}
+
+export function createMusicCard(item, queue) {
+    const card = document.createElement('div');
+    card.className = 'poster-card music-card';
+    card.tabIndex = 0;
+    
+    card.innerHTML = `
+        <img loading="lazy" src="${item.poster}" alt="${item.title}" draggable="false">
+        <div class="card-info" style="position: absolute; bottom: 0; left: 0; right: 0; padding: 10px; background: linear-gradient(to top, black, transparent); display: none;">
+            <div style="font-weight: bold; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.title}</div>
+            <div style="font-size: 0.8rem; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.artist}</div>
+        </div>
+    `;
+
+    card.addEventListener('focus', () => {
+        // Optional: show track info or update a music hero
+        const heroTitle = document.getElementById('music-hero-title');
+        const heroDesc = document.getElementById('music-hero-desc');
+        const heroBanner = document.getElementById('music-hero-banner');
+        if (heroTitle) heroTitle.textContent = item.title;
+        if (heroDesc) heroDesc.textContent = item.artist;
+        if (heroBanner && item.poster) heroBanner.style.backgroundImage = `url('${item.poster}')`;
+    });
+
+    card.onclick = () => playTrack(item, queue);
+    card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+    
+    return card;
+}
+
+// Search debouncing
+let musicSearchTimer;
+if (DOM.musicSearchInput) {
+    DOM.musicSearchInput.addEventListener('input', (e) => {
+        clearTimeout(musicSearchTimer);
+        musicSearchTimer = setTimeout(() => {
+            renderMusicView(e.target.value.trim());
+        }, 600);
+    });
 }
