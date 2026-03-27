@@ -70,7 +70,7 @@ export function normalizeItem(item, typeFallback) {
     let releaseStr = item.release_date || item.first_air_date || item.year || "";
     
     let posterPath = item.poster_path ? `${IMAGE_URL}${item.poster_path}` : (item.poster || null);
-    if (isMusic && !posterPath) {
+    if (!posterPath) {
         // Use the Tidal image proxy logic if needed
         const coverUuid = item.album?.cover || item.cover || item.thumbnail;
         if (coverUuid && typeof coverUuid === 'string' && coverUuid.includes('-')) {
@@ -78,6 +78,10 @@ export function normalizeItem(item, typeFallback) {
         } else {
             posterPath = coverUuid || `https://via.placeholder.com/600x600?text=${encodeURIComponent(title)}`;
         }
+    }
+    // Final foolproof fallback to ensure it's never the string "undefined"
+    if (!posterPath || posterPath === "undefined") {
+        posterPath = `https://via.placeholder.com/600x600?text=${encodeURIComponent(title)}`;
     }
 
     let backdropPath = item.backdrop_path ? `${BACKDROP_URL}${item.backdrop_path}` : (item.backdrop || null);
