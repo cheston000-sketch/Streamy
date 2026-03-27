@@ -325,21 +325,26 @@ export async function renderMusicView(query = '') {
 
     dynamicSections.innerHTML = '';
 
-    // Render Dynamic Categories
+    // Render Dynamic Categories as Horizontal Rows
     for (const cat of MusicState.categories) {
         const section = document.createElement('section');
-        section.className = 'media-section';
+        section.className = 'content-row';
         section.style.marginTop = "20px";
-        section.innerHTML = `<h2 class="section-title" style="margin-bottom: 20px;">${cat.title}</h2><div class="media-grid" id="cat-grid-${cat.id}"></div>`;
+        section.innerHTML = `
+            <h2 class="section-title" style="margin-bottom: -10px; margin-left: 40px; margin-top: 10px;">${cat.title}</h2>
+            <div class="row-posters" id="cat-row-${cat.id}"></div>
+        `;
         dynamicSections.appendChild(section);
 
-        const grid = section.querySelector('.media-grid');
+        const row = section.querySelector('.row-posters');
+        enableDragScroll(row); // Native StreamOS horizontal drag
+        
         const result = await fetchMusicChart(cat.id, cat.type);
         const tracks = result?.data || result?.tracks?.data || [];
         
         tracks.forEach(item => {
             const parsed = normalizeItem(item, 'music');
-            grid.appendChild(createMusicGridCard(parsed, tracks));
+            row.appendChild(createMusicGridCard(parsed, tracks));
         });
     }
 
@@ -381,8 +386,8 @@ export function renderPlaylistsGrid() {
 
 export function renderRecentlyPlayedGrid() {
     const section = document.getElementById('recently-played-section');
-    const grid = document.getElementById('recent-music-grid');
-    if (!section || !grid) return;
+    const row = document.getElementById('recent-music-row');
+    if (!section || !row) return;
 
     if (MusicState.recent.length === 0) {
         section.style.display = 'none';
@@ -390,25 +395,29 @@ export function renderRecentlyPlayedGrid() {
     }
 
     section.style.display = 'block';
-    grid.innerHTML = '';
-    MusicState.recent.slice(0, 10).forEach(track => {
-        grid.appendChild(createMusicGridCard(track, MusicState.recent));
+    row.innerHTML = '';
+    MusicState.recent.slice(0, 15).forEach(track => {
+        row.appendChild(createMusicGridCard(track, MusicState.recent));
     });
 }
 
-// Replaces the old createMusicCard to use the ported media-card structure
 export function createMusicGridCard(item, queue) {
     const card = document.createElement('div');
     card.className = 'media-card';
+    if (MusicState.currentTrack && MusicState.currentTrack.id === item.id) {
+        card.classList.add('is-active');
+    }
     card.tabIndex = 0;
     
+    if (item.type === 'artist') card.classList.add('artist-card');
+    
+    // Using Spotify's Play Button paradigm built directly into the wrapper
     card.innerHTML = `
-        <button class="add-to-playlist-btn" title="Add to Playlist">
-            <i class="fa-solid fa-plus"></i>
-        </button>
         <div class="card-img-wrapper">
             <img loading="lazy" src="${item.poster}" alt="${item.title}" draggable="false">
-            <span class="card-badge"><i class="fa-solid fa-play"></i></span>
+            <button class="spotify-play-btn" title="Play">
+                <i class="fa-solid fa-play"></i>
+            </button>
         </div>
         <div class="card-info">
             <h3 class="card-title">${item.title}</h3>
@@ -416,43 +425,27 @@ export function createMusicGridCard(item, queue) {
         </div>
     `;
 
-    const addBtn = card.querySelector('.add-to-playlist-btn');
-    addBtn.onclick = (e) => {
-        e.stopPropagation(); // Prevent playing song when clicking plus
-        const pl = Object.keys(MusicState.playlists);
-        if (pl.length > 0) {
-            if (!MusicState.playlists[pl[0]].some(t => t.id === item.id)) {
-                MusicState.playlists[pl[0]].push(item);
-                localStorage.setItem('streamos_music_state', JSON.stringify({
-                    playlists: MusicState.playlists,
-                    recent: MusicState.recent,
-                    categories: MusicState.categories
-                }));
-                renderPlaylistsGrid();
-                // Simple visual feedback instead of an alert
-                addBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
-                addBtn.style.background = 'var(--primary)';
-                setTimeout(() => {
-                    addBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
-                    addBtn.style.background = 'rgba(0,0,0,0.8)';
-                }, 1000);
-            }
-        } else {
-            alert("Create a playlist first!");
-        }
-    };
-
     card.addEventListener('focus', () => {
         const heroTitle = document.getElementById('music-hero-title');
         const heroDesc = document.getElementById('music-hero-desc');
         const heroBanner = document.getElementById('music-hero-banner');
         if (heroTitle) heroTitle.textContent = item.title;
         if (heroDesc) heroDesc.textContent = item.artist;
-        if (heroBanner && item.poster) heroBanner.style.backgroundImage = `url('${item.poster}')`;
+        if (heroBanner && item.poster && heroBanner.style.backgroundImage !== `url("${item.poster}")`) {
+            heroBanner.style.backgroundImage = `url('${item.poster}')`;
+        }
     });
 
     card.onclick = () => playTrack(item, queue);
     card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+    
+    const playBtnStr = card.querySelector('.spotify-play-btn');
+    if (playBtnStr) {
+        playBtnStr.onclick = (e) => {
+            e.stopPropagation();
+            playTrack(item, queue);
+        };
+    }
     
     return card;
 }
@@ -474,10 +467,27 @@ globalThis.openCreatePlaylistModal = function() {
     }
 };
 
+export function updateMusicUIActiveState() {
+    document.querySelectorAll('.media-card').forEach(card => card.classList.remove('is-active'));
+    if (!MusicState.currentTrack) return;
+    
+    // Find matching cards and highlight them
+    document.querySelectorAll('.media-card').forEach(card => {
+        const titleEl = card.querySelector('.card-title');
+        if (titleEl && titleEl.textContent === MusicState.currentTrack.title) {
+            card.classList.add('is-active');
+        }
+    });
+}
+
+document.addEventListener('streamos:track_changed', () => {
+    updateMusicUIActiveState();
+});
+
 // Search debouncing
 let musicSearchTimer;
-if (DOM.musicSearchInput) {
-    DOM.musicSearchInput.addEventListener('input', (e) => {
+if (document.getElementById('music-search-input')) {
+    document.getElementById('music-search-input').addEventListener('input', (e) => {
         clearTimeout(musicSearchTimer);
         musicSearchTimer = setTimeout(() => {
             renderMusicView(e.target.value.trim());

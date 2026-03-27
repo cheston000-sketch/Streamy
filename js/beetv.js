@@ -7,7 +7,7 @@
     console.log("[BeeTV] Initializing Global Focus Engine v51.0...");
 
     const CONFIG = {
-        POSTER_SELECTOR: '.poster-card, .show-all-card',
+        POSTER_SELECTOR: '.poster-card, .show-all-card, .media-card, .playlist-card',
         TAB_SELECTOR: '.nav-tab',
         ROW_SELECTOR: '.content-row, #music-rows-container .content-row'
     };
@@ -136,6 +136,24 @@
 
             if (isDown && rowIdx < rows.length - 1) {
                 focusNearestX(activeRect, rows[rowIdx + 1], e);
+            } else if (isDown && rowIdx === rows.length - 1) {
+                // Drop out of the last row boundary to the persistent Player Bar 
+                const playerBar = document.getElementById('music-player-bar');
+                if (playerBar && !playerBar.classList.contains('hidden')) {
+                    const firstBtn = playerBar.querySelector('button, [tabindex="0"]');
+                    if (firstBtn) {
+                        firstBtn.focus();
+                        e.preventDefault();
+                    }
+                } else {
+                    // Global fallback escape
+                    const allItems = getFocusableItems();
+                    const globalIdx = allItems.indexOf(active);
+                    if (allItems[globalIdx + 1]) {
+                        allItems[globalIdx + 1].focus();
+                        e.preventDefault();
+                    }
+                }
             } else if (!isDown) {
                 if (rowIdx > 0) {
                     focusNearestX(activeRect, rows[rowIdx - 1], e);
@@ -146,6 +164,10 @@
                         if (btn) {
                             btn.focus(); e.preventDefault();
                         }
+                    } else {
+                        // Added reverse escape out of rows to tabs
+                        const tabs = getFocusableItems(document.querySelector('.nav-tabs'));
+                        if (tabs.length > 0) { tabs[0].focus(); e.preventDefault(); }
                     }
                 }
             }

@@ -124,6 +124,11 @@ export async function playTrack(track, queue = []) {
     document.getElementById('player-bar-cover').src = track.poster || track.cover || 'https://via.placeholder.com/150';
     playerBar.classList.remove('hidden');
 
+    const heroBanner = document.getElementById('music-hero-banner');
+    if (heroBanner && track.poster) heroBanner.style.backgroundImage = `url('${track.poster}')`;
+
+    document.dispatchEvent(new CustomEvent('streamos:track_changed', { detail: track }));
+
     try {
         const res = await fetchMusicManifest(track.id);
         if (res?.data?.manifest) {
