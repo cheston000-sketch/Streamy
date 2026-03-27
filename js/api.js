@@ -152,9 +152,25 @@ export async function searchMusic(query) {
     return await fetchMusicFromProxy(`/streamex/search?s=${encodeURIComponent(query)}&limit=20`);
 }
 
+export function fetchDeezerJSONP(endpoint) {
+    return new Promise((resolve) => {
+        const callbackName = 'deezer_cb_' + Math.round(100000 * Math.random());
+        window[callbackName] = function(data) {
+            delete window[callbackName];
+            document.body.removeChild(script);
+            resolve(data);
+        };
+        const script = document.createElement('script');
+        const sep = endpoint.includes('?') ? '&' : '?';
+        script.src = `https://api.deezer.com${endpoint}${sep}output=jsonp&callback=${callbackName}`;
+        document.body.appendChild(script);
+        script.onerror = () => resolve({ data: [] });
+    });
+}
+
 export async function fetchMusicChart(id, type = 'chart') {
-    const endpoint = (type === 'playlist' || (id && id.length > 5)) ? `/deezer/playlist/${id}/tracks` : `/deezer/chart/${id}/tracks`;
-    return await fetchMusicFromProxy(`${endpoint}?limit=20`);
+    const endpoint = (type === 'playlist' || (id && id.length > 5)) ? `/playlist/${id}/tracks` : `/chart/${id}/tracks`;
+    return await fetchDeezerJSONP(`${endpoint}?limit=20`);
 }
 
 export async function fetchMusicManifest(trackId) {
