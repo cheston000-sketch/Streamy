@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>StreamOS</title>
     <!-- Serverless OTA Distribution Metadata arrays -->
-    <meta name="apk-version" content="50">
+    <meta name="apk-version" content="51">
     <meta name="apk-download-url" content="/api/ota/download">
     <!-- PWA / Web App Manifest Data -->
     <link rel="manifest" href="/manifest.json">
@@ -21,11 +21,11 @@
         if (globalThis.NativeBridge || /Android/i.test(navigator.userAgent)) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'css/beetv.css?v=50';
+            link.href = 'css/beetv.css?v=51';
             document.head.appendChild(link);
             
             const script = document.createElement('script');
-            script.src = 'js/beetv.js?v=50';
+            script.src = 'js/beetv.js?v=51';
             document.head.appendChild(script);
         }
     </script>
@@ -109,16 +109,16 @@
             </div>
 
             <!-- APP DOWNLOAD HERO -->
-            <div style="background: linear-gradient(90deg, #0f2027, #203a43, #2c5364); padding: 40px; margin: 20px 40px 180px; position: relative; z-index: 15; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div id="apk-hero-banner" style="background: linear-gradient(90deg, #0f2027, #203a43, #2c5364); padding: 40px; margin: 20px 40px 180px; position: relative; z-index: 10; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
                 <div>
                    <h2 style="font-size: 2rem; color: white; margin-bottom: 10px;"><i class="fa-brands fa-android" style="color:#46d369;"></i> Streamy for Android TV</h2>
                    <p style="color: #ccc; font-size: 1.1rem; max-width: 600px;">Get the ultimate ad-free, serverless Auto-Play experience directly on your Firestick or Android TV. Install the APK and enjoy native hardware extraction.</p>
                 </div>
-                <a href="/api/ota/download" style="padding: 15px 30px; background: #46d369; color: black; font-weight: bold; border-radius: 6px; font-size: 1.2rem; text-decoration: none; white-space: nowrap; transition: transform 0.2s;"><i class="fa-solid fa-download"></i> Download APK</a>
+                <a href="/api/ota/download" tabindex="0" style="padding: 15px 30px; background: #46d369; color: black; font-weight: bold; border-radius: 6px; font-size: 1.2rem; text-decoration: none; white-space: nowrap; transition: transform 0.2s;"><i class="fa-solid fa-download"></i> Download APK</a>
             </div>
 
             <!-- DYNAMIC CATEGORY ROWS -->
-            <div id="rows-container"></div>
+            <div id="rows-container" style="z-index: 30; position: relative;"></div>
             
         </div>
 
