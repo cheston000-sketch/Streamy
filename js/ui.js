@@ -404,7 +404,8 @@ export function renderRecentlyPlayedGrid() {
 export function createMusicGridCard(item, queue) {
     const card = document.createElement('div');
     card.className = 'media-card';
-    if (MusicState.currentTrack && MusicState.currentTrack.id === item.id) {
+    card.dataset.id = item.id;
+    if (MusicState.currentTrack && String(MusicState.currentTrack.id) === String(item.id)) {
         card.classList.add('is-active');
     }
     card.tabIndex = 0;
@@ -473,8 +474,7 @@ export function updateMusicUIActiveState() {
     
     // Find matching cards and highlight them
     document.querySelectorAll('.media-card').forEach(card => {
-        const titleEl = card.querySelector('.card-title');
-        if (titleEl && titleEl.textContent === MusicState.currentTrack.title) {
+        if (String(card.dataset.id) === String(MusicState.currentTrack.id)) {
             card.classList.add('is-active');
         }
     });

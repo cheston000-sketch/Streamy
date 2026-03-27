@@ -148,8 +148,15 @@ export async function fetchMusicFromProxy(endpoint) {
     }
 }
 
+// Helper for direct music API calls to bypass potentially blocked proxy
+async function fetchMusicDirect(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Music API Error: ${res.status}`);
+    return await res.json();
+}
+
 export async function searchMusic(query) {
-    return await fetchMusicFromProxy(`/streamex/search?s=${encodeURIComponent(query)}&limit=20`);
+    return await fetchMusicDirect(`https://streamex.sh/api/music/search?s=${encodeURIComponent(query)}&limit=20`);
 }
 
 export function fetchDeezerJSONP(endpoint) {
@@ -174,5 +181,5 @@ export async function fetchMusicChart(id, type = 'chart') {
 }
 
 export async function fetchMusicManifest(trackId) {
-    return await fetchMusicFromProxy(`/streamex/track?id=${trackId}&quality=LOSSLESS`);
+    return await fetchMusicDirect(`https://streamex.sh/api/music/manifest?id=${trackId}`);
 }

@@ -1,4 +1,4 @@
-import { fetchMusicManifest } from './api.js';
+import { fetchMusicManifest, searchMusic } from './api.js';
 
 export const MusicState = {
     playlists: {},
@@ -130,7 +130,19 @@ export async function playTrack(track, queue = []) {
     document.dispatchEvent(new CustomEvent('streamos:track_changed', { detail: track }));
 
     try {
-        const res = await fetchMusicManifest(track.id);
+        let res = await fetchMusicManifest(track.id);
+        
+        // Fallback: If Deezer ID doesn't work, search by Title + Artist
+        if (!res?.data?.manifest) {
+            console.log(`[Music] ID fetch failed for ${track.id}, attempting search fallback...`);
+            const searchRes = await searchMusic(`${track.title} ${track.artist}`);
+            const firstMatch = searchRes?.data?.items?.[0];
+            if (firstMatch) {
+                console.log(`[Music] Found fallback match: ${firstMatch.title} (${firstMatch.id})`);
+                res = await fetchMusicManifest(firstMatch.id);
+            }
+        }
+
         if (res?.data?.manifest) {
             const decoded = atob(res.data.manifest);
             const manifest = JSON.parse(decoded);
@@ -141,7 +153,7 @@ export async function playTrack(track, queue = []) {
             // Record history
             addToHistory(track);
         } else {
-            alert("Unable to fetch audio stream.");
+            alert("Unable to fetch audio stream for this track.");
         }
     } catch (e) {
         console.error("Play error:", e);
