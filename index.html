@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>StreamOS</title>
     <!-- Serverless OTA Distribution Metadata arrays -->
-    <meta name="apk-version" content="48">
+    <meta name="apk-version" content="49">
     <meta name="apk-download-url" content="/api/ota/download">
     <!-- PWA / Web App Manifest Data -->
     <link rel="manifest" href="/manifest.json">
@@ -16,6 +16,19 @@
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css?v=33">
+    <script>
+        // BeeTV Android Specific Override Loader
+        if (globalThis.NativeBridge || /Android/i.test(navigator.userAgent)) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'css/beetv.css?v=49';
+            document.head.appendChild(link);
+            
+            const script = document.createElement('script');
+            script.src = 'js/beetv.js?v=49';
+            document.head.appendChild(script);
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>

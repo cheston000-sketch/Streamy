@@ -7,7 +7,7 @@ import { initMusic } from './music.js';
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 48;
+const APP_VERSION = 49;
 
 async function checkForUpdatesBackground() {
     try {
@@ -128,6 +128,7 @@ function initProfiles() {
     };
 
     document.getElementById('add-profile-btn').onclick = () => openProfileModal(null);
+
     DOM.settingManageProfiles.onclick = () => {
         document.getElementById('profile-selection-screen').classList.remove('hidden');
         document.getElementById('main-content').classList.add('hidden');
@@ -143,9 +144,6 @@ function initProfiles() {
     if (versionEl) versionEl.innerText = APP_VERSION + ".0";
     
     checkForUpdatesBackground();
-    
-    // Explicitly hide main content on boot to prevent focus traps
-    document.getElementById('main-content').classList.add('hidden');
 }
 
 function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
@@ -156,7 +154,6 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         const card = document.createElement('button');
         card.className = `profile-card ${isEditing ? 'edit-mode' : ''}`;
         card.tabIndex = 0;
-        card.style.background = 'transparent'; card.style.border = 'none'; card.style.color = 'white';
         
         // Use basic fallback for avatar SVGs 
         const svgContent = `<i class="fa-solid fa-user"></i>`;
@@ -173,12 +170,7 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
         grid.appendChild(card);
         
-        if (focusIndex === idx) {
-            setTimeout(() => {
-                card.focus();
-                console.log("[Focus] Profile focused:", p.name);
-            }, 500); // More generous delay for TV OS
-        }
+        if (focusIndex === idx) setTimeout(() => card.focus(), 100);
     });
 }
 
