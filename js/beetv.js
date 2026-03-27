@@ -57,7 +57,7 @@
 
         if (active.closest('#side-bar') || active.closest('.nav-tabs')) {
             if (isRight) {
-                const firstContentItem = document.querySelector(CONFIG.POSTER_SELECTOR) || document.querySelector('.grid .poster-card, #hero-banner a, #apk-hero-banner a');
+                const firstContentItem = document.querySelector(CONFIG.POSTER_SELECTOR) || document.querySelector('.grid .poster-card, .media-grid .media-card, #hero-banner a, #apk-hero-banner a');
                 if (firstContentItem) {
                     firstContentItem.focus();
                     e.preventDefault();
@@ -66,8 +66,18 @@
             return;
         }
 
-        const parent = active.closest('.row-posters, .grid, #avatar-selection-grid, .control-btns, #view-home > div');
-        if (!parent) return;
+        const parent = active.closest('.row-posters, .grid, .media-grid, #avatar-selection-grid, .control-btns, #view-home > div');
+        if (!parent) {
+            // General fallback for top-level interactive elements (search bars, add buttons, etc)
+            const allItems = getFocusableItems();
+            const idx = allItems.indexOf(active);
+            if (isRight && idx + 1 < allItems.length) {
+                allItems[idx + 1].focus(); e.preventDefault();
+            } else if (!isRight && idx - 1 >= 0) {
+                allItems[idx - 1].focus(); e.preventDefault();
+            }
+            return;
+        }
 
         const items = getFocusableItems(parent);
         const idx = items.indexOf(active);
@@ -142,7 +152,7 @@
             return;
         }
 
-        const currentGrid = active.closest('.grid, #category-grid, #search-grid');
+        const currentGrid = active.closest('.grid, #category-grid, #search-grid, .media-grid');
         if (currentGrid) {
             const items = getFocusableItems(currentGrid);
             const idx = items.indexOf(active);
@@ -154,10 +164,30 @@
             if (isDown) {
                 if (idx + itemsPerRow < items.length) {
                     items[idx + itemsPerRow].focus(); e.preventDefault();
+                } else {
+                    // Escape grid down
+                    const allItems = getFocusableItems();
+                    const lastInGrid = items[items.length - 1];
+                    const globalLastIdx = allItems.indexOf(lastInGrid);
+                    
+                    if (allItems[globalLastIdx + 1]) {
+                        allItems[globalLastIdx + 1].focus();
+                        e.preventDefault();
+                    }
                 }
             } else {
                 if (idx - itemsPerRow >= 0) {
                     items[idx - itemsPerRow].focus(); e.preventDefault();
+                } else {
+                    // Escape grid up
+                    const allItems = getFocusableItems();
+                    const firstInGrid = items[0];
+                    const globalFirstIdx = allItems.indexOf(firstInGrid);
+                    
+                    if (globalFirstIdx - 1 >= 0) {
+                        allItems[globalFirstIdx - 1].focus();
+                        e.preventDefault();
+                    }
                 }
             }
             return;

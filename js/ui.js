@@ -292,69 +292,157 @@ import { MusicState, playTrack } from './music.js';
 import { fetchMusicChart, searchMusic } from './api.js';
 
 export async function renderMusicView(query = '') {
-    if (!DOM.musicRowsContainer) return;
-    DOM.musicRowsContainer.innerHTML = '';
+    const searchGrid = document.getElementById('music-search-results');
+    const dynamicSections = document.getElementById('dynamic-music-sections');
+    const sectionTitle = document.getElementById('music-section-title');
+    
+    if (!dynamicSections) return;
 
     if (query) {
+        sectionTitle.textContent = `Search Results for "${query}"`;
+        dynamicSections.style.display = 'none';
+        document.getElementById('playlists-section').style.display = 'none';
+        document.getElementById('recently-played-section').style.display = 'none';
+        searchGrid.style.display = 'grid';
+        searchGrid.innerHTML = '<div style="color:#aaa;">Searching...</div>';
+
         const results = await searchMusic(query);
         const tracks = results?.data?.items || [];
-        buildMusicRow(`Search Results for "${query}"`, tracks, true);
+        
+        searchGrid.innerHTML = '';
+        tracks.forEach(t => {
+            const parsed = normalizeItem(t, 'music');
+            searchGrid.appendChild(createMusicGridCard(parsed, tracks));
+        });
         return;
     }
 
-    // Default discovery rows
+    // Default discovery View
+    sectionTitle.textContent = 'Discovery Universe';
+    searchGrid.style.display = 'none';
+    dynamicSections.style.display = 'block';
+    document.getElementById('playlists-section').style.display = 'block';
+
+    dynamicSections.innerHTML = '';
+
+    // Render Dynamic Categories
     for (const cat of MusicState.categories) {
+        const section = document.createElement('section');
+        section.className = 'media-section';
+        section.style.marginTop = "20px";
+        section.innerHTML = `<h2 class="section-title" style="margin-bottom: 20px;">${cat.title}</h2><div class="media-grid" id="cat-grid-${cat.id}"></div>`;
+        dynamicSections.appendChild(section);
+
+        const grid = section.querySelector('.media-grid');
         const result = await fetchMusicChart(cat.id, cat.type);
         const tracks = result?.data || result?.tracks?.data || [];
-        if (tracks.length > 0) {
-            buildMusicRow(cat.title, tracks);
-        }
+        
+        tracks.forEach(item => {
+            const parsed = normalizeItem(item, 'music');
+            grid.appendChild(createMusicGridCard(parsed, tracks));
+        });
     }
 
-    if (MusicState.recent.length > 0) {
-        buildMusicRow("Recently Played", MusicState.recent);
-    }
+    renderPlaylistsGrid();
+    renderRecentlyPlayedGrid();
 }
 
-export function buildMusicRow(title, items, isFirstRow = false) {
-    const rowDiv = document.createElement('div');
-    rowDiv.className = 'content-row';
-    rowDiv.innerHTML = `<h2 class="row-header">${title}</h2>`;
+export function renderPlaylistsGrid() {
+    const grid = document.getElementById('music-playlists-grid');
+    if (!grid) return;
     
-    const slider = document.createElement('div');
-    slider.className = 'row-posters';
-    enableDragScroll(slider);
+    grid.innerHTML = '';
+    const playlistNames = Object.keys(MusicState.playlists);
     
-    items.forEach((item, index) => {
-        const parsed = normalizeItem(item, 'music');
-        const card = createMusicCard(parsed, items);
-        
-        if (isFirstRow && index === 0) {
-            setTimeout(() => card.focus(), 300);
-        }
-        
-        slider.appendChild(card);
+    if (playlistNames.length === 0) {
+        grid.innerHTML = '<div style="color:var(--text-secondary); grid-column:1/-1;">No playlists yet. Create one to get started!</div>';
+        return;
+    }
+
+    playlistNames.forEach(name => {
+        const pList = MusicState.playlists[name];
+        const card = document.createElement('div');
+        card.className = 'playlist-card';
+        card.tabIndex = 0;
+        card.innerHTML = `
+            <div class="playlist-icon"><i class="fa-solid fa-music"></i></div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+                <div class="playlist-title">${name}</div>
+                <div class="playlist-count">${pList.length} Tracks</div>
+            </div>
+        `;
+        card.onclick = () => {
+            if(pList.length > 0) playTrack(pList[0], pList);
+        };
+        card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+        grid.appendChild(card);
     });
-
-    rowDiv.appendChild(slider);
-    DOM.musicRowsContainer.appendChild(rowDiv);
 }
 
-export function createMusicCard(item, queue) {
+export function renderRecentlyPlayedGrid() {
+    const section = document.getElementById('recently-played-section');
+    const grid = document.getElementById('recent-music-grid');
+    if (!section || !grid) return;
+
+    if (MusicState.recent.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    grid.innerHTML = '';
+    MusicState.recent.slice(0, 10).forEach(track => {
+        grid.appendChild(createMusicGridCard(track, MusicState.recent));
+    });
+}
+
+// Replaces the old createMusicCard to use the ported media-card structure
+export function createMusicGridCard(item, queue) {
     const card = document.createElement('div');
-    card.className = 'poster-card music-card';
+    card.className = 'media-card';
     card.tabIndex = 0;
     
     card.innerHTML = `
-        <img loading="lazy" src="${item.poster}" alt="${item.title}" draggable="false">
-        <div class="card-info" style="position: absolute; bottom: 0; left: 0; right: 0; padding: 10px; background: linear-gradient(to top, black, transparent); display: none;">
-            <div style="font-weight: bold; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.title}</div>
-            <div style="font-size: 0.8rem; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.artist}</div>
+        <button class="add-to-playlist-btn" title="Add to Playlist">
+            <i class="fa-solid fa-plus"></i>
+        </button>
+        <div class="card-img-wrapper">
+            <img loading="lazy" src="${item.poster}" alt="${item.title}" draggable="false">
+            <span class="card-badge"><i class="fa-solid fa-play"></i></span>
+        </div>
+        <div class="card-info">
+            <h3 class="card-title">${item.title}</h3>
+            <div class="card-meta">${item.artist || 'Unknown Artist'}</div>
         </div>
     `;
 
+    const addBtn = card.querySelector('.add-to-playlist-btn');
+    addBtn.onclick = (e) => {
+        e.stopPropagation(); // Prevent playing song when clicking plus
+        const pl = Object.keys(MusicState.playlists);
+        if (pl.length > 0) {
+            if (!MusicState.playlists[pl[0]].some(t => t.id === item.id)) {
+                MusicState.playlists[pl[0]].push(item);
+                localStorage.setItem('streamos_music_state', JSON.stringify({
+                    playlists: MusicState.playlists,
+                    recent: MusicState.recent,
+                    categories: MusicState.categories
+                }));
+                renderPlaylistsGrid();
+                // Simple visual feedback instead of an alert
+                addBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                addBtn.style.background = 'var(--primary)';
+                setTimeout(() => {
+                    addBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+                    addBtn.style.background = 'rgba(0,0,0,0.8)';
+                }, 1000);
+            }
+        } else {
+            alert("Create a playlist first!");
+        }
+    };
+
     card.addEventListener('focus', () => {
-        // Optional: show track info or update a music hero
         const heroTitle = document.getElementById('music-hero-title');
         const heroDesc = document.getElementById('music-hero-desc');
         const heroBanner = document.getElementById('music-hero-banner');
@@ -368,6 +456,23 @@ export function createMusicCard(item, queue) {
     
     return card;
 }
+
+// Playlist simple global handler
+globalThis.openCreatePlaylistModal = function() {
+    const name = prompt("Enter new Playlist Name:");
+    if (name && name.trim()) {
+        const trimmed = name.trim();
+        if (!MusicState.playlists[trimmed]) {
+            MusicState.playlists[trimmed] = [];
+            localStorage.setItem('streamos_music_state', JSON.stringify({
+                playlists: MusicState.playlists,
+                recent: MusicState.recent,
+                categories: MusicState.categories
+            }));
+            renderPlaylistsGrid();
+        }
+    }
+};
 
 // Search debouncing
 let musicSearchTimer;

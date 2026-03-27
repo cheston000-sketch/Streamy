@@ -124,26 +124,50 @@
 
         <!-- MUSIC VIEW -->
         <div id="view-music" class="view hidden" style="padding-top: 100px;">
-            <!-- HERO BANNER (REUSED FROM HOME OR SPECIFIC TO MUSIC) -->
+            <!-- HERO BANNER -->
             <div id="music-hero-banner" class="hero-banner" style="height: 50vh; background-image: url('https://images.unsplash.com/photo-1493225457124-a1a2a5f5646a?q=80&w=2070&auto=format&fit=crop');">
                 <div class="hero-vignette"></div>
-                <div class="hero-content" style="display: block !important;">
+                <div class="hero-overlay" style="background: linear-gradient(to right, rgba(20,20,20,0.9) 0%, rgba(20,20,20,0.4) 50%, transparent 100%), linear-gradient(to top, rgb(20, 20, 20) 0%, transparent 50%); position:absolute; top:0; left:0; width:100%; height:100%; z-index:-1;"></div>
+                <div class="hero-content" style="display: block !important; position:relative; z-index:10; max-width: 600px; padding: 40px;">
                     <h1 id="music-hero-title">Your Music Universe</h1>
-                    <p id="music-hero-desc">Discover lossless audio, curated charts, and your personal playlists natively.</p>
+                    <p id="music-hero-desc" style="font-size: 1.2rem; color: #ccc;">Discover lossless audio, curated charts, and your personal playlists natively.</p>
                 </div>
             </div>
 
-            <!-- MUSIC SEARCH -->
-            <div style="padding: 0 40px; margin-top: -60px; position: relative; z-index: 30; display: flex; gap: 15px; align-items: center;">
-                <div style="position: relative; flex: 1; max-width: 600px;">
-                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: #888;"></i>
-                    <input type="text" id="music-search-input" placeholder="Search for songs, artists, or albums..." tabindex="0" style="width: 100%; padding: 15px 15px 15px 50px; font-size: 1.2rem; background: rgba(0,0,0,0.8); border: 1px solid #444; color: white; border-radius: 8px; outline: none;">
+            <!-- DISCOVERY UNIVERSE / SEARCH -->
+            <section class="media-section" style="margin-top: -30px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+                    <h2 class="section-title" id="music-section-title" style="margin-bottom: 0;">Discovery Universe</h2>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <button class="nav-tab" id="add-music-category-btn" tabindex="0" style="background: rgba(255,255,255,0.1); border: 1px solid #444; font-size: 1rem;"><i class="fa-solid fa-plus"></i> Add Category</button>
+                        <div style="position: relative; max-width: 300px; width: 100%;">
+                            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #888;"></i>
+                            <input type="text" id="music-search-input" placeholder="Search music..." tabindex="0" style="width: 100%; padding: 12px 16px 12px 48px; border-radius: 20px; border: none; background: rgba(255,255,255,0.1); color: var(--text-primary); font-size: 1rem; outline: none;">
+                        </div>
+                    </div>
                 </div>
-                <button id="add-music-category-btn" class="nav-tab" tabindex="0" style="background: rgba(255,255,255,0.1); border: 1px solid #444;"><i class="fa-solid fa-plus"></i> Add Category</button>
-            </div>
+                <div class="media-grid" id="music-search-results" style="display: none;"></div>
+            </section>
 
-            <!-- DYNAMIC MUSIC ROWS -->
-            <div id="music-rows-container" style="margin-top: 20px; padding-bottom: 120px;"></div>
+            <!-- DYNAMIC CATEGORIES -->
+            <div id="dynamic-music-sections"></div>
+
+            <!-- PLAYLISTS SECTION -->
+            <section class="media-section" id="playlists-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 class="section-title" style="margin-bottom: 0;">Your Playlists</h2>
+                    <button class="btn-play" id="create-playlist-btn" tabindex="0" style="padding: 8px 16px; font-size: 14px; border-radius: 4px;">
+                        <i class="fa-solid fa-plus"></i> Create Playlist
+                    </button>
+                </div>
+                <div class="media-grid" id="music-playlists-grid"></div>
+            </section>
+
+            <!-- RECENTLY PLAYED SECTION -->
+            <section class="media-section" id="recently-played-section" style="display: none; padding-bottom: 120px;">
+                <h2 class="section-title">Recently Played</h2>
+                <div class="media-grid" id="recent-music-grid"></div>
+            </section>
         </div>
 
         <!-- SEARCH VIEW -->
