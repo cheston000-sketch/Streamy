@@ -83,7 +83,24 @@ app.get('/api/stream', async (req, res) => {
             index === self.findIndex((t) => (t.url === value.url))
         );
 
-        // Removed blind WebPlayer Fallbacks to ensure Auto-Play exclusively triggers for strictly verified .m3u8 extraction payloads natively
+        // If native extraction fails, inject robust fallback iframe embeds
+        if (finalLinks.length === 0) {
+            console.log(`[Extractor] Primary providers failed. Injecting fallback iframe embeds.`);
+            const vidsrcUrl = (type === 'tv' || type === 'show')
+                ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
+                : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
+            finalLinks.push({ server: 'Vidsrc.me', url: vidsrcUrl, type: 'iframe' });
+
+            const vidsrcNetUrl = (type === 'tv' || type === 'show')
+                ? `https://vidsrc.net/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
+                : `https://vidsrc.net/embed/movie?tmdb=${tmdb}`;
+            finalLinks.push({ server: 'Vidsrc.net', url: vidsrcNetUrl, type: 'iframe' });
+
+            const multiEmbedUrl = (type === 'tv' || type === 'show')
+                ? `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1&s=${season}&e=${episode}`
+                : `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1`;
+            finalLinks.push({ server: 'MultiEmbed', url: multiEmbedUrl, type: 'iframe' });
+        }
 
         if (finalLinks.length > 0) {
             console.log(`[Extractor] SUCCESS: Found ${finalLinks.length} total streams / fallbacks.`);
