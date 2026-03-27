@@ -243,13 +243,25 @@ function playIframeFallback(iframeUrl) {
 }
 
 function playNativeVideo(streamUrl) {
+    // Native BeeTV / Android Bridge Support
+    if (globalThis.NativeBridge) {
+        if (streamUrl.includes('m3u8')) {
+            console.log("[Bridge] Triggering Native ExoPlayer for M3U8");
+            globalThis.NativeBridge.playStream(streamUrl, "application/vnd.apple.mpegurl", currentMovieContext.title, "https://vidsrc.me/", currentMovieContext.id);
+        } else {
+            console.log("[Bridge] Launching Native WebPlayer for Web Payload");
+            globalThis.NativeBridge.openWebPlayer(streamUrl, currentMovieContext.title, currentMovieContext.id);
+        }
+        return;
+    }
+
     let iframe = document.getElementById('fallback-iframe');
     if (iframe) iframe.style.display = 'none';
     DOM.videoPlayer.style.display = 'block';
     navigateTo('#player');
     
     DOM.videoPlayer.muted = false;
-    DOM.videoPlayer.volume = 1.0;
+    DOM.videoPlayer.volume = 1;
 
     const isM3U8 = streamUrl.includes('.m3u8');
     const canPlayNativeHLS = DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl');
@@ -283,7 +295,7 @@ function playNextEpisode() {
 
 if (DOM.playerBackBtn) {
     DOM.playerBackBtn.addEventListener('click', () => {
-        globalThis.history.back();
+        globalThis.history?.back();
     });
 }
 

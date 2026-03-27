@@ -7,7 +7,7 @@ import { initMusic } from './music.js';
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 29;
+const APP_VERSION = 46;
 
 async function checkForUpdatesBackground() {
     try {
@@ -18,21 +18,21 @@ async function checkForUpdatesBackground() {
         if (data.version && APP_VERSION < data.version) {
             showUpdateBanner(data.version, data.url);
         }
-    } catch(e) { }
+    } catch(e) { /* ignore */ }
 }
 
 function showUpdateBanner(newVersionKey, downloadUrl) {
     const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed; top:20px; right:20px; background:#e50914; color:white; padding:15px; border-radius:8px; z-index:999999; display:flex; align-items:center; gap:15px; box-shadow:0 4px 15px rgba{0,0,0,0.5}; font-weight:bold; cursor:pointer; font-size:18px; border:2px solid white;';
+    banner.style.cssText = 'position:fixed; top:20px; right:20px; background:#e50914; color:white; padding:15px; border-radius:8px; z-index:999999; display:flex; align-items:center; gap:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5); font-weight:bold; cursor:pointer; font-size:18px; border:2px solid white;';
     banner.tabIndex = 0;
     const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
     banner.innerHTML = `<i class="fa-solid fa-download" style="font-size:24px;"></i> <div>Streamy Update Available!<br><span style="font-size:12px;font-weight:normal;">Click to install v${newVersionKey}.0</span></div>`;
     banner.onclick = () => {
-        localStorage.setItem('beetv_build_version', newVersionKey);
-        if(window.NativeBridge && window.NativeBridge.downloadUpdate) {
-            window.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
+        globalThis.localStorage.setItem('beetv_build_version', newVersionKey);
+        if(globalThis.NativeBridge?.downloadUpdate) {
+            globalThis.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
         } else {
-            window.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
+            globalThis.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
         }
         banner.remove();
     };
@@ -357,7 +357,7 @@ function setupDpadLogic() {
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Up','Down','Left','Right'].includes(e.key)) {
             setTimeout(() => {
                 if (document.activeElement && typeof document.activeElement.scrollIntoView === 'function') {
-                    try { document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } catch(err) {}
+                    try { document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } catch(err) { console.warn("Spatial scroll failed:", err); }
                 }
             }, 50);
         }
@@ -379,7 +379,7 @@ function initApp() {
     if (settingClearCache) {
         settingClearCache.onclick = async () => {
             settingClearCache.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Purging...';
-            window.indexedDB.deleteDatabase('StreamOS_CacheDB');
+            globalThis.indexedDB.deleteDatabase('StreamOS_CacheDB');
             setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-check"></i> Purged Successfully', 800);
             setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-database"></i> Purge API Cache', 2500);
         };
@@ -392,7 +392,7 @@ function initApp() {
             try {
                 const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
                 const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
-                if (!res.ok) throw new Error();
+                if (!res.ok) throw new Error("OTA fetch failed");
                 const data = await res.json();
                 if (data.version && APP_VERSION < data.version) {
                     showUpdateBanner(data.version, data.url);
@@ -401,6 +401,7 @@ function initApp() {
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> You are up to date';
                 }
             } catch(e) {
+                console.error("Update check failed:", e);
                 settingCheckUpdate.innerHTML = '<i class="fa-solid fa-xmark"></i> Server Unreachable';
             }
             setTimeout(() => settingCheckUpdate.innerHTML = '<i class="fa-solid fa-download"></i> Check for Updates', 3000);
@@ -409,9 +410,9 @@ function initApp() {
 
     DOM.navTabs.forEach(tab => {
         tab.addEventListener('click', () => {
-             const view = tab.getAttribute('data-view');
-             if(view === 'settings') DOM.settingsTab.click(); 
-             navigateTo(`#${view}`);
+            const view = tab.getAttribute('data-view');
+            if(view === 'settings') DOM.settingsTab.click(); 
+            navigateTo(`#${view}`);
         });
         tab.addEventListener('keydown', (e) => { if(e.key==='Enter') tab.click(); });
     });
@@ -460,13 +461,21 @@ function initApp() {
         updateFilterDropdown('watchlist');
         loadWatchlist();
     });
-    
+
     globalThis.addEventListener('load-music-view', (e) => {
         updateFilterDropdown('music');
         renderMusicView(e.detail?.query || '');
     });
-    
+
     // First paint happens inside initProfiles -> selectProfile
 }
+
+// Global Voice Search Result Handler for Native Android Bridge
+globalThis.onVoiceResult = (text) => {
+    navigateTo('#search');
+    DOM.searchInput.value = text;
+    // Trigger the input event to fire the search logic in app.js
+    DOM.searchInput.dispatchEvent(new Event('input'));
+};
 
 document.addEventListener('DOMContentLoaded', initApp);
