@@ -181,5 +181,5 @@ export async function fetchMusicChart(id, type = 'chart') {
 }
 
 export async function fetchMusicManifest(trackId) {
-    return await fetchMusicDirect(`https://streamex.sh/api/music/manifest?id=${trackId}`);
+    return await fetchMusicDirect(`https://streamex.sh/api/music/track?id=${trackId}&quality=LOSSLESS`);
 }
