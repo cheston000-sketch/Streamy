@@ -7,7 +7,7 @@ import { initMusic } from './music.js';
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 49;
+const APP_VERSION = 50;
 
 async function checkForUpdatesBackground() {
     try {
