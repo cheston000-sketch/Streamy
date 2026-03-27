@@ -12,7 +12,7 @@ const APP_VERSION = 51;
 async function checkForUpdatesBackground() {
     try {
         const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
-        const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
+                const res = await fetch(`${HOST}/api/ota/check`, { method: 'GET', cache: 'no-cache' });
         if (!res.ok) return;
         const data = await res.json();
         if (data.version && APP_VERSION < data.version) {
@@ -394,7 +394,7 @@ function initApp() {
             settingCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
             try {
                 const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
-                const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
+                        const res = await fetch(`${HOST}/api/ota/check`, { method: 'GET', cache: 'no-cache' });
                 if (!res.ok) throw new Error("OTA fetch failed");
                 const data = await res.json();
                 if (data.version && APP_VERSION < data.version) {

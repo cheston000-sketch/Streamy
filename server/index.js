@@ -123,17 +123,22 @@ app.use('/api/streamex', async (req, res) => {
     const targetUrl = `https://streamex.sh/api/music/${streamexPath}`;
     
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        
         const response = await fetch(targetUrl, {
+            signal: controller.signal,
             headers: { 
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://streamex.sh/music',
                 'Accept': 'application/json'
             }
         });
+        clearTimeout(timeout);
         const data = await response.json();
         res.json(data);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(error.name === 'AbortError' ? 504 : 500).json({ error: error.message });
     }
 });
 
@@ -142,7 +147,11 @@ app.use('/api/deezer', async (req, res) => {
     const targetUrl = `https://api.deezer.com/${deezerPath}`;
     
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
         const response = await fetch(targetUrl, {
+            signal: controller.signal,
             headers: { 
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'application/json, text/plain, */*',
@@ -150,6 +159,7 @@ app.use('/api/deezer', async (req, res) => {
                 'Referer': 'https://www.deezer.com/'
             }
         });
+        clearTimeout(timeout);
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.indexOf("application/json") !== -1) {
             const data = await response.json();
@@ -160,7 +170,7 @@ app.use('/api/deezer', async (req, res) => {
             res.status(502).json({ error: "Upstream Deezer format invalid", raw_snippet: text.substring(0, 100) });
         }
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(error.name === 'AbortError' ? 504 : 500).json({ error: error.message });
     }
 });
 
@@ -170,7 +180,7 @@ app.use('/api/deezer', async (req, res) => {
 const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
 
-app.get('/api/ota/check', (req, res) => {
+app.get(['/api/ota', '/api/ota/check'], (req, res) => {
     // Read the current build.gradle version dynamically!
     // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
     const targetGradle = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build.gradle');

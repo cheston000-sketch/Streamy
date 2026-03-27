@@ -1,4 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL } from './api.js?v=29';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic } from './api.js?v=33';
+import { MusicState, playTrack } from './music.js?v=33';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
@@ -65,7 +66,7 @@ export function normalizeItem(item, typeFallback) {
     let type = item.media_type || item.type || typeFallback;
     let isMusic = type === 'music' || type === 'deezer' || type === 'track';
     let title = item.title || item.name;
-    let artist = item.artist?.name || item.artistName || item.artist || "";
+    let artist = item.artist?.name || item.artistName || (typeof item.artist === 'string' ? item.artist : "") || "";
     let releaseStr = item.release_date || item.first_air_date || item.year || "";
     
     let posterPath = item.poster_path ? `${IMAGE_URL}${item.poster_path}` : (item.poster || null);
@@ -288,9 +289,6 @@ export function saveSeriesProgress(tmdbId, s, e) {
 }
 
 // MUSIC UI
-import { MusicState, playTrack } from './music.js';
-import { fetchMusicChart, searchMusic } from './api.js';
-
 export async function renderMusicView(query = '') {
     const searchGrid = document.getElementById('music-search-results');
     const dynamicSections = document.getElementById('dynamic-music-sections');
@@ -380,6 +378,11 @@ export function renderPlaylistsGrid() {
             if(pList.length > 0) playTrack(pList[0], pList);
         };
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
+        card.addEventListener('mouseenter', () => {
+            // Optional: Add a visual cue or update a hero banner for the playlist
+            // For now, we'll just ensure focus for keyboard navigation consistency
+            card.focus();
+        });
         grid.appendChild(card);
     });
 }
@@ -413,9 +416,10 @@ export function createMusicGridCard(item, queue) {
     if (item.type === 'artist') card.classList.add('artist-card');
     
     // Using Spotify's Play Button paradigm built directly into the wrapper
+    const poster = item.poster || 'https://via.placeholder.com/600x600?text=Music';
     card.innerHTML = `
         <div class="card-img-wrapper">
-            <img loading="lazy" src="${item.poster}" alt="${item.title}" draggable="false">
+            <img loading="lazy" src="${poster}" alt="${item.title}" draggable="false">
             <button class="spotify-play-btn" title="Play">
                 <i class="fa-solid fa-play"></i>
             </button>
@@ -426,7 +430,7 @@ export function createMusicGridCard(item, queue) {
         </div>
     `;
 
-    card.addEventListener('focus', () => {
+    const updateHero = () => {
         const heroTitle = document.getElementById('music-hero-title');
         const heroDesc = document.getElementById('music-hero-desc');
         const heroBanner = document.getElementById('music-hero-banner');
@@ -435,7 +439,10 @@ export function createMusicGridCard(item, queue) {
         if (heroBanner && item.poster && heroBanner.style.backgroundImage !== `url("${item.poster}")`) {
             heroBanner.style.backgroundImage = `url('${item.poster}')`;
         }
-    });
+    };
+
+    card.addEventListener('focus', updateHero);
+    card.addEventListener('mouseenter', updateHero);
 
     card.onclick = () => playTrack(item, queue);
     card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
@@ -453,19 +460,45 @@ export function createMusicGridCard(item, queue) {
 
 // Playlist simple global handler
 globalThis.openCreatePlaylistModal = function() {
-    const name = prompt("Enter new Playlist Name:");
-    if (name && name.trim()) {
-        const trimmed = name.trim();
-        if (!MusicState.playlists[trimmed]) {
-            MusicState.playlists[trimmed] = [];
-            localStorage.setItem('streamos_music_state', JSON.stringify({
-                playlists: MusicState.playlists,
-                recent: MusicState.recent,
-                categories: MusicState.categories
-            }));
-            renderPlaylistsGrid();
+    const modal = document.getElementById('playlist-modal');
+    const input = document.getElementById('playlist-name-input');
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+    const createBtn = document.getElementById('modal-create-btn');
+
+    if (!modal || !input) return;
+
+    modal.classList.remove('hidden');
+    input.value = '';
+    input.focus();
+
+    const closeModal = () => modal.classList.add('hidden');
+
+    cancelBtn.onclick = closeModal;
+    createBtn.onclick = () => {
+        const name = input.value.trim();
+        if (name) {
+            if (!MusicState.playlists[name]) {
+                MusicState.playlists[name] = [];
+                localStorage.setItem('streamos_music_state', JSON.stringify({
+                    playlists: MusicState.playlists,
+                    recent: MusicState.recent,
+                    categories: MusicState.categories
+                }));
+                // Re-render only necessary parts if possible, or full music view
+                const musicView = document.getElementById('view-music');
+                if (musicView && !musicView.classList.contains('hidden')) {
+                    renderPlaylistsGrid();
+                }
+            }
+            closeModal();
         }
-    }
+    };
+
+    // Close on escape
+    input.onkeydown = (e) => {
+        if (e.key === 'Escape') closeModal();
+        if (e.key === 'Enter') createBtn.click();
+    };
 };
 
 export function updateMusicUIActiveState() {
@@ -482,6 +515,12 @@ export function updateMusicUIActiveState() {
 
 document.addEventListener('streamos:track_changed', () => {
     updateMusicUIActiveState();
+    renderRecentlyPlayedGrid();
+});
+
+// Bind Playlist Buttons (Multiple)
+document.querySelectorAll('.create-playlist-btn').forEach(btn => {
+    btn.onclick = () => globalThis.openCreatePlaylistModal();
 });
 
 // Search debouncing

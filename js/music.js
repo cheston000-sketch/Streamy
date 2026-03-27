@@ -136,10 +136,17 @@ export async function playTrack(track, queue = []) {
         if (!res?.data?.manifest) {
             console.log(`[Music] ID fetch failed for ${track.id}, attempting search fallback...`);
             const searchRes = await searchMusic(`${track.title} ${track.artist}`);
-            const firstMatch = searchRes?.data?.items?.[0];
-            if (firstMatch) {
-                console.log(`[Music] Found fallback match: ${firstMatch.title} (${firstMatch.id})`);
-                res = await fetchMusicManifest(firstMatch.id);
+            const matches = searchRes?.data?.items || [];
+            
+            // Try top 3 matches to find a working stream
+            for (let i = 0; i < Math.min(matches.length, 3); i++) {
+                const match = matches[i];
+                console.log(`[Music] Trying fallback match ${i+1}: ${match.title} (${match.id})`);
+                const matchRes = await fetchMusicManifest(match.id);
+                if (matchRes?.data?.manifest) {
+                    res = matchRes;
+                    break;
+                }
             }
         }
 
@@ -147,14 +154,14 @@ export async function playTrack(track, queue = []) {
             const decoded = atob(res.data.manifest);
             const manifest = JSON.parse(decoded);
             source.src = manifest.urls[0];
-            source.type = manifest.mimeType || 'audio/mpeg'; // Set Dynamic MIME Type
+            source.type = manifest.mimeType || 'audio/mpeg'; 
             audio.load();
             audio.play().catch(e => console.error("Playback failed:", e));
             
             // Record history
             addToHistory(track);
         } else {
-            alert("Unable to fetch audio stream for this track.");
+            alert("Unable to find a working audio stream for this track. Please try another song.");
         }
     } catch (e) {
         console.error("Play error:", e);
