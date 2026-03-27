@@ -142,9 +142,23 @@ app.use('/api/deezer', async (req, res) => {
     const targetUrl = `https://api.deezer.com/${deezerPath}`;
     
     try {
-        const response = await fetch(targetUrl);
-        const data = await response.json();
-        res.json(data);
+        const response = await fetch(targetUrl, {
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Origin': 'https://www.deezer.com',
+                'Referer': 'https://www.deezer.com/'
+            }
+        });
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await response.json();
+            res.json(data);
+        } else {
+            const text = await response.text();
+            console.error("[Deezer Proxy Error] Expected JSON, got HTML. Render node blocked by Deezer? Snippet:", text.substring(0, 100));
+            res.status(502).json({ error: "Upstream Deezer format invalid", raw_snippet: text.substring(0, 100) });
+        }
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
