@@ -1,7 +1,7 @@
 import { IMAGE_URL, BACKDROP_URL } from './api.js?v=29';
 
 export const DOM = {
-    topBar: document.getElementById('top-bar'),
+    topBar: document.getElementById('side-bar'),
     navTabs: document.querySelectorAll('.nav-tab[data-view]'),
     genreFilter: document.getElementById('genre-filter'),
     

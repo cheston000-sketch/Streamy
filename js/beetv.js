@@ -54,8 +54,19 @@
 
     function handleHorizontal(active, key, e) {
         const isRight = ['ArrowRight', 'Right'].includes(key);
-        // Find siblings in the same container (Posters, Tabs, Grid, or Header)
-        const parent = active.closest('.row-posters, .nav-tabs, .grid, #avatar-selection-grid, .control-btns, #top-bar, #view-home > div');
+
+        if (active.closest('#side-bar') || active.closest('.nav-tabs')) {
+            if (isRight) {
+                const firstContentItem = document.querySelector(CONFIG.POSTER_SELECTOR) || document.querySelector('.grid .poster-card, #hero-banner a, #apk-hero-banner a');
+                if (firstContentItem) {
+                    firstContentItem.focus();
+                    e.preventDefault();
+                }
+            }
+            return;
+        }
+
+        const parent = active.closest('.row-posters, .grid, #avatar-selection-grid, .control-btns, #view-home > div');
         if (!parent) return;
 
         const items = getFocusableItems(parent);
@@ -64,9 +75,17 @@
         if (isRight && idx < items.length - 1) {
             items[idx + 1].focus();
             e.preventDefault();
-        } else if (!isRight && idx > 0) {
-            items[idx - 1].focus();
-            e.preventDefault();
+        } else if (!isRight) {
+            if (idx > 0) {
+                items[idx - 1].focus();
+                e.preventDefault();
+            } else {
+                const activeTab = document.querySelector('.nav-tab.active') || document.querySelector('.nav-tab');
+                if (activeTab) {
+                    activeTab.focus();
+                    e.preventDefault();
+                }
+            }
         }
     }
 
@@ -74,34 +93,18 @@
         const isDown = ['ArrowDown', 'Down'].includes(key);
         const activeRect = active.getBoundingClientRect();
         
-        // CASE A: Top Bar -> Move to first content row or banner
-        if (active.closest('#top-bar')) {
-            if (isDown) {
-                // Try moving to APK Hero Banner first if visible
-                const apkBanner = document.querySelector('#view-home > div[style*="background"]');
-                if (apkBanner && !apkBanner.classList.contains('hidden')) {
-                    const firstBtn = apkBanner.querySelector('a, button, [tabindex="0"]');
-                    if (firstBtn) {
-                        firstBtn.focus();
-                        e.preventDefault();
-                        return;
-                    }
-                }
-                
-                // Otherwise move to first row
-                const firstRow = document.querySelector(CONFIG.ROW_SELECTOR);
-                if (firstRow) {
-                    const firstItem = firstRow.querySelector(CONFIG.POSTER_SELECTOR);
-                    if (firstItem) {
-                        firstItem.focus();
-                        e.preventDefault();
-                    }
-                }
+        if (active.closest('#side-bar') || active.closest('.nav-tabs')) {
+            const tabs = getFocusableItems(active.closest('.nav-tabs') || document.querySelector('.nav-tabs'));
+            const idx = tabs.indexOf(active);
+            if (idx === -1) return;
+            if (isDown && idx < tabs.length - 1) {
+                tabs[idx + 1].focus(); e.preventDefault();
+            } else if (!isDown && idx > 0) {
+                tabs[idx - 1].focus(); e.preventDefault();
             }
             return;
         }
 
-        // CASE B: APK Hero Banner -> Move up to Top Bar or down to Rows
         const apkBanner = active.closest('#view-home > div[style*="background"]');
         if (apkBanner) {
             if (isDown) {
@@ -109,84 +112,52 @@
                 if (firstRow) {
                     const firstItem = firstRow.querySelector(CONFIG.POSTER_SELECTOR);
                     if (firstItem) {
-                        firstItem.focus();
-                        e.preventDefault();
+                        firstItem.focus(); e.preventDefault();
                     }
-                }
-            } else {
-                // Move up to Top Bar
-                const tabs = document.querySelectorAll('.nav-tab');
-                if (tabs.length) {
-                    tabs[0].focus();
-                    e.preventDefault();
                 }
             }
             return;
         }
 
-        // CASE C: Content Row -> Move between rows or up to banner/tabs
         const currentRow = active.closest(CONFIG.ROW_SELECTOR);
         if (currentRow) {
             const rows = Array.from(document.querySelectorAll(CONFIG.ROW_SELECTOR));
             const rowIdx = rows.indexOf(currentRow);
 
             if (isDown && rowIdx < rows.length - 1) {
-                // Move Down to Next Row
                 focusNearestX(activeRect, rows[rowIdx + 1], e);
             } else if (!isDown) {
                 if (rowIdx > 0) {
-                    // Move Up to Previous Row
                     focusNearestX(activeRect, rows[rowIdx - 1], e);
                 } else {
-                    // Move Up to Banner or Top Bar
                     const apkHero = document.querySelector('#view-home > div[style*="background"]');
                     if (apkHero && !apkHero.classList.contains('hidden')) {
                         const btn = apkHero.querySelector('a, button, [tabindex="0"]');
                         if (btn) {
-                            btn.focus();
-                            e.preventDefault();
-                            return;
+                            btn.focus(); e.preventDefault();
                         }
-                    }
-                    const tabs = document.querySelectorAll('.nav-tab');
-                    if (tabs.length) {
-                        tabs[0].focus();
-                        e.preventDefault();
                     }
                 }
             }
             return;
         }
 
-        // CASE D: Grid View (Search/Categories)
         const currentGrid = active.closest('.grid, #category-grid, #search-grid');
         if (currentGrid) {
             const items = getFocusableItems(currentGrid);
             const idx = items.indexOf(active);
             
-            // For grids, we estimate items per row based on container width
             const gridRect = currentGrid.getBoundingClientRect();
             const itemRect = active.getBoundingClientRect();
             const itemsPerRow = Math.max(1, Math.floor(gridRect.width / (itemRect.width + 10))); 
 
             if (isDown) {
                 if (idx + itemsPerRow < items.length) {
-                    items[idx + itemsPerRow].focus();
-                    e.preventDefault();
-                } else {
-                    // Scroll to bottom or handle load more?
+                    items[idx + itemsPerRow].focus(); e.preventDefault();
                 }
             } else {
                 if (idx - itemsPerRow >= 0) {
-                    items[idx - itemsPerRow].focus();
-                    e.preventDefault();
-                } else {
-                    // Move up to Top Bar
-                    const tabs = document.querySelectorAll('.nav-tab');
-                    if (tabs.length) {
-                        tabs[0].focus();
-                        e.preventDefault();
-                    }
+                    items[idx - itemsPerRow].focus(); e.preventDefault();
                 }
             }
             return;
