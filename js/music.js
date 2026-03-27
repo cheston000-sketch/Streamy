@@ -130,23 +130,21 @@ export async function playTrack(track, queue = []) {
     document.dispatchEvent(new CustomEvent('streamos:track_changed', { detail: track }));
 
     try {
-        let res = await fetchMusicManifest(track.id);
+        let res = null;
+        try {
+            res = await fetchMusicManifest(track.id);
+        } catch (e) {
+            console.error("Primary manifest fetch threw error:", e);
+        }
         
-        // Fallback: If Deezer ID doesn't work, search by Title + Artist
+        // Fallback iteration: If primary ID fails OR throws, search by title + artist
         if (!res?.data?.manifest) {
-            console.log(`[Music] ID fetch failed for ${track.id}, attempting search fallback...`);
+            console.warn("Primary ID manifest failed, attempting search metadata fallback...");
             const searchRes = await searchMusic(`${track.title} ${track.artist}`);
-            const matches = searchRes?.data?.items || [];
-            
-            // Try top 3 matches to find a working stream
-            for (let i = 0; i < Math.min(matches.length, 3); i++) {
-                const match = matches[i];
-                console.log(`[Music] Trying fallback match ${i+1}: ${match.title} (${match.id})`);
-                const matchRes = await fetchMusicManifest(match.id);
-                if (matchRes?.data?.manifest) {
-                    res = matchRes;
-                    break;
-                }
+            const firstMatch = searchRes.data?.find(item => item.type === 'track');
+            if (firstMatch && String(firstMatch.id) !== String(track.id)) {
+                console.log("Found metadata match, retrying manifest with ID:", firstMatch.id);
+                res = await fetchMusicManifest(firstMatch.id);
             }
         }
 
