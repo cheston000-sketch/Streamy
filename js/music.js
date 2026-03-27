@@ -137,30 +137,56 @@ export async function playTrack(track, queue = []) {
             console.error("Primary manifest fetch threw error:", e);
         }
         
-        // Fallback iteration: If primary ID fails OR throws, search by title + artist
+        // Fallback 1: Metadata Search via Streamex (Secondary ID)
         if (!res?.data?.manifest) {
-            console.warn("Primary ID manifest failed, attempting search metadata fallback...");
+            console.warn("Primary ID manifest failed, attempting Streamex search fallback...");
             const searchRes = await searchMusic(`${track.title} ${track.artist}`);
             const searchItems = searchRes.data?.items || searchRes.data || [];
             const firstMatch = searchItems.find?.(item => item.type === 'track' || item.type === 'music');
             if (firstMatch && String(firstMatch.id) !== String(track.id)) {
-                console.log("Found metadata match, retrying manifest with ID:", firstMatch.id);
-                res = await fetchMusicManifest(firstMatch.id);
+                try {
+                    res = await fetchMusicManifest(firstMatch.id);
+                } catch(e) {}
             }
         }
 
-        if (res?.data?.manifest) {
-            const decoded = atob(res.data.manifest);
-            const manifest = JSON.parse(decoded);
-            source.src = manifest.urls[0];
-            source.type = manifest.mimeType || 'audio/mpeg'; 
+        // Fallback 2: Universal Search via Saavn (Direct Stream Fallback)
+        let directUrl = null;
+        if (!res?.data?.manifest) {
+            console.warn("Streamex pipeline failed, attempting Universal Saavn fallback...");
+            try {
+                const saavnRes = await searchMusicSaavn(`${track.title} ${track.artist}`);
+                const saavnItems = saavnRes?.data?.results || [];
+                if (saavnItems.length > 0) {
+                    const topMatch = saavnItems[0];
+                    // Pick the highest quality (320kbps is usually index 4)
+                    const urls = topMatch.downloadUrl || [];
+                    directUrl = (urls[urls.length - 1] || urls[0])?.url;
+                    console.log("Found Universal Saavn stream:", directUrl);
+                }
+            } catch (e) {
+                console.error("Universal fallback failed:", e);
+            }
+        }
+
+        if (res?.data?.manifest || directUrl) {
+            if (directUrl) {
+                source.src = directUrl;
+            } else {
+                const decoded = atob(res.data.manifest);
+                const manifest = JSON.parse(decoded);
+                source.src = manifest.urls[0];
+            }
             audio.load();
-            audio.play().catch(e => console.error("Playback failed:", e));
+            audio.play().catch(e => console.warn("Autoplay blocked", e));
             
             // Record history
-            addToHistory(track);
+            MusicState.recent = MusicState.recent.filter(t => t.id !== track.id);
+            MusicState.recent.unshift({ ...track, playedAt: Date.now() });
+            if (MusicState.recent.length > 20) MusicState.recent.pop();
+            localStorage.setItem('streamos_recent_music', JSON.stringify(MusicState.recent));
         } else {
-            alert("Unable to find a working audio stream for this track. Please try another song.");
+            throw new Error("Unable to fetch audio stream after all fallbacks.");
         }
     } catch (e) {
         console.error("Play error:", e);

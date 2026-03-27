@@ -183,3 +183,14 @@ export async function fetchMusicChart(id, type = 'chart') {
 export async function fetchMusicManifest(trackId) {
     return await fetchMusicDirect(`https://streamex.sh/api/music/track?id=${trackId}&quality=HIGH`);
 }
+
+// SAAVN FALLBACK API
+export async function searchMusicSaavn(query) {
+    const host = getProxyHost();
+    try {
+        const res = await fetch(`${host}/api/saavn/search/songs?query=${encodeURIComponent(query)}&limit=5`);
+        return await res.json();
+    } catch (e) {
+        return { data: { results: [] } };
+    }
+}
