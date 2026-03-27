@@ -147,6 +147,7 @@ export async function playTrack(track, queue = []) {
             const decoded = atob(res.data.manifest);
             const manifest = JSON.parse(decoded);
             source.src = manifest.urls[0];
+            source.type = manifest.mimeType || 'audio/mpeg'; // Set Dynamic MIME Type
             audio.load();
             audio.play().catch(e => console.error("Playback failed:", e));
             
