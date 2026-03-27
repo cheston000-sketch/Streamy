@@ -7,7 +7,7 @@ import { initMusic } from './music.js';
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 47;
+const APP_VERSION = 48;
 
 async function checkForUpdatesBackground() {
     try {
@@ -143,6 +143,9 @@ function initProfiles() {
     if (versionEl) versionEl.innerText = APP_VERSION + ".0";
     
     checkForUpdatesBackground();
+    
+    // Explicitly hide main content on boot to prevent focus traps
+    document.getElementById('main-content').classList.add('hidden');
 }
 
 function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
@@ -170,7 +173,12 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
         grid.appendChild(card);
         
-        if (focusIndex === idx) setTimeout(() => card.focus(), 100);
+        if (focusIndex === idx) {
+            setTimeout(() => {
+                card.focus();
+                console.log("[Focus] Profile focused:", p.name);
+            }, 500); // More generous delay for TV OS
+        }
     });
 }
 
@@ -353,13 +361,16 @@ function setupDpadLogic() {
             globalThis.history.back();
             e.preventDefault();
         }
-        // Minimal browser spatial navigation wrapper over Tab
+        // Minimal browser spatial navigation wrapper
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Up','Down','Left','Right'].includes(e.key)) {
+            // Give browser time to update activeElement
             setTimeout(() => {
-                if (document.activeElement && typeof document.activeElement.scrollIntoView === 'function') {
-                    try { document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } catch(err) { console.warn("Spatial scroll failed:", err); }
+                const active = document.activeElement;
+                if (active && typeof active.scrollIntoView === 'function') {
+                    // behavior: 'smooth' is removed as it causes async focus conflicts on some Android TV builds
+                    try { active.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch(err) { }
                 }
-            }, 50);
+            }, 10);
         }
     });
 }
