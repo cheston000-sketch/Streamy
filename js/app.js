@@ -7,7 +7,7 @@ import { initMusic } from './music.js';
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 46;
+const APP_VERSION = 47;
 
 async function checkForUpdatesBackground() {
     try {
@@ -465,6 +465,25 @@ function initApp() {
     globalThis.addEventListener('load-music-view', (e) => {
         updateFilterDropdown('music');
         renderMusicView(e.detail?.query || '');
+        
+        // Fix for TV Navigation: Focus the search input when the view loads
+        setTimeout(() => {
+            const musicSearch = document.getElementById('music-search-input');
+            if (musicSearch) {
+                musicSearch.focus();
+                
+                // Allow "Down" key on remote to drop from search into the first row
+                musicSearch.onkeydown = (ev) => {
+                    if (ev.key === 'ArrowDown' || ev.key === 'Down') {
+                        const firstCard = document.querySelector('.music-card');
+                        if (firstCard) {
+                            firstCard.focus();
+                            ev.preventDefault();
+                        }
+                    }
+                };
+            }
+        }, 400);
     });
 
     // First paint happens inside initProfiles -> selectProfile

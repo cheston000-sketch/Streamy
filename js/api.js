@@ -127,9 +127,19 @@ export async function fetchTVEpisodeList(tvId, seasonNum) {
 }
 
 // MUSIC API (PROXIED)
+function getProxyHost() {
+    // Priority: 1. Local Browser/Dev 2. Native App with Local Server 3. Remote/Live Fallback
+    const isLocal = globalThis.location.hostname === 'localhost' || globalThis.location.hostname === '127.0.0.1';
+    if (isLocal) return 'http://localhost:3000';
+    
+    // Live Render Proxy (Global Fallback for Mobile/Production)
+    return 'https://streamy-vez5.onrender.com';
+}
+
 export async function fetchMusicFromProxy(endpoint) {
     try {
-        const res = await fetch(`http://localhost:3000/api${endpoint}`);
+        const host = getProxyHost();
+        const res = await fetch(`${host}/api${endpoint}`);
         const data = await res.json();
         return data;
     } catch (e) {
