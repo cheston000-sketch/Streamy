@@ -174,6 +174,29 @@ app.use('/api/deezer', async (req, res) => {
     }
 });
 
+// Saavn Proxy (Fallback Provider)
+app.use('/api/saavn', async (req, res) => {
+    const saavnPath = req.url.replace(/^\//, '');
+    const targetUrl = `https://saavn.sumit.co/api/${saavnPath}`;
+    
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+
+        const response = await fetch(targetUrl, {
+            signal: controller.signal,
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        clearTimeout(timeout);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        res.status(error.name === 'AbortError' ? 504 : 500).json({ error: error.message });
+    }
+});
+
 // ==========================================
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
