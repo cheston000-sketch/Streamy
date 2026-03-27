@@ -141,7 +141,8 @@ export async function playTrack(track, queue = []) {
         if (!res?.data?.manifest) {
             console.warn("Primary ID manifest failed, attempting search metadata fallback...");
             const searchRes = await searchMusic(`${track.title} ${track.artist}`);
-            const firstMatch = searchRes.data?.find(item => item.type === 'track');
+            const searchItems = searchRes.data?.items || searchRes.data || [];
+            const firstMatch = searchItems.find?.(item => item.type === 'track' || item.type === 'music');
             if (firstMatch && String(firstMatch.id) !== String(track.id)) {
                 console.log("Found metadata match, retrying manifest with ID:", firstMatch.id);
                 res = await fetchMusicManifest(firstMatch.id);
