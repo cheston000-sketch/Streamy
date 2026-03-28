@@ -1,22 +1,30 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=65';
-import { discoverByCategory } from './api.js?v=65';
-import { openDetails } from './player.js?v=65';
-import { setupRouter, navigateTo } from './router.js?v=65';
-import { NavigationManager } from './navigation.js?v=65';
+import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=66';
+import { discoverByCategory } from './api.js?v=66';
+import { openDetails } from './player.js?v=66';
+import { setupRouter, navigateTo } from './router.js?v=66';
+import { NavigationManager } from './navigation.js?v=66';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 65;
+const APP_VERSION = 66;
+const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
     try {
-        const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
+        const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : UPDATE_SERVER;
         const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
         if (!res.ok) return;
         const data = await res.json();
+
+        // Dynamic Backend Discovery (Sync extraction host with coordination server)
+        if (data.backend_url) {
+            globalThis.localStorage.setItem('streamy_backend_host', data.backend_url);
+            console.log("[Discovery] backend_url synced:", data.backend_url);
+        }
+
         if (data.version && APP_VERSION < data.version) {
             showUpdateBanner(data.version, data.url);
         }
@@ -428,10 +436,15 @@ function initApp() {
         settingCheckUpdate.onclick = async () => {
             settingCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
             try {
-                const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
+                const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : UPDATE_SERVER;
                 const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
                 if (!res.ok) throw new Error();
                 const data = await res.json();
+                
+                if (data.backend_url) {
+                    globalThis.localStorage.setItem('streamy_backend_host', data.backend_url);
+                }
+
                 if (data.version && APP_VERSION < data.version) {
                     showUpdateBanner(data.version, data.url);
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> Update Found!';

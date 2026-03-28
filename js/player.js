@@ -4,10 +4,17 @@ import { navigateTo } from './router.js?v=29';
 
 let currentMovieContext = null;
 
-// Extractor Endpoint (Production Safe)
-const isLocal = globalThis.location.hostname === 'localhost' || globalThis.location.hostname === '127.0.0.1';
-const HOST = isLocal ? 'http://localhost:3000' : 'https://streamy-vez5.onrender.com';
-const STREAMOS_API = `${HOST}/api/stream`;
+// Extractor Endpoint (Dynamic Discovery v66)
+function getExtractionApi() {
+    const isLocal = globalThis.location.hostname === 'localhost' || globalThis.location.hostname === '127.0.0.1';
+    const storedHost = globalThis.localStorage.getItem('streamy_backend_host');
+    
+    // Priority: 1. Manual/Stored Override 2. Local Dev 3. Render Production
+    const host = storedHost || (isLocal ? 'http://localhost:3000' : 'https://streamy-vez5.onrender.com');
+    return `${host}/api/stream`;
+}
+
+const STREAMOS_API = getExtractionApi();
 
 export async function openDetails(movie) {
     currentMovieContext = movie;
