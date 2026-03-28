@@ -240,11 +240,32 @@
         }
     }
 
-    // Auto-scroll Alignment (v45 Optimized for FireTV)
+    // Custom Spatial Scroller (v47 - Manual Alignment for FireTV)
     window.addEventListener('focusin', (e) => {
         const active = e.target;
-        if (active && typeof active.scrollIntoView === 'function') {
-            // v45: Use behavior 'auto' and 'nearest' to prevent "snap-back" bugs on FireTV
+        if (!active) return;
+
+        // 1. Detect if inside a horizontal scrolling row
+        const row = active.closest('.row-posters, .row-posters-music, .media-grid, .content-grid, #episode-list, #season-tabs');
+        
+        if (row && typeof row.scrollLeft !== 'undefined') {
+            setTimeout(() => {
+                const containerWidth = row.clientWidth;
+                const cardWidth = active.offsetWidth;
+                const cardLeft = active.offsetLeft;
+                
+                // Goal: Keep the card roughly centered OR fully visible with a buffer
+                // For TV, centering is most predictable.
+                const targetScroll = cardLeft - (containerWidth / 2) + (cardWidth / 2);
+                
+                // Direct manipulation is more stable on older WebViews than scrollIntoView
+                row.scrollTo({
+                    left: targetScroll,
+                    behavior: 'auto' // Snap instantly to prevent "move-back" race conditions
+                });
+            }, 10);
+        } else if (typeof active.scrollIntoView === 'function') {
+            // Standard vertical fallback for page-level elements
             setTimeout(() => {
                 active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
             }, 10);
