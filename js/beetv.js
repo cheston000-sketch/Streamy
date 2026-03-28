@@ -240,13 +240,14 @@
         }
     }
 
-    // Auto-scroll Alignment
+    // Auto-scroll Alignment (v45 Optimized for FireTV)
     window.addEventListener('focusin', (e) => {
         const active = e.target;
         if (active && typeof active.scrollIntoView === 'function') {
+            // v45: Use behavior 'auto' and 'nearest' to prevent "snap-back" bugs on FireTV
             setTimeout(() => {
-                active.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
-            }, 100);
+                active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+            }, 10);
         }
     });
 

@@ -105,7 +105,7 @@ body {
     padding: 30px 40px; /* Ample padding to prevent scaling clip */
     overflow-x: auto; overflow-y: hidden;
     scrollbar-width: none;
-    scroll-behavior: smooth;
+    /* scroll-behavior: smooth; -- Removed in v45 to fix FireTV focus jump */
 }
 .row-posters::-webkit-scrollbar { display: none; }
 
