@@ -201,7 +201,7 @@ app.use('/api/saavn', async (req, res) => {
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
 const LOCAL_APK = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v61.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v62.apk');
 
 app.get('/api/ota', (req, res) => {
     // Read the current build.gradle version dynamically!
@@ -213,8 +213,8 @@ app.get('/api/ota', (req, res) => {
             return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
         }
     } catch(e) {}
-    // Fallback for Render deployment (ensure it's 61 for the rebranded release)
-    res.json({ available: true, version: 61, download: '/api/ota/download' });
+    // Fallback for Render deployment (ensure it's updated for the UI fix)
+    res.json({ available: true, version: 62, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
