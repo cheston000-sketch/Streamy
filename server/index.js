@@ -203,7 +203,7 @@ app.use('/api/saavn', async (req, res) => {
 const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
 
-app.get(['/api/ota', '/api/ota/check'], (req, res) => {
+app.get('/api/ota', (req, res) => {
     // Read the current build.gradle version dynamically!
     // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
     const targetGradle = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build.gradle');
