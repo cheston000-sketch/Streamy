@@ -215,7 +215,7 @@ app.get('/api/ota', (req, res) => {
         }
     } catch(e) {}
     // Fallback for Render deployment where BeeTV folder is missing
-    res.json({ available: true, version: 61, download: '/api/ota/download' });
+    res.json({ available: true, version: 40, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {

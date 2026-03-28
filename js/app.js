@@ -7,12 +7,12 @@ import { initMusic } from './music.js';
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 60;
+const APP_VERSION = 40;
 
 async function checkForUpdatesBackground() {
     try {
         const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
-                const res = await fetch(`${HOST}/api/ota/check`, { method: 'GET', cache: 'no-cache' });
+                const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
         if (!res.ok) return;
         const data = await res.json();
         if (data.version && APP_VERSION < data.version) {
