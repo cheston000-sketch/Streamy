@@ -55,13 +55,13 @@
     function handleHorizontal(active, key, e) {
         const isRight = ['ArrowRight', 'Right'].includes(key);
 
-        if (active.closest('#side-bar') || active.closest('.nav-tabs')) {
-            if (isRight) {
-                const firstContentItem = document.querySelector(CONFIG.POSTER_SELECTOR) || document.querySelector('.grid .poster-card, .media-grid .media-card, #hero-banner a, #apk-hero-banner a');
-                if (firstContentItem) {
-                    firstContentItem.focus();
-                    e.preventDefault();
-                }
+        if (active.closest('.nav-tabs')) {
+            const tabs = getFocusableItems(active.closest('.nav-tabs'));
+            const idx = tabs.indexOf(active);
+            if (isRight && idx < tabs.length - 1) {
+                tabs[idx + 1].focus(); e.preventDefault();
+            } else if (!isRight && idx > 0) {
+                tabs[idx - 1].focus(); e.preventDefault();
             }
             return;
         }
@@ -103,14 +103,22 @@
         const isDown = ['ArrowDown', 'Down'].includes(key);
         const activeRect = active.getBoundingClientRect();
         
-        if (active.closest('#side-bar') || active.closest('.nav-tabs')) {
-            const tabs = getFocusableItems(active.closest('.nav-tabs') || document.querySelector('.nav-tabs'));
+        if (active.closest('.nav-tabs')) {
+            const tabs = getFocusableItems(active.closest('.nav-tabs'));
             const idx = tabs.indexOf(active);
             if (idx === -1) return;
-            if (isDown && idx < tabs.length - 1) {
-                tabs[idx + 1].focus(); e.preventDefault();
-            } else if (!isDown && idx > 0) {
-                tabs[idx - 1].focus(); e.preventDefault();
+            
+            if (isDown) {
+                // MENU TO CONTENT
+                const firstRow = document.querySelector(CONFIG.ROW_SELECTOR);
+                if (firstRow) {
+                    const firstItem = firstRow.querySelector(CONFIG.POSTER_SELECTOR);
+                    if (firstItem) { firstItem.focus(); e.preventDefault(); }
+                } else {
+                    // Fallback to any visible content grid
+                    const firstGridItem = document.querySelector('.grid button, #view-category button');
+                    if (firstGridItem) { firstGridItem.focus(); e.preventDefault(); }
+                }
             }
             return;
         }
@@ -165,9 +173,9 @@
                             btn.focus(); e.preventDefault();
                         }
                     } else {
-                        // Added reverse escape out of rows to tabs
-                        const tabs = getFocusableItems(document.querySelector('.nav-tabs'));
-                        if (tabs.length > 0) { tabs[0].focus(); e.preventDefault(); }
+                        // CONTENT TO MENU (UP from first row)
+                        const activeTab = document.querySelector('.nav-tab.active') || document.querySelector('.nav-tab');
+                        if (activeTab) { activeTab.focus(); e.preventDefault(); }
                     }
                 }
             }
