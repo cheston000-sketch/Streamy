@@ -1,5 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=39';
-import { MusicState, playTrack } from './music.js?v=39';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=40';
+import { MusicState, playTrack } from './music.js?v=40';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
@@ -318,7 +318,8 @@ export async function renderMusicView(query = '') {
                 console.log("[Search Fallback] No Streamex results, trying Saavn...");
                 searchResultsContainer.innerHTML = '<div style="color:#aaa; padding: 20px;">Searching Extended Universe...</div>';
                 const saavnResults = await searchMusicSaavn(query);
-                tracks = saavnResults?.data || [];
+                // Correctly extract the results array from Saavn's nested data structure
+                tracks = saavnResults?.data?.results || saavnResults?.data || [];
             }
 
             searchResultsContainer.innerHTML = '';
