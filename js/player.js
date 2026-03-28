@@ -146,8 +146,8 @@ async function startScrapingSession(targetS = null, targetE = null) {
     if (!currentMovieContext) return;
     
     // Save to active profile history
-    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
-    const histKey = activeProfileRaw ? `beetv_history_${activeProfileRaw}` : 'beetv_history_default';
+    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
+    const histKey = activeProfileRaw ? `streamy_history_${activeProfileRaw}` : 'streamy_history_default';
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
     hList = hList.filter(m => m.id !== currentMovieContext.id);
     hList.unshift(currentMovieContext);

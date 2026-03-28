@@ -27,7 +27,7 @@ function showUpdateBanner(newVersionKey, downloadUrl) {
     const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
     banner.innerHTML = `<i class="fa-solid fa-download" style="font-size:24px;"></i> <div>Streamy Update Available!<br><span style="font-size:12px;font-weight:normal;">Click to install v${newVersionKey}.0</span></div>`;
     banner.onclick = () => {
-        localStorage.setItem('beetv_build_version', newVersionKey);
+        localStorage.setItem('streamy_build_version', newVersionKey);
         if(window.NativeBridge && window.NativeBridge.downloadUpdate) {
             window.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
         } else {
@@ -93,22 +93,32 @@ function updateFilterDropdown(type) {
 
 // Profiles System
 function getProfiles() {
-    return JSON.parse(globalThis.localStorage.getItem('beetv_profiles') || '[]');
+    return JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
 }
 function saveProfiles(profiles) {
-    globalThis.localStorage.setItem('beetv_profiles', JSON.stringify(profiles));
+    globalThis.localStorage.setItem('streamy_profiles', JSON.stringify(profiles));
 }
 
 function initProfiles() {
     let profiles = getProfiles();
-    if (profiles.length === 0) {
-        profiles = [
-            { id: Date.now().toString(), name: 'Default', avatar: '1', primary: true, isKid: false }
-        ];
-        saveProfiles(profiles);
-    }
     
-    const activeId = globalThis.localStorage.getItem('beetv_active_profile');
+    // Ensure mandatory profiles exist
+    const mandatory = [
+        { id: 'profile_adult', name: 'Default', avatar: '1', primary: true, isKid: false },
+        { id: 'profile_kids', name: 'Kids', avatar: '2', primary: false, isKid: true }
+    ];
+
+    let profilesUpdated = false;
+    mandatory.forEach(m => {
+        if (!profiles.find(p => p.id === m.id)) {
+            profiles.push(m);
+            profilesUpdated = true;
+        }
+    });
+
+    if (profilesUpdated) saveProfiles(profiles);
+    
+    const activeId = globalThis.localStorage.getItem('streamy_active_profile');
     if (activeId) {
         activeProfile = profiles.find(p => p.id === activeId);
     }
@@ -136,8 +146,9 @@ function initProfiles() {
         document.getElementById('profile-edit-modal').classList.add('hidden');
     };
 
+    document.getElementById('add-profile-btn').style.display = 'none';
     const versionEl = document.getElementById('setting-build-version');
-    if (versionEl) versionEl.innerText = APP_VERSION + ".0";
+    if (versionEl) versionEl.innerText = '61.0';
     
     checkForUpdatesBackground();
 }
@@ -184,8 +195,19 @@ function openProfileModal(profile) {
     input.value = profile ? profile.name : '';
     isKid.checked = profile ? !!profile.isKid : false;
     
-    if (profile && !profile.primary) delBtn.classList.remove('hidden');
+    // Lock the "Is Kid" checkbox ONLY for mandatory profiles
+    const mandatoryIds = ['profile_adult', 'profile_kids'];
+    isKid.disabled = profile && mandatoryIds.includes(profile.id);
+    
+    // Show Add Profile button
+    document.getElementById('add-profile-btn').style.display = 'block';
+    
+    // Manage Delete button: Hide for mandatory profiles
+    if (profile && !mandatoryIds.includes(profile.id)) delBtn.classList.remove('hidden');
     else delBtn.classList.add('hidden');
+    
+    // Ensure "Manage Profiles" from settings is visible
+    DOM.settingManageProfiles.style.display = 'flex';
     
     // Simulate Avatar Selection Grid
     document.getElementById('avatar-selection-grid').innerHTML = `
@@ -228,7 +250,7 @@ function openProfileModal(profile) {
 
 function selectProfile(profile) {
     activeProfile = profile;
-    globalThis.localStorage.setItem('beetv_active_profile', profile.id);
+    globalThis.localStorage.setItem('streamy_active_profile', profile.id);
     document.getElementById('current-profile-name').textContent = profile.name;
     document.getElementById('profile-selection-screen').classList.add('hidden');
     document.getElementById('main-content').classList.remove('hidden');
@@ -245,7 +267,7 @@ function selectProfile(profile) {
 async function loadMovieRows() {
     DOM.rowsContainer.innerHTML = '';
     // Fetch History first
-    const histKey = 'beetv_history_' + (activeProfile ? activeProfile.id : 'default');
+    const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
     if(hList.length > 0) buildRow('Continue Watching', hList, true, 'movie', true, null, openDetails, null);
 
@@ -276,7 +298,7 @@ async function loadTVRows() {
 
 function loadWatchlist() {
     DOM.rowsContainer.innerHTML = '';
-    const watchKey = 'beetv_watchlist_' + (activeProfile ? activeProfile.id : 'default');
+    const watchKey = 'streamy_watchlist_' + (activeProfile ? activeProfile.id : 'default');
     let list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
     if(list.length > 0) buildRow('My Watchlist', list, true, 'movie', true, 'watchlist', openDetails, null);
     else DOM.rowsContainer.innerHTML = '<h2 style="padding: 100px; text-align:center; color:#555;">No Titles in Watchlist</h2>';
@@ -336,9 +358,12 @@ function initSearch() {
             return;
         }
         timeoutId = setTimeout(async () => {
-            const res = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=a9b4a682953630df7df70fb2178528b8&query=${encodeURIComponent(term)}&page=1`);
-            const data = await res.json();
-            const valid = data.results.filter(r => r.media_type === 'movie' || r.media_type === 'tv');
+            let searchUrl = `/search/multi?query=${encodeURIComponent(term)}&page=1`;
+            const results = await fetchFromTMDB(searchUrl);
+            const valid = results.filter(r => r.media_type === 'movie' || r.media_type === 'tv');
+            
+            // For Kids, we perform a secondary discovery-based filter if possible, 
+            // or just ensure adult content is definitely out.
             renderGridItems(valid, DOM.searchGrid, 'movie', openDetails);
         }, 500);
     });

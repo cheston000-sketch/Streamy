@@ -56,20 +56,20 @@ export async function clearAPICache() {
 }
 
 export async function fetchFromTMDB(endpoint) {
-    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
+    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
     if (activeProfileRaw) {
         try {
-            const profilesRaw = globalThis.localStorage.getItem('beetv_profiles');
+            const profilesRaw = globalThis.localStorage.getItem('streamy_profiles');
             const profiles = JSON.parse(profilesRaw || '[]');
             const profile = profiles.find(p => p.id === activeProfileRaw);
 
             if (profile && profile.isKid) {
                 if (endpoint.includes('/movie') || endpoint.includes('movie')) {
-                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG';
+                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG-13';
                 } else if (endpoint.includes('/tv') || endpoint.includes('tv')) {
-                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=TV-PG';
+                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=TV-14';
                 } else {
-                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG';
+                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG-13';
                 }
             }
         } catch(e) {}

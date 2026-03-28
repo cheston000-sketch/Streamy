@@ -40,7 +40,7 @@ app.get('/api/stream', async (req, res) => {
             ? { type: 'show', title, releaseYear: Number(year), tmdbId: tmdb, season: { number: Number(season) }, episode: { number: Number(episode) } }
             : { type: 'movie', title, releaseYear: Number(year), tmdbId: tmdb };
 
-        // To simulate BeeTV, we will run all providers and accumulate all streams
+        // To simulate Streamy, we will run all providers and accumulate all streams
         const output = await Promise.race([
             providers.runAll({ media }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Headless Scraper Timeout Hit')), 12000))
@@ -200,13 +200,12 @@ app.use('/api/saavn', async (req, res) => {
 // ==========================================
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
-const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
+const LOCAL_APK = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v61.apk');
 
 app.get('/api/ota', (req, res) => {
     // Read the current build.gradle version dynamically!
-    // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
-    const targetGradle = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build.gradle');
+    const targetGradle = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build.gradle');
     try {
         const gradleContent = fs.readFileSync(targetGradle, 'utf8');
         const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
@@ -214,8 +213,8 @@ app.get('/api/ota', (req, res) => {
             return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
         }
     } catch(e) {}
-    // Fallback for Render deployment where BeeTV folder is missing
-    res.json({ available: true, version: 40, download: '/api/ota/download' });
+    // Fallback for Render deployment (ensure it's 61 for the rebranded release)
+    res.json({ available: true, version: 61, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {

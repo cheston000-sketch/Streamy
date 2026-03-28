@@ -219,15 +219,15 @@ export function renderGridItems(items, container, typeFallback, onCardClick) {
 
 // Watchlist Helpers
 export function isInWatchlist(id) {
-    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
-    const watchKey = activeProfileRaw ? `beetv_watchlist_${activeProfileRaw}` : 'beetv_watchlist_default';
+    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
+    const watchKey = activeProfileRaw ? `streamy_watchlist_${activeProfileRaw}` : 'streamy_watchlist_default';
     const list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
     return list.some(x => x.id === id);
 }
 
 export function toggleWatchlist(item, btnElement) {
-    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
-    const watchKey = activeProfileRaw ? `beetv_watchlist_${activeProfileRaw}` : 'beetv_watchlist_default';
+    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
+    const watchKey = activeProfileRaw ? `streamy_watchlist_${activeProfileRaw}` : 'streamy_watchlist_default';
     let list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
     const index = list.findIndex(x => x.id === item.id);
     if (index > -1) {
@@ -250,15 +250,15 @@ export function toggleWatchlist(item, btnElement) {
 }
 
 export function getSeriesProgress(tmdbId) {
-    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
-    const key = `beetv_series_progress_${activeProfileRaw || 'default'}`;
+    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
+    const key = `streamy_series_progress_${activeProfileRaw || 'default'}`;
     const db = JSON.parse(localStorage.getItem(key) || '{}');
     return db[tmdbId] || { last_season: 1, last_episode: 1, watched: [] };
 }
 
 export function saveSeriesProgress(tmdbId, s, e) {
-    const activeProfileRaw = globalThis.localStorage.getItem('beetv_active_profile');
-    const key = `beetv_series_progress_${activeProfileRaw || 'default'}`;
+    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
+    const key = `streamy_series_progress_${activeProfileRaw || 'default'}`;
     const db = JSON.parse(localStorage.getItem(key) || '{}');
     if (!db[tmdbId]) db[tmdbId] = { watched: [] };
     db[tmdbId].last_season = parseInt(s);
