@@ -21,38 +21,36 @@ body {
     overflow: hidden; /* Main content handles scroll */
 }
 
-/* LEFT NAVIGATION SIDEBAR */
-#side-bar {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 30px;
-    background: linear-gradient(to right, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0) 100%);
-    padding: 5vh 2vw 5vh 5vw; 
+/* TOP NAVIGATION BAR */
+#top-bar {
+    display: flex; align-items: center; justify-content: flex-start; gap: 40px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+    padding: 20px 40px; 
     z-index: 500;
-    position: fixed; top: 0; bottom: 0; left: 0; width: 300px;
+    position: absolute; top: 0; left: 0; right: 0;
 }
 
-.brand { font-size: 2.2rem; font-weight: 900; color: var(--primary); letter-spacing: 2px; text-transform: uppercase; text-shadow: 2px 2px 5px black; flex-shrink: 0; margin-bottom: 20px;}
-.nav-tabs { display: flex; flex-direction: column; gap: 20px; flex-wrap: nowrap; justify-content: flex-start; align-items: flex-start; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; width: 100%; }
+.brand { font-size: 1.5rem; font-weight: 900; color: var(--primary); letter-spacing: 2px; text-transform: uppercase; text-shadow: 2px 2px 5px black; flex-shrink: 0; }
+.nav-tabs { display: flex; gap: 15px; flex-wrap: nowrap; justify-content: flex-start; align-items: center; overflow-x: auto; scrollbar-width: none; }
 
 .nav-tab {
     background: transparent; color: var(--text-primary); border: none;
-    font-size: 1.4rem; font-weight: bold; padding: 12px 15px; border-radius: 4px;
-    cursor: pointer; transition: 0.2s; outline: none; text-shadow: 1px 1px 3px black; white-space: nowrap; flex-shrink: 0; width: 100%; text-align: left;
+    font-size: 1rem; font-weight: bold; padding: 8px 10px; border-radius: 4px;
+    cursor: pointer; transition: 0.2s; outline: none; text-shadow: 1px 1px 3px black; white-space: nowrap; flex-shrink: 0;
 }
 
 .nav-tab:hover, .nav-tab:focus {
     color: white;
-    transform: scale(1.05);
+    transform: scale(1.1);
     background: rgba(255,255,255,0.1);
-    box-shadow: 0 0 0 3px white;
 }
 
-.nav-tab.active { font-weight: 900; color: white; border-left: 4px solid var(--primary); border-bottom: none; border-radius: 0; padding-left: 11px; }
+.nav-tab.active { font-weight: 900; color: white; border-bottom: 3px solid var(--primary); border-radius: 0; }
 
 /* MAIN CONTENT */
 #main-content {
-    flex: 1; overflow-y: auto; overflow-x: hidden; position: relative;
+    flex: 1; overflow-y: auto; position: relative;
     scrollbar-width: none;
-    margin-left: 300px;
 }
 #main-content::-webkit-scrollbar { display: none; }
 
@@ -105,7 +103,7 @@ body {
     padding: 30px 40px; /* Ample padding to prevent scaling clip */
     overflow-x: auto; overflow-y: hidden;
     scrollbar-width: none;
-    /* scroll-behavior: smooth; -- Removed in v45 to fix FireTV focus jump */
+    scroll-behavior: smooth;
 }
 .row-posters::-webkit-scrollbar { display: none; }
 
@@ -115,7 +113,6 @@ body {
     position: relative; border-radius: 6px; overflow: hidden; cursor: pointer;
     transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.3s;
     outline: none; background: #222;
-    will-change: transform;
 }
 
 .poster-card:focus, .poster-card:hover {
@@ -158,80 +155,6 @@ body {
 
 /* FULL-SCREEN DETAILS VIEW */
 #view-details { position: absolute; top:0; left:0; width:100%; min-height: 100%; background: var(--bg-dark); z-index: 1000; padding: 100px 40px 40px 40px; overflow-y: auto;}
-
-#music-hero-banner {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-size: cover;
-    background-position: center;
-    filter: blur(80px) brightness(0.4);
-    transform: scale(1.1);
-    z-index: -1;
-    transition: background-image 0.8s ease-in-out;
-}
-
-/* MODAL SYSTEM */
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 5000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-}
-
-.modal:not(.hidden) {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.modal-content {
-    background: #1a1a1a;
-    padding: 30px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-.glass-effect {
-    background: rgba(30, 30, 30, 0.8);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-}
-
-.modal-content input {
-    width: 100%;
-    padding: 12px 16px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px;
-    color: white;
-    font-size: 1rem;
-    margin-bottom: 24px;
-    outline: none;
-}
-
-.modal-content input:focus {
-    border-color: var(--accent-color);
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-}
 
 .backdrop {
     position: absolute; top: 0px; left: -40px; right: -40px; height: 65vh;
@@ -294,91 +217,6 @@ body {
 
 /* Web Player Tweaks */
 #view-player video { border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-
-/* MUSIC PLAYER BAR (Apple Music Floating Style) */
-#music-player-bar {
-    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: calc(100% - 80px); max-width: 1400px;
-    height: 90px; background: rgba(30,30,30,0.7);
-    backdrop-filter: blur(30px) saturate(1.5); border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 16px;
-    z-index: 5000; display: flex; align-items: center; padding: 0 30px;
-    box-shadow: 0 25px 50px rgba(0,0,0,0.8);
-    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-#music-player-bar.hidden { transform: translate(-50%, 150px) scale(0.9); opacity: 0; pointer-events: none; display: flex !important; }
-
-.player-bar-content { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 30px; }
-
-.track-info { display: flex; align-items: center; gap: 20px; width: 300px; flex-shrink: 0; }
-#player-bar-cover { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
-.text-info { display: flex; flex-direction: column; overflow: hidden; }
-#player-bar-title { color: white; font-weight: 900; font-size: 1.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-#player-bar-artist { color: var(--text-secondary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
-
-.player-controls { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 800px; }
-.control-btns { display: flex; align-items: center; gap: 28px; }
-.ctrl-btn { background: transparent; border: none; color: white; font-size: 1.5rem; cursor: pointer; outline: none; transition: 0.2s; opacity: 0.8; }
-.ctrl-btn:hover, .ctrl-btn:focus { opacity: 1; transform: scale(1.2); color: var(--primary); }
-.ctrl-btn.play-pause { font-size: 2.5rem; }
-
-.progress-container { display: flex; align-items: center; gap: 15px; width: 100%; color: var(--text-secondary); font-size: 0.85rem; font-weight: bold; }
-.progress-bar-bg { flex: 1; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; position: relative; cursor: pointer; outline: none; transition: 0.2s; }
-.progress-bar-bg:focus, .progress-bar-bg:hover { height: 10px; background: rgba(255,255,255,0.2); }
-.progress-bar-fill { position: absolute; top: 0; left: 0; height: 100%; background: white; border-radius: 4px; width: 0%; transition: width 0.1s linear; }
-.progress-bar-bg:focus .progress-bar-fill, .progress-bar-bg:hover .progress-bar-fill { background: var(--primary); }
-
-.extra-controls { display: flex; gap: 20px; width: 300px; justify-content: flex-end; }
-
-/* PORTED: Music Grid/Row layout & Spotify Aesthetics */
-.media-section { padding: 0 0; margin-bottom: 48px; position: relative; z-index: 10; margin-left: 40px;}
-.media-section:has(#music-section-title), .media-section:has(#playlists-section) { padding-right: 40px; }
-.section-title { font-size: 24px; font-weight: 900; margin-bottom: 24px; color: var(--text-primary); letter-spacing: -0.5px;}
-
-.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 24px; padding-right: 40px;}
-
-.media-card { display: flex; flex-direction: column; gap: 16px; min-width: 180px; max-width: 200px; cursor: pointer; border-radius: 12px; transition: background-color 0.3s ease, transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); outline: none; position: relative; padding: 16px; background: rgba(255,255,255,0.03); }
-.media-card:focus, .media-card:hover { transform: scale(1.05); z-index: 100; background: rgba(255,255,255,0.1); }
-.media-card.is-active .card-title { color: var(--primary); }
-
-.card-img-wrapper { position: relative; width: 100%; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; background-color: var(--bg-surface); box-shadow: 0 8px 16px rgba(0,0,0,0.5); border: 2px solid transparent; transition: 0.2s; }
-.media-card:focus .card-img-wrapper { border-color: white; box-shadow: 0 0 20px rgba(255,255,255,0.4); }
-
-.card-img-wrapper img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; display: block;}
-.media-card:focus .card-img-wrapper img, .media-card:hover .card-img-wrapper img { transform: scale(1.05); }
-
-/* Circle formatting for Artist cards (optional style applied dynamically) */
-.media-card.artist-card .card-img-wrapper { border-radius: 50%; }
-
-/* Spotify Play Button */
-.spotify-play-btn {
-    position: absolute; bottom: 10px; right: 10px; width: 44px; height: 44px; 
-    background-color: var(--primary); color: white; border-radius: 50%; 
-    display: flex; justify-content: center; align-items: center; font-size: 1.2rem; 
-    cursor: pointer; opacity: 0; transform: translateY(10px) scale(0.95); 
-    transition: all 0.35s cubic-bezier(0.3, 1, 0.3, 1); box-shadow: 0 8px 15px rgba(0,0,0,0.5); 
-    z-index: 20; border: none; outline: none; padding-left: 3px;
-}
-.media-card:focus .spotify-play-btn, .media-card:hover .spotify-play-btn { opacity: 1; transform: translateY(0) scale(1); }
-.spotify-play-btn:hover, .spotify-play-btn:focus { transform: translateY(0) scale(1.1); background-color: white; color: black; }
-
-.card-badge { position: absolute; top: 8px; left: 8px; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 900; }
-
-.card-info { display: flex; flex-direction: column; gap: 4px; padding: 0 4px; }
-.card-meta { font-size: 13px; color: var(--text-secondary); font-weight: 500;}
-.card-title { font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); transition: color 0.2s;}
-
-/* Playlists */
-.playlist-card { background: var(--bg-surface); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; cursor: pointer; transition: all 0.3s ease; border: 2px solid rgba(255, 255, 255, 0.1); text-align: center; outline: none; }
-.playlist-card:focus, .playlist-card:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-5px); border-color: white; }
-
-.playlist-icon { width: 100px; height: 100px; background: linear-gradient(135deg, var(--primary), #b20710); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
-.playlist-title { font-weight: 900; font-size: 1.1rem; color: var(--text-primary); }
-.playlist-count { font-size: 0.9rem; color: var(--text-secondary); font-weight: bold;}
-
-.add-to-playlist-btn { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.8); color: white; display: flex; align-items: center; justify-content: center; opacity: 0; transition: 0.2s; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; z-index: 10; outline: none;}
-.media-card:focus .add-to-playlist-btn, .media-card:hover .add-to-playlist-btn { opacity: 1; }
-.add-to-playlist-btn:focus, .add-to-playlist-btn:hover { background: var(--primary); border-color: var(--primary); transform: scale(1.1); }
 
 /* Drag Scroll Overrides */
 .row-posters.drag-active, #season-tabs.drag-active, #episode-list.drag-active { scroll-behavior: auto !important; cursor: grabbing !important; }

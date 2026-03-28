@@ -1,8 +1,7 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, renderMusicView } from './ui.js?v=47';
-import { discoverByCategory } from './api.js?v=47';
-import { openDetails } from './player.js?v=47';
-import { setupRouter, navigateTo } from './router.js?v=47';
-import { initMusic } from './music.js';
+import { DOM, buildRow, renderGridItems, toggleWatchlist, enableDragScroll } from './ui.js?v=29';
+import { discoverByCategory, clearAPICache } from './api.js?v=29';
+import { openDetails } from './player.js?v=29';
+import { setupRouter, handleRoute, navigateTo } from './router.js?v=29';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -12,27 +11,27 @@ const APP_VERSION = 40;
 async function checkForUpdatesBackground() {
     try {
         const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
-                const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
+        const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
         if (!res.ok) return;
         const data = await res.json();
         if (data.version && APP_VERSION < data.version) {
             showUpdateBanner(data.version, data.url);
         }
-    } catch(e) { /* ignore */ }
+    } catch(e) { }
 }
 
 function showUpdateBanner(newVersionKey, downloadUrl) {
     const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed; top:20px; right:20px; background:#e50914; color:white; padding:15px; border-radius:8px; z-index:999999; display:flex; align-items:center; gap:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5); font-weight:bold; cursor:pointer; font-size:18px; border:2px solid white;';
+    banner.style.cssText = 'position:fixed; top:20px; right:20px; background:#e50914; color:white; padding:15px; border-radius:8px; z-index:999999; display:flex; align-items:center; gap:15px; box-shadow:0 4px 15px rgba{0,0,0,0.5}; font-weight:bold; cursor:pointer; font-size:18px; border:2px solid white;';
     banner.tabIndex = 0;
     const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
     banner.innerHTML = `<i class="fa-solid fa-download" style="font-size:24px;"></i> <div>Streamy Update Available!<br><span style="font-size:12px;font-weight:normal;">Click to install v${newVersionKey}.0</span></div>`;
     banner.onclick = () => {
-        globalThis.localStorage.setItem('beetv_build_version', newVersionKey);
-        if(globalThis.NativeBridge?.downloadUpdate) {
-            globalThis.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
+        localStorage.setItem('beetv_build_version', newVersionKey);
+        if(window.NativeBridge && window.NativeBridge.downloadUpdate) {
+            window.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
         } else {
-            globalThis.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
+            window.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
         }
         banner.remove();
     };
@@ -87,8 +86,6 @@ function updateFilterDropdown(type) {
             }
         }
         filter.classList.remove('hidden');
-    } else if (type === 'music') {
-        filter.classList.add('hidden');
     } else {
         filter.classList.add('hidden');
     }
@@ -128,7 +125,6 @@ function initProfiles() {
     };
 
     document.getElementById('add-profile-btn').onclick = () => openProfileModal(null);
-
     DOM.settingManageProfiles.onclick = () => {
         document.getElementById('profile-selection-screen').classList.remove('hidden');
         document.getElementById('main-content').classList.add('hidden');
@@ -154,6 +150,7 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         const card = document.createElement('button');
         card.className = `profile-card ${isEditing ? 'edit-mode' : ''}`;
         card.tabIndex = 0;
+        card.style.background = 'transparent'; card.style.border = 'none'; card.style.color = 'white';
         
         // Use basic fallback for avatar SVGs 
         const svgContent = `<i class="fa-solid fa-user"></i>`;
@@ -353,16 +350,13 @@ function setupDpadLogic() {
             globalThis.history.back();
             e.preventDefault();
         }
-        // Minimal browser spatial navigation wrapper
+        // Minimal browser spatial navigation wrapper over Tab
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Up','Down','Left','Right'].includes(e.key)) {
-            // Give browser time to update activeElement
             setTimeout(() => {
-                const active = document.activeElement;
-                if (active && typeof active.scrollIntoView === 'function') {
-                    // behavior: 'smooth' is removed as it causes async focus conflicts on some Android TV builds
-                    try { active.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch(err) { }
+                if (document.activeElement && typeof document.activeElement.scrollIntoView === 'function') {
+                    try { document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } catch(err) {}
                 }
-            }, 10);
+            }, 50);
         }
     });
 }
@@ -373,7 +367,6 @@ function initApp() {
     
     initProfiles();
     initSearch();
-    initMusic();
     setupDpadLogic();
     setupRouter();
     
@@ -382,7 +375,7 @@ function initApp() {
     if (settingClearCache) {
         settingClearCache.onclick = async () => {
             settingClearCache.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Purging...';
-            globalThis.indexedDB.deleteDatabase('StreamOS_CacheDB');
+            window.indexedDB.deleteDatabase('StreamOS_CacheDB');
             setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-check"></i> Purged Successfully', 800);
             setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-database"></i> Purge API Cache', 2500);
         };
@@ -394,8 +387,8 @@ function initApp() {
             settingCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
             try {
                 const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
-                        const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
-                if (!res.ok) throw new Error("OTA fetch failed");
+                const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
+                if (!res.ok) throw new Error();
                 const data = await res.json();
                 if (data.version && APP_VERSION < data.version) {
                     showUpdateBanner(data.version, data.url);
@@ -404,7 +397,6 @@ function initApp() {
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> You are up to date';
                 }
             } catch(e) {
-                console.error("Update check failed:", e);
                 settingCheckUpdate.innerHTML = '<i class="fa-solid fa-xmark"></i> Server Unreachable';
             }
             setTimeout(() => settingCheckUpdate.innerHTML = '<i class="fa-solid fa-download"></i> Check for Updates', 3000);
@@ -413,9 +405,9 @@ function initApp() {
 
     DOM.navTabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            const view = tab.getAttribute('data-view');
-            if(view === 'settings') DOM.settingsTab.click(); 
-            navigateTo(`#${view}`);
+             const view = tab.getAttribute('data-view');
+             if(view === 'settings') DOM.settingsTab.click(); 
+             navigateTo(`#${view}`);
         });
         tab.addEventListener('keydown', (e) => { if(e.key==='Enter') tab.click(); });
     });
@@ -464,40 +456,8 @@ function initApp() {
         updateFilterDropdown('watchlist');
         loadWatchlist();
     });
-
-    globalThis.addEventListener('load-music-view', (e) => {
-        updateFilterDropdown('music');
-        renderMusicView(e.detail?.query || '');
-        
-        // Fix for TV Navigation: Focus the search input when the view loads
-        setTimeout(() => {
-            const musicSearch = document.getElementById('music-search-input');
-            if (musicSearch) {
-                musicSearch.focus();
-                
-                // Allow "Down" key on remote to drop from search into the first row
-                musicSearch.onkeydown = (ev) => {
-                    if (ev.key === 'ArrowDown' || ev.key === 'Down') {
-                        const firstCard = document.querySelector('.music-card');
-                        if (firstCard) {
-                            firstCard.focus();
-                            ev.preventDefault();
-                        }
-                    }
-                };
-            }
-        }, 400);
-    });
-
+    
     // First paint happens inside initProfiles -> selectProfile
 }
-
-// Global Voice Search Result Handler for Native Android Bridge
-globalThis.onVoiceResult = (text) => {
-    navigateTo('#search');
-    DOM.searchInput.value = text;
-    // Trigger the input event to fire the search logic in app.js
-    DOM.searchInput.dispatchEvent(new Event('input'));
-};
 
 document.addEventListener('DOMContentLoaded', initApp);

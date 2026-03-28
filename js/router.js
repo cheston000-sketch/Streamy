@@ -25,7 +25,6 @@ export function handleRoute() {
     const tvTab = document.querySelector('.nav-tab[data-view="tv"]');
     const watchlistTab = document.querySelector('.nav-tab[data-view="watchlist"]');
     const settingsTab = document.querySelector('.nav-tab[data-view="settings"]');
-    const musicTab = document.querySelector('.nav-tab[data-view="music"]');
 
     // Stop video playback when leaving player view
     if (hash !== '#player') {
@@ -44,11 +43,9 @@ export function handleRoute() {
         document.getElementById('view-search').classList.remove('hidden');
         if(searchTab) searchTab.classList.add('active');
         document.getElementById('search-input').focus();
-    } else if (hash === '#player') {
+    } else if (hash.startsWith('#player')) {
         document.body.classList.add('video-playing');
         document.getElementById('view-player').classList.remove('hidden');
-        const musicBar = document.getElementById('music-player-bar');
-        if (musicBar) musicBar.classList.add('hidden');
     } else if (hash.startsWith('#details')) {
         document.body.classList.remove('video-playing');
         document.getElementById('view-details').classList.remove('hidden');
@@ -62,12 +59,6 @@ export function handleRoute() {
         document.body.classList.remove('video-playing');
         document.getElementById('view-settings').classList.remove('hidden');
         if(settingsTab) settingsTab.classList.add('active');
-    } else if (hash.startsWith('#music')) {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-music').classList.remove('hidden');
-        if(musicTab) musicTab.classList.add('active');
-        const query = hash.includes('?') ? new URLSearchParams(hash.split('?')[1]).get('q') : '';
-        globalThis.dispatchEvent(new CustomEvent('load-music-view', { detail: { query } }));
     } else if (hash === '#watchlist') {
         document.body.classList.remove('video-playing');
         document.getElementById('view-home').classList.remove('hidden');
