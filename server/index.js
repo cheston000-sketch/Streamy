@@ -205,16 +205,20 @@ const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
 
 app.get(['/api/ota', '/api/ota/check'], (req, res) => {
     // Read the current build.gradle version dynamically!
-    // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
-    const targetGradle = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build.gradle');
+    // (In a true production app, this would query a database, but on Render we rely on hardcoded version for non-repo files!)
     try {
-        const gradleContent = fs.readFileSync(targetGradle, 'utf8');
-        const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
-        if (vCodeMatch) {
-            return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
+        const targetGradle = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build.gradle');
+        if (fs.existsSync(targetGradle)) {
+            const gradleContent = fs.readFileSync(targetGradle, 'utf8');
+            const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
+            if (vCodeMatch) {
+                return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
+            }
         }
     } catch(e) {}
-    res.json({ available: false });
+    
+    // Fallback for Render deployment where BeeTV folder is missing
+    res.json({ available: true, version: 61, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
