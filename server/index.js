@@ -201,7 +201,7 @@ app.use('/api/saavn', async (req, res) => {
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
 const LOCAL_APK = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v64.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v65.apk');
 
 app.get('/api/ota', (req, res) => {
     // Read the current build.gradle version dynamically!
@@ -214,14 +214,14 @@ app.get('/api/ota', (req, res) => {
         }
     } catch(e) {}
     // Fallback for Render deployment (ensure it's updated for the TV Navigation fix)
-    res.json({ available: true, version: 64, download: '/api/ota/download' });
+    res.json({ available: true, version: 65, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
     if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, 'StreamOS_v64.apk');
+        res.download(CLOUD_APK, 'StreamOS_v65.apk');
     } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, 'StreamOS_v64.apk');
+        res.download(LOCAL_APK, 'StreamOS_v65.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }

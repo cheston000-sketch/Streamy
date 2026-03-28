@@ -1,15 +1,15 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=64';
-import { discoverByCategory } from './api.js?v=64';
-import { openDetails } from './player.js?v=64';
-import { setupRouter, navigateTo } from './router.js?v=64';
-import { NavigationManager } from './navigation.js?v=64';
+import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=65';
+import { discoverByCategory } from './api.js?v=65';
+import { openDetails } from './player.js?v=65';
+import { setupRouter, navigateTo } from './router.js?v=65';
+import { NavigationManager } from './navigation.js?v=65';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 64;
+const APP_VERSION = 65;
 
 async function checkForUpdatesBackground() {
     try {

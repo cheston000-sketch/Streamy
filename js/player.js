@@ -5,9 +5,9 @@ import { navigateTo } from './router.js?v=29';
 let currentMovieContext = null;
 
 // Extractor Endpoint (Production Safe)
-const PROTOCOL = globalThis.location.hostname === 'localhost' ? 'http:' : 'https:';
-const PORT = globalThis.location.hostname === 'localhost' ? ':3000' : '';
-const STREAMOS_API = `${PROTOCOL}//${globalThis.location.hostname}${PORT}/api/stream`;
+const isLocal = globalThis.location.hostname === 'localhost' || globalThis.location.hostname === '127.0.0.1';
+const HOST = isLocal ? 'http://localhost:3000' : 'https://streamy-vez5.onrender.com';
+const STREAMOS_API = `${HOST}/api/stream`;
 
 export async function openDetails(movie) {
     currentMovieContext = movie;
