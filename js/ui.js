@@ -1,5 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic } from './api.js?v=37';
-import { MusicState, playTrack } from './music.js?v=37';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=38';
+import { MusicState, playTrack } from './music.js?v=38';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
@@ -294,7 +294,7 @@ export function saveSeriesProgress(tmdbId, s, e) {
 
 // MUSIC UI
 export async function renderMusicView(query = '') {
-    const searchGrid = document.getElementById('music-search-results');
+    const searchResultsContainer = document.getElementById('music-search-results');
     const dynamicSections = document.getElementById('dynamic-music-sections');
     const sectionTitle = document.getElementById('music-section-title');
     
@@ -305,17 +305,39 @@ export async function renderMusicView(query = '') {
         dynamicSections.style.display = 'none';
         document.getElementById('playlists-section').style.display = 'none';
         document.getElementById('recently-played-section').style.display = 'none';
-        searchGrid.style.display = 'grid';
-        searchGrid.innerHTML = '<div style="color:#aaa;">Searching...</div>';
+        searchResultsContainer.style.display = 'grid';
+        searchResultsContainer.innerHTML = '<div style="color:#aaa; padding: 20px;">Searching Universe...</div>';
 
-        const results = await searchMusic(query);
-        const tracks = results?.data?.items || [];
-        
-        searchGrid.innerHTML = '';
-        tracks.forEach(t => {
-            const parsed = normalizeItem(t, 'music');
-            searchGrid.appendChild(createMusicGridCard(parsed, tracks));
-        });
+        try {
+            // Tier 1: Streamex Search (Primary Metadata)
+            const results = await searchMusic(query);
+            let tracks = results?.data?.items || [];
+            
+            // Tier 2 Fallback: Saavn Search (Universal Discovery)
+            if (tracks.length === 0) {
+                console.log("[Search Fallback] No Streamex results, trying Saavn...");
+                searchResultsContainer.innerHTML = '<div style="color:#aaa; padding: 20px;">Searching Extended Universe...</div>';
+                const saavnResults = await searchMusicSaavn(query);
+                tracks = saavnResults?.data || [];
+            }
+
+            searchResultsContainer.innerHTML = '';
+            if (tracks.length === 0) {
+                searchResultsContainer.innerHTML = `<div style="color:#888; padding: 40px; text-align:center; width: 100%; grid-column: 1 / -1;">
+                    <i class="fa-solid fa-face-frown" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
+                    No matches found for "${query}". Try another search?
+                </div>`;
+                return;
+            }
+
+            tracks.forEach(t => {
+                const parsed = normalizeItem(t, 'music');
+                searchResultsContainer.appendChild(createMusicGridCard(parsed, tracks));
+            });
+        } catch (err) {
+            console.error("Search rendering error:", err);
+            searchResultsContainer.innerHTML = '<div style="color:#ff4444; padding: 20px;">Search failed to connect to the universe.</div>';
+        }
         return;
     }
 

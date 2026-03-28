@@ -156,7 +156,7 @@ async function fetchMusicDirect(url) {
 }
 
 export async function searchMusic(query) {
-    return await fetchMusicDirect(`https://streamex.sh/api/music/search?s=${encodeURIComponent(query)}&limit=20`);
+    return await fetchMusicProxy(`/search?s=${encodeURIComponent(query)}&limit=25`);
 }
 
 export function fetchDeezerJSONP(endpoint) {
