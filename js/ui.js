@@ -1,5 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=42';
-import { MusicState, playTrack } from './music.js?v=42';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=43';
+import { MusicState, playTrack, saveMusicState } from './music.js?v=43';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
@@ -358,7 +358,10 @@ export async function renderMusicView(query = '') {
         section.className = 'content-row';
         section.style.marginTop = "20px";
         section.innerHTML = `
-            <h2 class="section-title" style="margin-bottom: -10px; margin-left: 40px; margin-top: 10px;">${cat.title}</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 10px 40px -10px 40px;">
+                <h2 class="section-title" style="margin: 0;">${cat.title}</h2>
+                ${cat.type === 'search' ? `<button class="remove-cat-btn" data-id="${cat.id}" style="background:none; border:none; color:#555; cursor:pointer; font-size:0.8rem;"><i class="fa-solid fa-xmark"></i> Remove</button>` : ''}
+            </div>
             <div class="row-posters" id="cat-row-${cat.id}"></div>
         `;
         dynamicSections.appendChild(section);
@@ -366,13 +369,41 @@ export async function renderMusicView(query = '') {
         const row = section.querySelector('.row-posters');
         enableDragScroll(row); // Native StreamOS horizontal drag
         
-        const result = await fetchMusicChart(cat.id, cat.type);
-        const tracks = result?.data || result?.tracks?.data || [];
+        // Remove functionality for custom categories
+        const removeBtn = section.querySelector('.remove-cat-btn');
+        if (removeBtn) {
+            removeBtn.onclick = () => {
+                MusicState.categories = MusicState.categories.filter(c => c.id !== cat.id);
+                saveMusicState();
+                renderMusicView();
+            };
+        }
+
+        let tracks = [];
+        try {
+            if (cat.type === 'search') {
+                const results = await searchMusic(cat.title);
+                tracks = results?.data?.items || [];
+                if (tracks.length === 0) {
+                     const saavn = await searchMusicSaavn(cat.title);
+                     tracks = saavn?.data?.results || saavn?.data || [];
+                }
+            } else {
+                const result = await fetchMusicChart(cat.id, cat.type);
+                tracks = result?.data || result?.tracks?.data || [];
+            }
+        } catch (e) {
+            console.error(`Failed to load category ${cat.title}:`, e);
+        }
         
-        tracks.forEach(item => {
-            const parsed = normalizeItem(item, 'music');
-            row.appendChild(createMusicGridCard(parsed, tracks));
-        });
+        if (tracks.length === 0) {
+            row.innerHTML = '<div style="color:#444; padding: 20px 40px;">No tracks found for this category.</div>';
+        } else {
+            tracks.forEach(item => {
+                const parsed = normalizeItem(item, 'music');
+                row.appendChild(createMusicGridCard(parsed, tracks));
+            });
+        }
     }
 
     renderPlaylistsGrid();
@@ -487,10 +518,11 @@ export function createMusicGridCard(item, queue) {
     return card;
 }
 
-// Playlist simple global handler
-globalThis.openCreatePlaylistModal = function() {
+// Universal Music Action Modal (Playlists or Categories)
+globalThis.openMusicModal = function(mode = 'playlist') {
     const modal = document.getElementById('playlist-modal');
     const input = document.getElementById('playlist-name-input');
+    const title = modal.querySelector('h2') || { textContent: '' };
     const cancelBtn = document.getElementById('modal-cancel-btn');
     const createBtn = document.getElementById('modal-create-btn');
 
@@ -498,6 +530,9 @@ globalThis.openCreatePlaylistModal = function() {
 
     modal.classList.remove('hidden');
     input.value = '';
+    input.placeholder = mode === 'playlist' ? 'Enter playlist name...' : 'Enter genre or category name...';
+    title.textContent = mode === 'playlist' ? 'Create New Playlist' : 'Add Music Category';
+    createBtn.textContent = mode === 'playlist' ? 'Create' : 'Add Category';
     input.focus();
 
     const closeModal = () => modal.classList.add('hidden');
@@ -506,17 +541,22 @@ globalThis.openCreatePlaylistModal = function() {
     createBtn.onclick = () => {
         const name = input.value.trim();
         if (name) {
-            if (!MusicState.playlists[name]) {
-                MusicState.playlists[name] = [];
-                localStorage.setItem('streamos_music_state', JSON.stringify({
-                    playlists: MusicState.playlists,
-                    recent: MusicState.recent,
-                    categories: MusicState.categories
-                }));
-                // Re-render only necessary parts if possible, or full music view
-                const musicView = document.getElementById('view-music');
-                if (musicView && !musicView.classList.contains('hidden')) {
+            if (mode === 'playlist') {
+                if (!MusicState.playlists[name]) {
+                    MusicState.playlists[name] = [];
+                    saveMusicState();
                     renderPlaylistsGrid();
+                }
+            } else if (mode === 'category') {
+                const exists = MusicState.categories.some(c => c.title.toLowerCase() === name.toLowerCase());
+                if (!exists) {
+                    MusicState.categories.push({
+                        id: 'custom-' + Date.now(),
+                        title: name,
+                        type: 'search'
+                    });
+                    saveMusicState();
+                    renderMusicView();
                 }
             }
             closeModal();
@@ -529,6 +569,9 @@ globalThis.openCreatePlaylistModal = function() {
         if (e.key === 'Enter') createBtn.click();
     };
 };
+
+// Fallback for old calls if any
+globalThis.openCreatePlaylistModal = () => globalThis.openMusicModal('playlist');
 
 export function updateMusicUIActiveState() {
     document.querySelectorAll('.media-card').forEach(card => card.classList.remove('is-active'));
@@ -547,9 +590,18 @@ document.addEventListener('streamos:track_changed', () => {
     renderRecentlyPlayedGrid();
 });
 
+// Bind Category Button
+if (DOM.addMusicCategoryBtn) {
+    DOM.addMusicCategoryBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        globalThis.openMusicModal('category');
+    };
+}
+
 // Bind Playlist Buttons (Multiple)
-document.querySelectorAll('.create-playlist-btn').forEach(btn => {
-    btn.onclick = () => globalThis.openCreatePlaylistModal();
+document.querySelectorAll('.create-playlist-btn:not(#add-music-category-btn)').forEach(btn => {
+    btn.onclick = () => globalThis.openMusicModal('playlist');
 });
 
 // Search debouncing

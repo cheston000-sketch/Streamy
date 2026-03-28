@@ -1,4 +1,4 @@
-import { fetchMusicManifest, searchMusic, searchMusicSaavn } from './api.js?v=42';
+import { fetchMusicManifest, searchMusic, searchMusicSaavn } from './api.js?v=43';
 
 export const MusicState = {
     playlists: {},
@@ -22,22 +22,24 @@ export function initMusic() {
     setupPlayerEventListeners();
 }
 
+export function saveMusicState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        playlists: MusicState.playlists,
+        recent: MusicState.recent,
+        categories: MusicState.categories
+    }));
+}
+
 function loadMusicState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
         const parsed = JSON.parse(saved);
         MusicState.playlists = parsed.playlists || {};
         MusicState.recent = parsed.recent || [];
-        if (parsed.categories) MusicState.categories = parsed.categories;
+        if (parsed.categories && parsed.categories.length > 0) {
+            MusicState.categories = parsed.categories;
+        }
     }
-}
-
-function saveMusicState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        playlists: MusicState.playlists,
-        recent: MusicState.recent,
-        categories: MusicState.categories
-    }));
 }
 
 function setupPlayerEventListeners() {
