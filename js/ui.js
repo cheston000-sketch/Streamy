@@ -1,5 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=40';
-import { MusicState, playTrack } from './music.js?v=40';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=41';
+import { MusicState, playTrack } from './music.js?v=41';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
@@ -58,6 +58,7 @@ export const DOM = {
     viewMusic: document.getElementById('view-music'),
     musicRowsContainer: document.getElementById('music-rows-container'),
     musicSearchInput: document.getElementById('music-search-input'),
+    musicSearchBtn: document.getElementById('music-search-btn'),
     addMusicCategoryBtn: document.getElementById('add-music-category-btn')
 };
 
@@ -552,11 +553,27 @@ document.querySelectorAll('.create-playlist-btn').forEach(btn => {
 
 // Search debouncing
 let musicSearchTimer;
-if (document.getElementById('music-search-input')) {
-    document.getElementById('music-search-input').addEventListener('input', (e) => {
+if (DOM.musicSearchInput) {
+    DOM.musicSearchInput.addEventListener('input', (e) => {
         clearTimeout(musicSearchTimer);
         musicSearchTimer = setTimeout(() => {
             renderMusicView(e.target.value.trim());
         }, 600);
     });
+
+    // Support 'Enter' key for immediate search
+    DOM.musicSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            clearTimeout(musicSearchTimer);
+            renderMusicView(DOM.musicSearchInput.value.trim());
+        }
+    });
+}
+
+// Support Button Click for immediate search
+if (DOM.musicSearchBtn) {
+    DOM.musicSearchBtn.onclick = () => {
+        clearTimeout(musicSearchTimer);
+        renderMusicView(DOM.musicSearchInput.value.trim());
+    };
 }
