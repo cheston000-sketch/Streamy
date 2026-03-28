@@ -219,9 +219,9 @@ app.get('/api/ota', (req, res) => {
 
 app.get('/api/ota/download', (req, res) => {
     if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, 'StreamOS.apk');
+        res.download(CLOUD_APK, 'StreamOS_v61.apk');
     } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, 'StreamOS.apk');
+        res.download(LOCAL_APK, 'StreamOS_v61.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }
