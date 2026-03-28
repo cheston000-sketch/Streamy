@@ -1,5 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=38';
-import { MusicState, playTrack } from './music.js?v=38';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=39';
+import { MusicState, playTrack } from './music.js?v=39';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
