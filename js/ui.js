@@ -1,5 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=41';
-import { MusicState, playTrack } from './music.js?v=41';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=42';
+import { MusicState, playTrack } from './music.js?v=42';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
@@ -59,6 +59,7 @@ export const DOM = {
     musicRowsContainer: document.getElementById('music-rows-container'),
     musicSearchInput: document.getElementById('music-search-input'),
     musicSearchBtn: document.getElementById('music-search-btn'),
+    musicSearchContainer: document.getElementById('music-search-container'),
     addMusicCategoryBtn: document.getElementById('add-music-category-btn')
 };
 
@@ -570,10 +571,23 @@ if (DOM.musicSearchInput) {
     });
 }
 
-// Support Button Click for immediate search
+// Support Button Click for immediate search and UI toggle
 if (DOM.musicSearchBtn) {
     DOM.musicSearchBtn.onclick = () => {
-        clearTimeout(musicSearchTimer);
-        renderMusicView(DOM.musicSearchInput.value.trim());
+        const container = DOM.musicSearchContainer;
+        if (container) {
+            const isHidden = container.style.display === 'none';
+            container.style.display = isHidden ? 'block' : 'none';
+            if (isHidden) {
+                DOM.musicSearchInput.focus();
+            } else {
+                // If closing, clear search and return to charts? 
+                // For now just toggle visibility.
+            }
+        } else {
+            // Fallback for old layout
+            clearTimeout(musicSearchTimer);
+            renderMusicView(DOM.musicSearchInput.value.trim());
+        }
     };
 }

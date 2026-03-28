@@ -140,15 +140,21 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
                     <h2 class="section-title" id="music-section-title" style="margin-bottom: 0;">Discovery Universe</h2>
                     <div style="display: flex; gap: 12px; align-items: center;">
-                        <button class="nav-tab create-playlist-btn" tabindex="0" style="background: rgba(255,255,255,0.1); border: 1px solid #444; font-size: 1rem;"><i class="fa-solid fa-plus"></i> Add Category</button>
-                        <div style="position: relative; max-width: 300px; width: 100%;">
-                            <button id="music-search-btn" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #888; cursor: pointer; padding: 8px; z-index: 5;">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                            </button>
-                            <input type="text" id="music-search-input" placeholder="Search music..." tabindex="0" style="width: 100%; padding: 12px 16px 12px 48px; border-radius: 20px; border: none; background: rgba(255,255,255,0.1); color: var(--text-primary); font-size: 1rem; outline: none;">
-                        </div>
+                        <button id="add-music-category-btn" class="nav-tab create-playlist-btn" tabindex="0" style="background: rgba(255,255,255,0.1); border: 1px solid #444; font-size: 1rem;"><i class="fa-solid fa-plus"></i> Add Category</button>
+                        <button id="music-search-btn" class="nav-tab" tabindex="0" style="background: rgba(255,255,255,0.1); border: 1px solid #444; font-size: 1rem; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
                     </div>
                 </div>
+
+                <!-- EXPANDABLE SEARCH BAR -->
+                <div id="music-search-container" style="display: none; margin-bottom: 24px;">
+                    <div style="position: relative; max-width: 600px; width: 100%; margin: 0 auto;">
+                        <input type="text" id="music-search-input" placeholder="Search for tracks, artists, or albums..." tabindex="0" style="width: 100%; padding: 16px 20px; border-radius: 30px; border: 1px solid #333; background: rgba(0,0,0,0.4); color: white; font-size: 1.1rem; outline: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #666;"></i>
+                    </div>
+                </div>
+
                 <div class="media-grid" id="music-search-results" style="display: none;"></div>
             </section>
 
@@ -305,6 +311,6 @@
             </div>
         </div>
 
-    <script type="module" src="js/app.js?v=41"></script>
+    <script type="module" src="js/app.js?v=42"></script>
 </body>
 </html>
