@@ -1,7 +1,7 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, renderMusicView } from './ui.js?v=43';
-import { discoverByCategory } from './api.js?v=43';
-import { openDetails } from './player.js?v=43';
-import { setupRouter, navigateTo } from './router.js?v=43';
+import { DOM, buildRow, renderGridItems, enableDragScroll, renderMusicView } from './ui.js?v=44';
+import { discoverByCategory } from './api.js?v=44';
+import { openDetails } from './player.js?v=44';
+import { setupRouter, navigateTo } from './router.js?v=44';
 import { initMusic } from './music.js';
 
 let activeProfile = null;

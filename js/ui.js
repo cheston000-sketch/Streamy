@@ -1,5 +1,5 @@
-import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=43';
-import { MusicState, playTrack, saveMusicState } from './music.js?v=43';
+import { IMAGE_URL, BACKDROP_URL, fetchMusicChart, searchMusic, searchMusicSaavn } from './api.js?v=44';
+import { MusicState, playTrack, saveMusicState } from './music.js?v=44';
 
 export const DOM = {
     topBar: document.getElementById('side-bar'),
@@ -346,7 +346,7 @@ export async function renderMusicView(query = '') {
 
     // Default discovery View
     sectionTitle.textContent = 'Discovery Universe';
-    searchGrid.style.display = 'none';
+    if (searchResultsContainer) searchResultsContainer.style.display = 'none';
     dynamicSections.style.display = 'block';
     document.getElementById('playlists-section').style.display = 'block';
 
