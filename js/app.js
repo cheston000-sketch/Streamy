@@ -1,13 +1,13 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, renderMusicView } from './ui.js?v=45';
-import { discoverByCategory } from './api.js?v=45';
-import { openDetails } from './player.js?v=45';
-import { setupRouter, navigateTo } from './router.js?v=45';
+import { DOM, buildRow, renderGridItems, enableDragScroll, renderMusicView } from './ui.js?v=46';
+import { discoverByCategory } from './api.js?v=46';
+import { openDetails } from './player.js?v=46';
+import { setupRouter, navigateTo } from './router.js?v=46';
 import { initMusic } from './music.js';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 51;
+const APP_VERSION = 60;
 
 async function checkForUpdatesBackground() {
     try {
