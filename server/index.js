@@ -214,7 +214,8 @@ app.get(['/api/ota', '/api/ota/check'], (req, res) => {
             return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
         }
     } catch(e) {}
-    res.json({ available: false });
+    // Fallback for Render deployment where BeeTV folder is missing
+    res.json({ available: true, version: 61, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
