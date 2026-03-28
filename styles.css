@@ -41,8 +41,12 @@ body {
 
 .nav-tab:hover, .nav-tab:focus {
     color: white;
-    transform: scale(1.1);
     background: rgba(255,255,255,0.1);
+}
+
+.nav-tab:focus {
+    transform: scale(1.1);
+    box-shadow: inset 0 0 0 2px white;
 }
 
 .nav-tab.active { font-weight: 900; color: white; border-bottom: 3px solid var(--primary); border-radius: 0; }
@@ -117,20 +121,26 @@ body {
 
 .poster-card:focus, .poster-card:hover {
     transform: scale(1.15); z-index: 100;
-    box-shadow: 0 0 0 4px white, 0 10px 20px rgba(0,0,0,0.8);
+    box-shadow: 0 0 0 4px white, 0 10px 40px rgba(0,0,0,1);
+    border-radius: 8px;
 }
 
-.poster-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.poster-card img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 6px; }
 
 .show-all-card {
     display: flex; justify-content: center; align-items: center; flex-direction: column;
     background: var(--bg-elevated); color: white; text-align: center; border: 2px solid #555;
+    transition: 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 .show-all-card i { font-size: 3rem; color: white; margin-bottom: 15px; }
 .show-all-card span { font-size: 1.2rem; font-weight: 900; }
+
+.show-all-card:focus, .show-all-card:hover { 
+    background: white; border-color: white; transform: scale(1.15); z-index: 100;
+    box-shadow: 0 0 0 4px white, 0 10px 40px rgba(0,0,0,1);
+}
 .show-all-card:focus i, .show-all-card:hover i { color: black; }
 .show-all-card:focus span, .show-all-card:hover span { color: black; }
-.show-all-card:focus, .show-all-card:hover { background: white; border-color: white; }
 
 .btn-load-more {
     display: block; width: 300px; margin: 40px auto 20px; padding: 15px;

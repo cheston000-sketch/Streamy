@@ -1,3 +1,5 @@
+import { NavigationManager } from './navigation.js?v=29';
+
 export function setupRouter() {
     globalThis.addEventListener('hashchange', () => handleRoute());
 }
@@ -11,6 +13,9 @@ export function navigateTo(hash) {
 }
 
 export function handleRoute() {
+    const oldHash = globalThis.location.hash || '#home';
+    NavigationManager.saveFocus(oldHash);
+
     const hash = globalThis.location.hash || '#home';
     
     // Hide all views first
@@ -80,4 +85,17 @@ export function handleRoute() {
     // Smooth scroll reset
     const mainContent = document.getElementById('main-content');
     if (mainContent) mainContent.scrollTop = 0;
+
+    // Restore or set default focus
+    setTimeout(() => {
+        if (hash.startsWith('#search')) {
+            NavigationManager.restoreFocus(hash, '#search-input');
+        } else if (hash.startsWith('#details')) {
+             NavigationManager.restoreFocus(hash, '#play-btn');
+        } else if (hash.startsWith('#home') || hash === '#tv' || hash === '#watchlist' || hash === '') {
+             NavigationManager.restoreFocus(hash, '.poster-card');
+        } else {
+             NavigationManager.restoreFocus(hash);
+        }
+    }, 100);
 }

@@ -167,19 +167,21 @@ export function buildRow(title, items, isWatchlistDict, typeFallback, isFirstRow
         let progressHtml = ''; // Can implement later via localStorage progress
         card.innerHTML = `<img loading="lazy" src="${parsed.poster}" alt="${parsed.title}" draggable="false">${progressHtml}`;
         
-        card.addEventListener('focus', () => updateHeroBanner(parsed));
+        card.addEventListener('focus', () => {
+             updateHeroBanner(parsed);
+             card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        });
         
         // Mouse hover acts like D-Pad focus
         card.addEventListener('mouseenter', () => {
              card.focus();
-             updateHeroBanner(parsed);
         });
         
         card.onclick = () => onCardClick(parsed);
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
         
         if (isFirstRow && index === 0) {
-            setTimeout(() => card.focus(), 300);
+            setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) card.focus(); }, 500);
         }
         
         slider.appendChild(card);

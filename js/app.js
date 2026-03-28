@@ -1,12 +1,15 @@
-import { DOM, buildRow, renderGridItems, toggleWatchlist, enableDragScroll } from './ui.js?v=29';
-import { discoverByCategory, clearAPICache } from './api.js?v=29';
-import { openDetails } from './player.js?v=29';
-import { setupRouter, handleRoute, navigateTo } from './router.js?v=29';
+import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=64';
+import { discoverByCategory } from './api.js?v=64';
+import { openDetails } from './player.js?v=64';
+import { setupRouter, navigateTo } from './router.js?v=64';
+import { NavigationManager } from './navigation.js?v=64';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
-const APP_VERSION = 40;
+// Navigation Manager is now imported
+
+const APP_VERSION = 64;
 
 async function checkForUpdatesBackground() {
     try {
@@ -28,10 +31,10 @@ function showUpdateBanner(newVersionKey, downloadUrl) {
     banner.innerHTML = `<i class="fa-solid fa-download" style="font-size:24px;"></i> <div>Streamy Update Available!<br><span style="font-size:12px;font-weight:normal;">Click to install v${newVersionKey}.0</span></div>`;
     banner.onclick = () => {
         localStorage.setItem('streamy_build_version', newVersionKey);
-        if(window.NativeBridge && window.NativeBridge.downloadUpdate) {
-            window.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
+        if(globalThis.NativeBridge && globalThis.NativeBridge.downloadUpdate) {
+            globalThis.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
         } else {
-            window.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
+            globalThis.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
         }
         banner.remove();
     };
@@ -180,6 +183,8 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         
         if (focusIndex === idx) setTimeout(() => card.focus(), 100);
     });
+
+    NavigationManager.lockFocus('#profile-selection-screen');
 }
 
 function openProfileModal(profile) {
@@ -244,6 +249,7 @@ function openProfileModal(profile) {
 
     modal.classList.remove('hidden');
     input.focus();
+    NavigationManager.lockFocus('#profile-edit-modal');
 }
 
 // Removed redundant fetchTMDB function
@@ -371,17 +377,28 @@ function initSearch() {
 
 function setupDpadLogic() {
     document.addEventListener('keydown', (e) => {
+        const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+        
         if (e.key === 'Escape' || e.key === 'Backspace') {
-            globalThis.history.back();
-            e.preventDefault();
+            if (isInput && e.target.value.length > 0) return; // Allow backspace in input
+            
+            // If in details/links/player, go back
+            const hash = globalThis.location.hash;
+            if (hash && hash !== '#home' && hash !== '#movies' && hash !== '#tv') {
+                globalThis.history.back();
+                e.preventDefault();
+            }
+            return;
         }
-        // Minimal browser spatial navigation wrapper over Tab
+
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Up','Down','Left','Right'].includes(e.key)) {
-            setTimeout(() => {
-                if (document.activeElement && typeof document.activeElement.scrollIntoView === 'function') {
-                    try { document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } catch(err) {}
-                }
-            }, 50);
+            NavigationManager.handleDpad(e);
+        }
+        
+        if (e.key === 'Enter') {
+            if (document.activeElement && document.activeElement.click) {
+                // Pre-click feedback if needed
+            }
         }
     });
 }
