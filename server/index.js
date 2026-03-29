@@ -65,7 +65,7 @@ function injectFallbackLinks(links, { type, tmdb, season, episode }) {
     const vidlinkUrl = isTV
         ? `https://vidlink.pro/tv/${tmdb}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`
         : `https://vidlink.pro/movie/${tmdb}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`;
-    links.push({ server: 'Vidlink (Primary)', url: vidlinkUrl, type: 'iframe' });
+    links.push({ server: 'Vidlink', url: vidlinkUrl, type: 'iframe' });
 
     const vidsrcUrl = isTV
         ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
@@ -109,6 +109,8 @@ app.get('/api/stream', async (req, res) => {
         finalLinks = finalLinks.filter((value, index, self) =>
             index === self.findIndex((t) => (t.url === value.url))
         );
+
+        finalLinks = finalLinks.filter(link => link.type !== 'iframe');
 
         if (finalLinks.length === 0) {
             injectFallbackLinks(finalLinks, { type, tmdb, season, episode });

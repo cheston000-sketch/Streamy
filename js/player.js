@@ -328,6 +328,13 @@ function playIframeFallback(iframeUrl) {
 function playNativeVideo(streamUrl) {
     const isTvEpisode = currentMovieContext?.type === 'tv';
     const hasNativeBridge = !!globalThis.NativeBridge && typeof globalThis.NativeBridge.playStream === 'function';
+    const forceMaxVolume = () => {
+        DOM.videoPlayer.defaultMuted = false;
+        if (DOM.videoPlayer.muted || DOM.videoPlayer.volume < 0.99) {
+            DOM.videoPlayer.muted = false;
+            DOM.videoPlayer.volume = 1;
+        }
+    };
 
     // Native Android Bridge Support (March 27 proven pattern)
     if (hasNativeBridge && !isTvEpisode) {
@@ -360,8 +367,8 @@ function playNativeVideo(streamUrl) {
 
     setTimeout(() => DOM.playerBackBtn?.focus(), 250);
     
-    DOM.videoPlayer.muted = false;
-    DOM.videoPlayer.volume = 1;
+    forceMaxVolume();
+    DOM.videoPlayer.onvolumechange = forceMaxVolume;
 
     const isM3U8 = streamUrl.includes('.m3u8');
     const canPlayNativeHLS = DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl');
@@ -371,14 +378,18 @@ function playNativeVideo(streamUrl) {
         hls.loadSource(streamUrl);
         hls.attachMedia(DOM.videoPlayer);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
+            forceMaxVolume();
             DOM.videoPlayer.play().catch(e => console.warn(e));
         });
     } else {
         DOM.videoPlayer.src = streamUrl;
         DOM.videoPlayer.addEventListener('loadedmetadata', function() {
+            forceMaxVolume();
             DOM.videoPlayer.play().catch(e => console.warn("Autoplay block:", e));
         }, {once: true});
     }
+    DOM.videoPlayer.addEventListener('play', forceMaxVolume, { once: true });
+    DOM.videoPlayer.addEventListener('canplay', forceMaxVolume, { once: true });
     
     // Keep TV episodes in the in-app player so Fire TV can trigger JS autoplay.
     DOM.videoPlayer.onended = null;
