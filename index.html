@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Streamy</title>
     <!-- Serverless OTA Distribution Metadata arrays -->
-    <meta name="apk-version" content="72">
+    <meta name="apk-version" content="76">
     <meta name="apk-download-url" content="/api/ota/download">
     <!-- PWA / Web App Manifest Data -->
     <link rel="manifest" href="/manifest.json">
@@ -194,26 +194,22 @@
                 <div class="details-right">
                     <h1 id="details-title">Loading Title...</h1>
                     <div class="meta" id="details-meta"></div>
-                    <p id="details-desc"></p>
-                    <div id="action-buttons-container" style="display:flex; gap:8px; margin-top:8px;">
-                        <button id="play-btn" class="btn-play" tabindex="0"><i class="fa-solid fa-play"></i> WATCH
-                            NOW</button>
-                        <button id="watchlist-btn" class="btn-secondary" tabindex="0"><i class="fa-solid fa-plus"></i>
-                            WATCHLIST</button>
+                    <p id="details-desc" style="margin-top: 10px;"></p>
+                    
+                    <div id="action-buttons-container" style="display:flex; gap:8px; margin-top:15px;">
+                        <button id="play-btn" class="btn-play" tabindex="0"><i class="fa-solid fa-play"></i> WATCH NOW</button>
+                        <button id="watchlist-btn" class="btn-secondary" tabindex="0"><i class="fa-solid fa-plus"></i> WATCHLIST</button>
                     </div>
 
-                    <div id="tv-controls" class="hidden"
-                        style="display:flex; flex-direction:row; gap:20px; align-items:flex-start; margin-top: 15px; width: 100%;">
-                        <div style="display:flex; flex-direction:column; max-width:35%;">
-                            <h3 style="color:#eee; margin:0 0 4px; font-size:0.9rem;">Season</h3>
-                            <div id="season-tabs" class="hide-scroll"
-                                style="display:flex; gap:6px; overflow-x:auto; width: 100%; padding-bottom:10px; scroll-behavior: smooth;">
+                    <div id="tv-controls" class="hidden" style="margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 25px; width: 100%;">
+                        <div class="theater-browser">
+                            <div class="season-sidebar-v2">
+                                <h3 class="sidebar-label">Seasons</h3>
+                                <div id="season-tabs" class="sidebar-list hide-scroll"></div>
                             </div>
-                        </div>
-                        <div style="display:flex; flex-direction:column; flex:1; max-width:65%;">
-                            <h3 style="color:#eee; margin:0 0 4px; font-size:0.9rem;">Episodes</h3>
-                            <div id="episode-list" class="hide-scroll"
-                                style="display:flex; gap:8px; overflow-x:auto; width: 100%; padding-bottom:10px; scroll-behavior: smooth;">
+                            <div class="episode-main-v2">
+                                <h3 class="sidebar-label">Episodes</h3>
+                                <div id="episode-list" class="episode-list-detailed hide-scroll"></div>
                             </div>
                         </div>
                     </div>

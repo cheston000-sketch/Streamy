@@ -198,6 +198,7 @@ body {
     display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s;
 }
 .btn-secondary:focus, .btn-secondary:hover { transform: scale(1.05); background: rgba(109,109,110,0.9); box-shadow: 0 0 0 3px white; }
+.btn-secondary.active { background: white !important; color: black !important; }
 
 /* LINKS VIEW */
 #view-links { position: absolute; top:0; left:0; width:100%; min-height: 100%; background: var(--bg-dark); z-index: 2000; padding: 120px 40px 40px; overflow-y: auto;}
@@ -231,3 +232,170 @@ body {
 /* Drag Scroll Overrides */
 .row-posters.drag-active, #season-tabs.drag-active, #episode-list.drag-active { scroll-behavior: auto !important; cursor: grabbing !important; }
 .row-posters.dragging .poster-card, .row-posters.dragging .show-all-card, #season-tabs.dragging .nav-tab, #episode-list.dragging .episode-card { pointer-events: none !important; }
+
+/* --- Theater Browser (TV Show Detail) --- */
+.theater-browser {
+    display: flex;
+    gap: 30px;
+    height: 480px; /* Precise height for vertical layout */
+    width: 100%;
+    margin-top: 10px;
+}
+
+.season-sidebar-v2 {
+    width: 180px;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-label {
+    color: rgba(255,255,255,0.4);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 12px;
+    font-weight: 700;
+}
+
+.sidebar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 5px;
+}
+
+.season-item-v2 {
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+    color: #bbb;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent;
+    font-weight: 600;
+    text-align: left;
+    font-size: 0.95rem;
+}
+
+.season-item-v2:focus {
+    background: #fff;
+    color: #000;
+    transform: scale(1.08);
+    border-color: #fff;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+    outline: none;
+}
+
+.season-item-v2.active {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border-left: 4px solid #fff;
+}
+
+.episode-main-v2 {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.episode-list-detailed {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    flex: 1;
+    padding: 5px 15px 20px 5px;
+}
+
+.episode-card-v2 {
+    display: flex;
+    gap: 20px;
+    padding: 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent;
+    align-items: center;
+    position: relative;
+}
+
+.episode-card-v2:focus {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.8);
+    transform: scale(1.02) translateX(10px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.4);
+    outline: none;
+}
+
+.ep-thumb-wrapper {
+    position: relative;
+    width: 180px;
+    height: 100px;
+    flex-shrink: 0;
+}
+
+.ep-thumb-v2 {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #111;
+    transition: transform 0.3s ease;
+}
+
+.episode-card-v2:focus .ep-thumb-v2 {
+    transform: scale(1.05);
+}
+
+.ep-play-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    border-radius: 8px;
+}
+
+.episode-card-v2:focus .ep-play-overlay {
+    opacity: 1;
+}
+
+.ep-info-v2 {
+    flex: 1;
+}
+
+.ep-title-v2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+}
+
+.ep-meta-v2 {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.4);
+    display: flex;
+    gap: 15px;
+}
+
+.ep-overview-v2 {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.6);
+    margin-top: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2; /* Compatibility */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.4;
+}
+
+.hide-scroll::-webkit-scrollbar {
+    display: none;
+}

@@ -236,15 +236,13 @@ export function toggleWatchlist(item, btnElement) {
         list.splice(index, 1);
         if(btnElement) {
             btnElement.innerHTML = '<i class="fa-solid fa-plus"></i> WATCHLIST';
-            btnElement.style.color = "white";
-            btnElement.style.backgroundColor = 'rgba(109, 109, 110, 0.7)';
+            btnElement.classList.remove('active');
         }
     } else {
         list.push(item);
         if(btnElement) {
             btnElement.innerHTML = '<i class="fa-solid fa-check"></i> ON WATCHLIST';
-            btnElement.style.color = "black";
-            btnElement.style.backgroundColor = 'white';
+            btnElement.classList.add('active');
         }
     }
     globalThis.localStorage.setItem(watchKey, JSON.stringify(list));

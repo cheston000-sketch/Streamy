@@ -28,7 +28,7 @@ export async function openDetails(movie) {
 
     if (movie.type === 'tv') {
         DOM.tvControls.classList.remove('hidden');
-        DOM.seasonTabs.innerHTML = '<div style="color:#aaa;">Loading Seasons...</div>';
+        DOM.seasonTabs.innerHTML = '<div style="color:#aaa; padding:20px;">Loading Seasons...</div>';
         DOM.episodeList.innerHTML = '';
         DOM.playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME LATEST';
         
@@ -44,31 +44,27 @@ export async function openDetails(movie) {
             seasons.forEach(s => {
                 if (s.season_number > 0) {
                     const btn = document.createElement('button');
-                    btn.className = 'nav-tab'; 
+                    btn.className = 'season-item-v2'; 
                     btn.tabIndex = 0;
-                    btn.style.padding = '2px 8px';
-                    btn.style.fontSize = '12px';
-                    btn.style.borderRadius = '3px';
-                    btn.style.height = '22px';
-                    btn.style.lineHeight = '1';
-                    btn.style.border = '2px solid #555';
-                    btn.style.background = s.season_number === targetSeasonNumber ? 'white' : 'rgba(0,0,0,0.7)';
-                    btn.style.color = s.season_number === targetSeasonNumber ? 'black' : 'white';
-                    btn.style.cursor = 'pointer';
+                    if (s.season_number === targetSeasonNumber) btn.classList.add('active');
                     btn.innerHTML = `Season ${s.season_number}`;
                     
                     btn.onclick = () => {
-                        Array.from(DOM.seasonTabs.children).forEach(c => {
-                            c.style.background = 'rgba(0,0,0,0.7)'; c.style.color = 'white';
-                        });
-                        btn.style.background = 'white'; btn.style.color = 'black';
+                        Array.from(DOM.seasonTabs.children).forEach(c => c.classList.remove('active'));
+                        btn.classList.add('active');
                         loadEpisodes(movie.id, s.season_number, progress);
                     };
-                    btn.onkeydown = (e) => { if(e.key === 'Enter') btn.click(); };
+                    btn.onkeydown = (e) => { 
+                        if(e.key === 'Enter') btn.click();
+                        if(e.key === 'ArrowRight') {
+                            const firstEp = DOM.episodeList.querySelector('.episode-card-v2');
+                            if(firstEp) firstEp.focus();
+                        }
+                    };
                     DOM.seasonTabs.appendChild(btn);
                     
                     if (s.season_number === targetSeasonNumber) {
-                        setTimeout(() => btn.scrollIntoView({ behavior: 'smooth', inline: 'center' }), 100);
+                        setTimeout(() => btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
                     }
                 }
             });
@@ -83,23 +79,22 @@ export async function openDetails(movie) {
     const exists = isInWatchlist(movie.id);
     if (exists) {
         DOM.watchlistBtn.innerHTML = '<i class="fa-solid fa-check"></i> ON WATCHLIST';
-        DOM.watchlistBtn.style.color = "black";
-        DOM.watchlistBtn.style.backgroundColor = 'white';
+        DOM.watchlistBtn.classList.add('active');
     } else {
         DOM.watchlistBtn.innerHTML = '<i class="fa-solid fa-plus"></i> WATCHLIST';
-        DOM.watchlistBtn.style.color = "white";
-        DOM.watchlistBtn.style.backgroundColor = 'rgba(109, 109, 110, 0.7)';
+        DOM.watchlistBtn.classList.remove('active');
     }
     DOM.watchlistBtn.onclick = () => toggleWatchlist(currentMovieContext, DOM.watchlistBtn);
     
     DOM.playBtn.onclick = () => startScrapingSession(null, null);
 
     navigateTo('#details');
-    setTimeout(() => DOM.playBtn.focus(), 100);
+    setTimeout(() => DOM.playBtn.focus(), 150);
 }
 
+
 async function loadEpisodes(tvId, seasonNum, progressRecord = null) {
-    DOM.episodeList.innerHTML = '<div style="color:#aaa;">Loading Episodes...</div>';
+    DOM.episodeList.innerHTML = '<div style="color:#aaa; padding:20px;">Loading Episodes...</div>';
     const episodes = await fetchTVEpisodeList(tvId, seasonNum);
     if (episodes && episodes.length > 0) {
         DOM.episodeList.innerHTML = '';
@@ -107,60 +102,122 @@ async function loadEpisodes(tvId, seasonNum, progressRecord = null) {
         let targetEpisodeBtn = null;
 
         episodes.forEach(e => {
-            const btn = document.createElement('div');
-            btn.className = 'episode-card nav-tab'; 
-            btn.tabIndex = 0;
-            btn.style.minWidth = '160px';
-            btn.style.maxWidth = '160px';
-            btn.style.position = 'relative';
-            btn.style.cursor = 'pointer';
+            const card = document.createElement('div');
+            card.className = 'episode-card-v2'; 
+            card.tabIndex = 0;
             
             const epKey = `s${seasonNum}e${e.episode_number}`;
             const isWatched = progress.watched.includes(epKey);
+            const imgUrl = e.still_path ? `${IMAGE_URL}${e.still_path}` : 'https://via.placeholder.com/300x169?text=No+Preview';
             
-            let imgUrl = e.still_path ? `${IMAGE_URL}${e.still_path}` : 'https://via.placeholder.com/160x90?text=No+Image';
-            let checkmarkHtml = isWatched ? `<div style="position:absolute; top:5px; right:5px; background:white; color:#46d369; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.8); font-size:11px; border:2px solid #aaa;"><i class="fa-solid fa-check"></i></div>` : '';
-            
-            btn.innerHTML = `
-                <div style="position:relative; width:100%; height:90px; border-radius:6px; overflow:hidden; border:2px solid #444; margin-bottom:6px; background:#111;">
-                    <img loading="lazy" src="${imgUrl}" style="width:100%; height:100%; object-fit:cover;" draggable="false">
-                    <div style="position:absolute; bottom:0; padding:2px 4px; background:rgba(0,0,0,0.85); width:100%; font-size:12px; color:white; font-weight:bold;">Ep ${e.episode_number}</div>
-                    ${checkmarkHtml}
+            card.innerHTML = `
+                <div class="ep-thumb-wrapper">
+                    <img src="${imgUrl}" class="ep-thumb-v2" loading="lazy">
+                    <div class="ep-play-overlay"><i class="fa-solid fa-play" style="font-size:1.5rem; color:white;"></i></div>
+                    ${isWatched ? '<div style="position:absolute; top:8px; left:8px; background:#46d369; color:white; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:900; box-shadow:0 2px 5px rgba(0,0,0,0.3);">WATCHED</div>' : ''}
                 </div>
-                <div style="font-size:16px; color:white; white-space:normal; line-height:1.2; font-weight:bold;">${e.name || "TBA"}</div>
-                <div style="font-size:14px; color:#aaa; margin-top:6px; white-space:normal; line-height:1.3; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;">${e.overview || "No description provided by TMDB."}</div>
+                <div class="ep-info-v2">
+                    <div class="ep-title-v2">${e.episode_number}. ${e.name || "TBA"}</div>
+                    <div class="ep-meta-v2">
+                        <span><i class="fa-regular fa-clock"></i> ${e.runtime || '?'} min</span>
+                        <span><i class="fa-regular fa-calendar"></i> ${e.air_date || 'TBA'}</span>
+                    </div>
+                    <div class="ep-overview-v2">${e.overview || "No description available for this episode."}</div>
+                </div>
             `;
             
-            btn.onclick = () => {
+            card.onclick = () => {
                 DOM.playBtn.innerHTML = `<i class="fa-solid fa-play"></i> RESUME S${seasonNum}:E${e.episode_number}`;
                 startScrapingSession(seasonNum, e.episode_number);
             };
-            btn.onkeydown = (ev) => { if(ev.key === 'Enter') btn.click(); };
+            card.onkeydown = (ev) => { 
+                if(ev.key === 'Enter') card.click();
+                if(ev.key === 'ArrowLeft') {
+                    const activeSeason = DOM.seasonTabs.querySelector('.active');
+                    if(activeSeason) activeSeason.focus();
+                }
+            };
             
-            DOM.episodeList.appendChild(btn);
+            DOM.episodeList.appendChild(card);
 
             if (seasonNum === progress.last_season && e.episode_number === progress.last_episode) {
-                targetEpisodeBtn = btn;
+                targetEpisodeBtn = card;
             }
         });
 
         setTimeout(() => {
-            if (targetEpisodeBtn) targetEpisodeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            if (targetEpisodeBtn) targetEpisodeBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 300);
     }
 }
 
-async function startScrapingSession(targetS = null, targetE = null) {
-    if (!currentMovieContext) return;
-    
-    // Save to active profile history
+function updateWatchHistory(context) {
+    if (!context) return;
     const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
     const histKey = activeProfileRaw ? `streamy_history_${activeProfileRaw}` : 'streamy_history_default';
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
-    hList = hList.filter(m => m.id !== currentMovieContext.id);
-    hList.unshift(currentMovieContext);
+    hList = hList.filter(m => m.id !== context.id);
+    hList.unshift(context);
     if (hList.length > 25) hList = hList.slice(0, 25);
     globalThis.localStorage.setItem(histKey, JSON.stringify(hList));
+}
+
+function getInitialEpisode(context, targetS, targetE) {
+    if (context.type !== 'tv') return { s: 1, e: 1 };
+    if (targetS !== null && targetE !== null) return { s: targetS, e: targetE };
+    const progress = getSeriesProgress(context.id);
+    return { s: progress.last_season || 1, e: progress.last_episode || 1 };
+}
+
+async function performExtraction(hostUrl, movie, s, e) {
+    let apiUrl = `${hostUrl}/api/stream?tmdb=${movie.id}&type=${movie.type}&title=${encodeURIComponent(movie.title)}&year=${movie.year}`;
+    if (movie.type === 'tv') apiUrl += `&season=${s}&episode=${e}`;
+
+    console.log("[Extraction] Calling:", apiUrl);
+    const res = await fetch(apiUrl, {
+        headers: { 'bypass-tunnel-reminder': 'true' }
+    });
+    if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
+    return await res.json();
+}
+
+function rankLinks(links) {
+    return links.sort((a, b) => {
+        const score = (link) => {
+            let s = 0;
+            const lowServ = link.server.toLowerCase();
+            const lowUrl = link.url.toLowerCase();
+            
+            if (lowServ.includes('vidlink')) s += 500; // v77: Absolute Primary (User Requested)
+            if (link.type !== 'iframe') s += 100; // Native is high priority
+            if (lowServ.includes('streamx')) s += 80;
+            if (lowServ.includes('vidsrc')) s += 50;
+            if (lowUrl.includes('.m3u8')) s += 20;
+            return s;
+        };
+        return score(b) - score(a);
+    });
+}
+
+const probeLink = async (link) => {
+    if (link.type === 'iframe') return true; // Assume iframes are alive
+    try {
+        console.log(`[Probe] Testing connectivity: ${link.server}...`);
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 3000); 
+        await fetch(link.url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
+        clearTimeout(id);
+        return true; 
+    } catch (e) {
+        console.warn(`[Probe] Link ${link.server} failed:`, e.message);
+        return false;
+    }
+};
+
+export async function startScrapingSession(targetS = null, targetE = null) {
+    if (!currentMovieContext) return;
+    
+    updateWatchHistory(currentMovieContext);
 
     DOM.serverList.innerHTML = '';
     DOM.linksTitle.textContent = `Resolving: ${currentMovieContext.title}`;
@@ -169,59 +226,10 @@ async function startScrapingSession(targetS = null, targetE = null) {
     
     navigateTo('#links');
 
-    let s = 1, e = 1;
+    const { s, e } = getInitialEpisode(currentMovieContext, targetS, targetE);
     if (currentMovieContext.type === 'tv') {
-        if (targetS !== null && targetE !== null) {
-            s = targetS;
-            e = targetE;
-        } else {
-            const progress = getSeriesProgress(currentMovieContext.id);
-            s = progress.last_season || 1;
-            e = progress.last_episode || 1;
-        }
         saveSeriesProgress(currentMovieContext.id, s, e);
     }
-    
-    const performExtraction = async (hostUrl) => {
-        let apiUrl = `${hostUrl}/api/stream?tmdb=${currentMovieContext.id}&type=${currentMovieContext.type}&title=${encodeURIComponent(currentMovieContext.title)}&year=${currentMovieContext.year}`;
-        if (currentMovieContext.type === 'tv') apiUrl += `&season=${s}&episode=${e}`;
-
-        console.log("[Extraction] Calling:", apiUrl);
-        const res = await fetch(apiUrl, {
-            headers: { 'bypass-tunnel-reminder': 'true' }
-        });
-        if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-        return await res.json();
-    };
-
-    const rankLinks = (links) => {
-        return links.sort((a, b) => {
-            const score = (link) => {
-                let s = 0;
-                if (link.type !== 'iframe') s += 100; // Native is top priority
-                if (link.server.toLowerCase().includes('vidsrc')) s += 50;
-                if (link.server.toLowerCase().includes('streamx')) s += 80;
-                if (link.url.includes('.m3u8')) s += 20;
-                return s;
-            };
-            return score(b) - score(a);
-        });
-    };
-
-    const probeLink = async (link) => {
-        if (link.type === 'iframe') return true; // Assume iframes are alive
-        try {
-            console.log(`[Probe] Testing connectivity: ${link.server}...`);
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), 3000); 
-            await fetch(link.url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
-            clearTimeout(id);
-            return true; 
-        } catch (e) {
-            console.warn(`[Probe] Link ${link.server} failed:`, e.message);
-            return false;
-        }
-    };
 
     try {
         const primaryHost = getExtractionApi();
@@ -230,12 +238,12 @@ async function startScrapingSession(targetS = null, targetE = null) {
         DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-satellite-dish fa-fade"></i> Connecting to extraction grid...</p>';
         
         try {
-            data = await performExtraction(primaryHost);
+            data = await performExtraction(primaryHost, currentMovieContext, s, e);
         } catch (primaryErr) {
             console.warn("[Extraction] Primary host failed, attempting production failover...");
             DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-shield-halved fa-fade"></i> Primary failed. Switching to failover node...</p>';
             if (primaryHost === UPDATE_SERVER) throw primaryErr;
-            data = await performExtraction(UPDATE_SERVER);
+            data = await performExtraction(UPDATE_SERVER, currentMovieContext, s, e);
             globalThis.localStorage.setItem('streamy_backend_host', UPDATE_SERVER);
         }
         
@@ -273,11 +281,12 @@ async function startScrapingSession(targetS = null, targetE = null) {
                     DOM.serverList.appendChild(li);
                 });
 
-                // Auto-Play
-                setTimeout(() => {
-                    if (bestLink.type === 'iframe') playIframeFallback(bestLink.url);
-                    else playNativeVideo(bestLink.url);
-                }, 800);
+                // Immediate Auto-Play (v77: VidLink Preferred)
+                if (bestLink.type === 'iframe') {
+                    playIframeFallback(bestLink.url);
+                } else {
+                    playNativeVideo(bestLink.url);
+                }
             } else {
                 throw new Error("No responsive sources found in cluster.");
             }
@@ -291,7 +300,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
         DOM.scraperStatus.classList.remove('hidden');
         DOM.scraperStatus.innerHTML = `
             <div style="color:white; background:#e50914; padding:20px; border-radius:12px; margin-top:20px; border:4px solid #fff; box-shadow:0 0 40px rgba(229,9,20,0.5);">
-                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error (v72)</b><br>
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error (v77)</b><br>
                 <div style="background:rgba(0,0,0,0.5); padding:10px; border-radius:6px; margin-top:10px; text-align:left;">
                     <span style="font-size:14px;color:#ccc;display:block;">Primary Host: ${currentHost}</span>
                     <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error"}</span>
@@ -302,7 +311,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
     }
 }
 
-function playIframeFallback(iframeUrl) {
+export function playIframeFallback(iframeUrl) {
     DOM.videoPlayer.style.display = 'none';
     if (!DOM.videoPlayer.paused) DOM.videoPlayer.pause();
     
@@ -319,17 +328,22 @@ function playIframeFallback(iframeUrl) {
         iframe.style.borderRadius = '12px';
         iframe.style.background = '#000';
         iframe.allowFullscreen = true;
-        iframe.setAttribute('allow', 'fullscreen; encrypted-media');
+        iframe.setAttribute('allow', 'fullscreen; encrypted-media; autoplay');
         DOM.iframeWrapper.appendChild(iframe);
     }
     
-    iframe.src = iframeUrl;
+    // Force Autoplay for Iframes
+    let url = new URL(iframeUrl);
+    url.searchParams.set('autoplay', '1');
+    url.searchParams.set('muted', '0'); 
+    
+    iframe.src = url.toString();
     iframe.style.display = 'block';
     
     navigateTo('#player');
 }
 
-function playNativeVideo(streamUrl) {
+export function playNativeVideo(streamUrl) {
     let iframe = document.getElementById('fallback-iframe');
     if (iframe) iframe.style.display = 'none';
     DOM.videoPlayer.style.display = 'block';
@@ -341,50 +355,49 @@ function playNativeVideo(streamUrl) {
     const isM3U8 = streamUrl.includes('.m3u8');
     const canPlayNativeHLS = DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl');
 
-    if (isM3U8 && !canPlayNativeHLS && globalThis.Hls && Hls.isSupported()) {
+    if (isM3U8 && !canPlayNativeHLS && globalThis.Hls?.isSupported()) {
         const hls = new Hls();
         hls.loadSource(streamUrl);
         hls.attachMedia(DOM.videoPlayer);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-            DOM.videoPlayer.play().catch(e => console.warn(e));
+            DOM.videoPlayer.play().catch(() => {
+                DOM.videoPlayer.muted = true;
+                DOM.videoPlayer.play();
+            });
         });
     } else {
         DOM.videoPlayer.src = streamUrl;
-        DOM.videoPlayer.addEventListener('loadedmetadata', function() {
-            DOM.videoPlayer.play().catch(e => console.warn("Autoplay block:", e));
-        }, {once: true});
+        DOM.videoPlayer.load();
+        DOM.videoPlayer.oncanplay = () => {
+             DOM.videoPlayer.play().catch(() => {
+                DOM.videoPlayer.muted = true;
+                DOM.videoPlayer.play();
+            });
+        };
     }
     
-    // Auto Play Next episode feature
-    if(currentMovieContext && currentMovieContext.type === 'tv') {
+    if(currentMovieContext?.type === 'tv') {
         DOM.videoPlayer.addEventListener('ended', playNextEpisode, {once: true});
     }
 }
 
 function playNextEpisode() {
-    // Basic binge tracking hook.
-    // Real implementation would look into the next `s` and `e` from progress and restart the scraper natively.
-    console.log("Next episode triggered!");
-    DOM.playerBackBtn.click(); // Backs out to Links View or Details view securely.
+    DOM.playerBackBtn.click();
 }
 
 if (DOM.playerServerCycleBtn) {
     DOM.playerServerCycleBtn.innerHTML = '<i class="fa-solid fa-server"></i> Switch Server';
-    DOM.playerServerCycleBtn.onclick = () => {
-        navigateTo('#links');
-    };
+    DOM.playerServerCycleBtn.onclick = () => navigateTo('#links');
 }
 
 if (DOM.playerBackBtn) {
-    DOM.playerBackBtn.addEventListener('click', () => {
-        globalThis.history.back();
-    });
+    DOM.playerBackBtn.addEventListener('click', () => globalThis.history.back());
 }
 
 if (DOM.playerFullscreenBtn) {
     DOM.playerFullscreenBtn.addEventListener('click', () => {
         let elem = document.getElementById('fallback-iframe') || DOM.videoPlayer;
-        if (elem && elem.style.display !== 'none') {
+        if (elem?.style.display !== 'none') {
             if (elem.requestFullscreen) elem.requestFullscreen();
             else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
         }

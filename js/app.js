@@ -9,7 +9,7 @@ let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: '
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 72;
+const APP_VERSION = 76;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
