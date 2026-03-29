@@ -1,21 +1,25 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=66';
-import { discoverByCategory } from './api.js?v=66';
-import { openDetails } from './player.js?v=66';
-import { setupRouter, navigateTo } from './router.js?v=66';
-import { NavigationManager } from './navigation.js?v=66';
+import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=67';
+import { discoverByCategory } from './api.js?v=67';
+import { openDetails } from './player.js?v=67';
+import { setupRouter, navigateTo } from './router.js?v=67';
+import { NavigationManager } from './navigation.js?v=67';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 66;
+const APP_VERSION = 67;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
     try {
         const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : UPDATE_SERVER;
-        const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
+        const res = await fetch(`${HOST}/api/ota`, { 
+            method: 'GET', 
+            cache: 'no-cache',
+            headers: { 'bypass-tunnel-reminder': 'true' }
+        });
         if (!res.ok) return;
         const data = await res.json();
 

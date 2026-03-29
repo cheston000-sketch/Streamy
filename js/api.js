@@ -139,7 +139,9 @@ function getProxyHost() {
 export async function fetchMusicFromProxy(endpoint) {
     try {
         const host = getProxyHost();
-        const res = await fetch(`${host}/api${endpoint}`);
+        const res = await fetch(`${host}/api${endpoint}`, {
+            headers: { 'bypass-tunnel-reminder': 'true' }
+        });
         const data = await res.json();
         return data;
     } catch (e) {
@@ -188,7 +190,9 @@ export async function fetchMusicManifest(trackId) {
 export async function searchMusicSaavn(query) {
     const host = getProxyHost();
     try {
-        const res = await fetch(`${host}/api/saavn/search/songs?query=${encodeURIComponent(query)}&limit=5`);
+        const res = await fetch(`${host}/api/saavn/search/songs?query=${encodeURIComponent(query)}&limit=5`, {
+            headers: { 'bypass-tunnel-reminder': 'true' }
+        });
         return await res.json();
     } catch (e) {
         return { data: { results: [] } };

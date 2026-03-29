@@ -182,10 +182,17 @@ async function startScrapingSession(targetS = null, targetE = null) {
     }
     
     try {
-        let apiUrl = `${STREAMOS_API}?tmdb=${currentMovieContext.id}&type=${currentMovieContext.type}&title=${encodeURIComponent(currentMovieContext.title)}&year=${currentMovieContext.year}`;
+        const extractionUrl = getExtractionApi();
+        let apiUrl = `${extractionUrl}?tmdb=${currentMovieContext.id}&type=${currentMovieContext.type}&title=${encodeURIComponent(currentMovieContext.title)}&year=${currentMovieContext.year}`;
         if (currentMovieContext.type === 'tv') apiUrl += `&season=${s}&episode=${e}`;
 
-        const res = await fetch(apiUrl);
+        console.log("[Extraction] Calling:", apiUrl);
+        const res = await fetch(apiUrl, {
+            headers: { 'bypass-tunnel-reminder': 'true' }
+        });
+        
+        if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
+        
         const data = await res.json();
         
         DOM.scraperStatus.classList.add('hidden');
@@ -213,12 +220,19 @@ async function startScrapingSession(targetS = null, targetE = null) {
             });
         } else {
             DOM.scraperStatus.classList.remove('hidden');
-            DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction failed. Node proxy returned empty payload.</div>';
+            DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction failed. Backend returned empty payload.</div>';
         }
     } catch (err) {
         console.error("Stream extraction failed:", err);
+        const extractionUrl = getExtractionApi();
         DOM.scraperStatus.classList.remove('hidden');
-        DOM.scraperStatus.innerHTML = `<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction Error. StreamOS Express Backend Unreachable.</div>`;
+        DOM.scraperStatus.innerHTML = `
+            <div style="color:var(--primary);">
+                <i class="fa-solid fa-triangle-exclamation"></i> <b>Extraction Error</b><br>
+                <span style="font-size:14px;color:#ccc;display:block;margin-top:10px;">URL: ${extractionUrl}</span>
+                <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error or JSON parse failed"}</span>
+            </div>
+        `;
     }
 }
 
