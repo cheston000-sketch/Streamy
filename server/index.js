@@ -211,7 +211,7 @@ app.use('/api/saavn', async (req, res) => {
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
 const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v75.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v76.apk');
 
 app.get('/api/ota', (req, res) => {
     // Read the current build.gradle version dynamically!
@@ -228,15 +228,15 @@ app.get('/api/ota', (req, res) => {
     } catch(e) {
         console.warn("[OTA] Dynamic version check failed, using fallback.");
     }
-    // Fallback for Render deployment (v75)
-    res.json({ available: true, version: 75, download: '/api/ota/download' });
+    // Fallback for Render deployment (v76)
+    res.json({ available: true, version: 76, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
     if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, 'StreamOS_v75.apk');
+        res.download(CLOUD_APK, 'StreamOS_v76.apk');
     } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, 'StreamOS_v75.apk');
+        res.download(LOCAL_APK, 'StreamOS_v76.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }
