@@ -217,13 +217,13 @@ const CLOUD_APK_v79 = path.join(__dirname, '..', 'StreamOS_v79.apk');
 
 app.get('/api/ota', (req, res) => {
     // Hardcoded version for v80 update
-    res.json({ available: true, version: 81, download: '/api/ota/download' });
+    res.json({ available: true, version: 82, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
-    const CLOUD_APK_v80 = path.join(__dirname, '..', 'StreamOS_v81.apk');
+    const CLOUD_APK_v80 = path.join(__dirname, '..', 'StreamOS_v82.apk');
     if (fs.existsSync(CLOUD_APK_v80)) {
-        res.download(CLOUD_APK_v80, 'StreamOS_v81.apk');
+        res.download(CLOUD_APK_v80, 'StreamOS_v82.apk');
     } else if (fs.existsSync(CLOUD_APK_v79)) {
         res.download(CLOUD_APK_v79, 'StreamOS_v79.apk');
     } else if (fs.existsSync(CLOUD_APK_v78)) {
