@@ -86,20 +86,42 @@ app.get('/api/stream', async (req, res) => {
         // If native extraction fails, inject robust fallback iframe embeds
         if (finalLinks.length === 0) {
             console.log(`[Extractor] Primary providers failed. Injecting fallback iframe embeds.`);
+            
+            // VidSrc Me (Stable)
             const vidsrcUrl = (type === 'tv' || type === 'show')
                 ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
                 : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
             finalLinks.push({ server: 'Vidsrc.me', url: vidsrcUrl, type: 'iframe' });
 
+            // VidSrc Net (Reliable)
             const vidsrcNetUrl = (type === 'tv' || type === 'show')
                 ? `https://vidsrc.net/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
                 : `https://vidsrc.net/embed/movie?tmdb=${tmdb}`;
             finalLinks.push({ server: 'Vidsrc.net', url: vidsrcNetUrl, type: 'iframe' });
 
+            // VidSrc TO (New/High Quality)
+            const vidsrcToUrl = (type === 'tv' || type === 'show')
+                ? `https://vidsrc.to/embed/tv/${tmdb}/${season}/${episode}`
+                : `https://vidsrc.to/embed/movie/${tmdb}`;
+            finalLinks.push({ server: 'Vidsrc.to', url: vidsrcToUrl, type: 'iframe' });
+
+            // Vidapi/Vid2
+            const vidapiUrl = (type === 'tv' || type === 'show')
+                ? `https://vidapi.buzz/embed/tv/${tmdb}/${season}/${episode}`
+                : `https://vidapi.buzz/embed/movie/${tmdb}`;
+            finalLinks.push({ server: 'Vid2 (Buzz)', url: vidapiUrl, type: 'iframe' });
+
+            // MultiEmbed
             const multiEmbedUrl = (type === 'tv' || type === 'show')
                 ? `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1&s=${season}&e=${episode}`
                 : `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1`;
             finalLinks.push({ server: 'MultiEmbed', url: multiEmbedUrl, type: 'iframe' });
+            
+            // 2Embed
+            const twoEmbedUrl = (type === 'tv' || type === 'show')
+                ? `https://www.2embed.cc/embedtv/${tmdb}&s=${season}&e=${episode}`
+                : `https://www.2embed.cc/embedmovie/${tmdb}`;
+            finalLinks.push({ server: '2Embed', url: twoEmbedUrl, type: 'iframe' });
         }
 
         if (finalLinks.length > 0) {
@@ -201,7 +223,7 @@ app.use('/api/saavn', async (req, res) => {
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
 const LOCAL_APK = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v70.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v72.apk');
 
 app.get('/api/ota', (req, res) => {
     // Dynamic Backend Discovery System (v66)
@@ -215,14 +237,15 @@ app.get('/api/ota', (req, res) => {
         }
     } catch(e) {}
 
-    res.json({ available: true, version: 70, backend_url: backendUrl, download: '/api/ota/download' });
+    res.json({ available: true, version: 72, backend_url: backendUrl, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
+    const fileName = 'StreamOS_v72.apk';
     if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, 'StreamOS_v70.apk');
+        res.download(CLOUD_APK, fileName);
     } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, 'StreamOS_v70.apk');
+        res.download(LOCAL_APK, fileName);
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }
