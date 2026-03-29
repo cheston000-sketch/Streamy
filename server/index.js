@@ -83,7 +83,7 @@ app.get('/api/stream', async (req, res) => {
             index === self.findIndex((t) => (t.url === value.url))
         );
 
-        // If native extraction fails, inject robust fallback iframe embeds (v75: VidLink Primary)
+        // If native extraction fails, inject robust fallback iframe embeds (v77: VidLink Primary)
         if (finalLinks.length === 0) {
             console.log(`[Extractor] Primary providers failed. Injecting fallback iframe embeds.`);
             
@@ -210,33 +210,18 @@ app.use('/api/saavn', async (req, res) => {
 // ==========================================
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
-const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v76.apk');
+const LOCAL_APK = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v77.apk');
 
 app.get('/api/ota', (req, res) => {
-    // Read the current build.gradle version dynamically!
-    // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
-    const targetGradle = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build.gradle');
-    try {
-        if (fs.existsSync(targetGradle)) {
-            const gradleContent = fs.readFileSync(targetGradle, 'utf8');
-            const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
-            if (vCodeMatch) {
-                return res.json({ available: true, version: Number.parseInt(vCodeMatch[1], 10), download: '/api/ota/download' });
-            }
-        }
-    } catch(e) {
-        console.warn("[OTA] Dynamic version check failed, using fallback.");
-    }
-    // Fallback for Render deployment (v77)
     res.json({ available: true, version: 77, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
     if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, 'StreamOS_v76.apk');
+        res.download(CLOUD_APK, 'StreamOS_v77.apk');
     } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, 'StreamOS_v76.apk');
+        res.download(LOCAL_APK, 'StreamOS_v77.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }
