@@ -1,15 +1,15 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=68';
-import { discoverByCategory } from './api.js?v=68';
-import { openDetails } from './player.js?v=68';
-import { setupRouter, navigateTo } from './router.js?v=68';
-import { NavigationManager } from './navigation.js?v=68';
+import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=69';
+import { discoverByCategory } from './api.js?v=69';
+import { openDetails } from './player.js?v=69';
+import { setupRouter, navigateTo } from './router.js?v=69';
+import { NavigationManager } from './navigation.js?v=69';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 68;
+const APP_VERSION = 69;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
@@ -163,7 +163,7 @@ function initProfiles() {
 
     document.getElementById('add-profile-btn').style.display = 'none';
     const versionEl = document.getElementById('setting-build-version');
-    if (versionEl) versionEl.innerText = `${APP_VERSION}.0 (Sync Fix)`;
+    if (versionEl) versionEl.innerText = `${APP_VERSION}.0 (Total Alignment)`;
     
     checkForUpdatesBackground();
 }
