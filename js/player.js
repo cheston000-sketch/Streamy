@@ -11,10 +11,11 @@ function getExtractionApi() {
     
     // Priority: 1. Manual/Stored Override 2. Local Dev 3. Render Production
     const host = storedHost || (isLocal ? 'http://localhost:3000' : 'https://streamy-vez5.onrender.com');
-    return `${host}/api/stream`;
+    // Ensure host doesn't end with /
+    return host.replace(/\/$/, '');
 }
 
-const STREAMOS_API = getExtractionApi();
+const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 export async function openDetails(movie) {
     currentMovieContext = movie;
@@ -181,57 +182,120 @@ async function startScrapingSession(targetS = null, targetE = null) {
         saveSeriesProgress(currentMovieContext.id, s, e);
     }
     
-    try {
-        const extractionUrl = getExtractionApi();
-        let apiUrl = `${extractionUrl}?tmdb=${currentMovieContext.id}&type=${currentMovieContext.type}&title=${encodeURIComponent(currentMovieContext.title)}&year=${currentMovieContext.year}`;
+    const performExtraction = async (hostUrl) => {
+        let apiUrl = `${hostUrl}/api/stream?tmdb=${currentMovieContext.id}&type=${currentMovieContext.type}&title=${encodeURIComponent(currentMovieContext.title)}&year=${currentMovieContext.year}`;
         if (currentMovieContext.type === 'tv') apiUrl += `&season=${s}&episode=${e}`;
 
         console.log("[Extraction] Calling:", apiUrl);
         const res = await fetch(apiUrl, {
             headers: { 'bypass-tunnel-reminder': 'true' }
         });
-        
         if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-        
-        const data = await res.json();
-        
-        DOM.scraperStatus.classList.add('hidden');
+        return await res.json();
+    };
 
+    const rankLinks = (links) => {
+        return links.sort((a, b) => {
+            const score = (link) => {
+                let s = 0;
+                if (link.type !== 'iframe') s += 100; // Native is top priority
+                if (link.server.toLowerCase().includes('vidsrc')) s += 50;
+                if (link.server.toLowerCase().includes('streamx')) s += 80;
+                if (link.url.includes('.m3u8')) s += 20;
+                return s;
+            };
+            return score(b) - score(a);
+        });
+    };
+
+    const probeLink = async (link) => {
+        if (link.type === 'iframe') return true; // Assume iframes are alive
+        try {
+            console.log(`[Probe] Testing connectivity: ${link.server}...`);
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 3000); 
+            await fetch(link.url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
+            clearTimeout(id);
+            return true; 
+        } catch (e) {
+            console.warn(`[Probe] Link ${link.server} failed:`, e.message);
+            return false;
+        }
+    };
+
+    try {
+        const primaryHost = getExtractionApi();
+        let data;
+        
+        DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-satellite-dish fa-fade"></i> Connecting to extraction grid...</p>';
+        
+        try {
+            data = await performExtraction(primaryHost);
+        } catch (primaryErr) {
+            console.warn("[Extraction] Primary host failed, attempting production failover...");
+            DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-shield-halved fa-fade"></i> Primary failed. Switching to failover node...</p>';
+            if (primaryHost === UPDATE_SERVER) throw primaryErr;
+            data = await performExtraction(UPDATE_SERVER);
+            globalThis.localStorage.setItem('streamy_backend_host', UPDATE_SERVER);
+        }
+        
         if(data.success && data.links && data.links.length > 0) {
-            data.links.forEach((link, index) => {
-                const li = document.createElement('li');
-                const btn = document.createElement('button');
-                btn.className = 'server-btn';
-                btn.tabIndex = 0;
-                btn.innerHTML = `<i class="fa-solid fa-circle-play" style="color:var(--primary); font-size:36px;"></i> <div><b>Play Link ${index + 1} (${link.server})</b><br><span style="font-size:16px;color:#aaa;">Extracted format: ${link.type.toUpperCase()}</span></div>`;
+            const sortedLinks = rankLinks(data.links);
+            DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-wand-magic-sparkles fa-fade"></i> Analyzing stream quality & latency...</p>';
+            
+            let bestLink = null;
+            for (const link of sortedLinks) {
+                const isAlive = await probeLink(link);
+                if (isAlive) {
+                    bestLink = link;
+                    break;
+                }
+            }
+
+            if (bestLink) {
+                console.log("[AutoSelection] Selected Best Source:", bestLink.server);
+                DOM.scraperStatus.innerHTML = `<p style="color:var(--primary);"><i class="fa-solid fa-check-circle"></i> Best source found: ${bestLink.server}. Launching theater...</p>`;
                 
-                btn.onclick = () => {
-                    if (link.type === 'iframe') {
-                        playIframeFallback(link.url);
-                    } else {
-                        playNativeVideo(link.url);
-                    }
-                };
-                btn.onkeydown = (ev) => { if(ev.key === 'Enter') btn.click(); };
-                
-                li.appendChild(btn);
-                DOM.serverList.appendChild(li);
-                if (index === 0) btn.focus();
-            });
+                // Render the list in background for manual switcher
+                DOM.serverList.innerHTML = '';
+                sortedLinks.forEach((link, index) => {
+                    const li = document.createElement('li');
+                    const btn = document.createElement('button');
+                    btn.className = 'server-btn';
+                    if (link === bestLink) btn.style.borderColor = 'var(--primary)';
+                    btn.tabIndex = 0;
+                    btn.innerHTML = `<i class="fa-solid fa-circle-play" style="color:var(--primary); font-size:36px;"></i> <div><b>Link ${index + 1} (${link.server})</b><br><span style="font-size:16px;color:#aaa;">${link.type.toUpperCase()}</span></div>`;
+                    btn.onclick = () => {
+                        if (link.type === 'iframe') playIframeFallback(link.url);
+                        else playNativeVideo(link.url);
+                    };
+                    li.appendChild(btn);
+                    DOM.serverList.appendChild(li);
+                });
+
+                // Auto-Play
+                setTimeout(() => {
+                    if (bestLink.type === 'iframe') playIframeFallback(bestLink.url);
+                    else playNativeVideo(bestLink.url);
+                }, 800);
+            } else {
+                throw new Error("No responsive sources found in cluster.");
+            }
         } else {
             DOM.scraperStatus.classList.remove('hidden');
             DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction failed. Backend returned empty payload.</div>';
         }
     } catch (err) {
         console.error("Stream extraction failed:", err);
-        const extractionUrl = getExtractionApi();
+        const currentHost = getExtractionApi();
         DOM.scraperStatus.classList.remove('hidden');
         DOM.scraperStatus.innerHTML = `
             <div style="color:white; background:#e50914; padding:20px; border-radius:12px; margin-top:20px; border:4px solid #fff; box-shadow:0 0 40px rgba(229,9,20,0.5);">
-                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error (v70)</b><br>
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error (v72)</b><br>
                 <div style="background:rgba(0,0,0,0.5); padding:10px; border-radius:6px; margin-top:10px; text-align:left;">
-                    <span style="font-size:14px;color:#ccc;display:block;">URL: ${extractionUrl}</span>
-                    <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error or JSON parse failed"}</span>
+                    <span style="font-size:14px;color:#ccc;display:block;">Primary Host: ${currentHost}</span>
+                    <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error"}</span>
+                    <button onclick="location.reload()" style="margin-top:10px; padding:8px 15px; background:white; color:black; border:none; border-radius:4px; font-weight:bold; cursor:pointer; width:100%;">RETRY CONNECTION</button>
                 </div>
             </div>
         `;
@@ -302,6 +366,13 @@ function playNextEpisode() {
     // Real implementation would look into the next `s` and `e` from progress and restart the scraper natively.
     console.log("Next episode triggered!");
     DOM.playerBackBtn.click(); // Backs out to Links View or Details view securely.
+}
+
+if (DOM.playerServerCycleBtn) {
+    DOM.playerServerCycleBtn.innerHTML = '<i class="fa-solid fa-server"></i> Switch Server';
+    DOM.playerServerCycleBtn.onclick = () => {
+        navigateTo('#links');
+    };
 }
 
 if (DOM.playerBackBtn) {

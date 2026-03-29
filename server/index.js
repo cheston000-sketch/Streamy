@@ -40,7 +40,7 @@ app.get('/api/stream', async (req, res) => {
             ? { type: 'show', title, releaseYear: Number(year), tmdbId: tmdb, season: { number: Number(season) }, episode: { number: Number(episode) } }
             : { type: 'movie', title, releaseYear: Number(year), tmdbId: tmdb };
 
-        // To simulate Streamy, we will run all providers and accumulate all streams
+        // To simulate BeeTV, we will run all providers and accumulate all streams
         const output = await Promise.race([
             providers.runAll({ media }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Headless Scraper Timeout Hit')), 12000))
@@ -86,42 +86,20 @@ app.get('/api/stream', async (req, res) => {
         // If native extraction fails, inject robust fallback iframe embeds
         if (finalLinks.length === 0) {
             console.log(`[Extractor] Primary providers failed. Injecting fallback iframe embeds.`);
-            
-            // VidSrc Me (Stable)
             const vidsrcUrl = (type === 'tv' || type === 'show')
                 ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
                 : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
             finalLinks.push({ server: 'Vidsrc.me', url: vidsrcUrl, type: 'iframe' });
 
-            // VidSrc Net (Reliable)
             const vidsrcNetUrl = (type === 'tv' || type === 'show')
                 ? `https://vidsrc.net/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
                 : `https://vidsrc.net/embed/movie?tmdb=${tmdb}`;
             finalLinks.push({ server: 'Vidsrc.net', url: vidsrcNetUrl, type: 'iframe' });
 
-            // VidSrc TO (New/High Quality)
-            const vidsrcToUrl = (type === 'tv' || type === 'show')
-                ? `https://vidsrc.to/embed/tv/${tmdb}/${season}/${episode}`
-                : `https://vidsrc.to/embed/movie/${tmdb}`;
-            finalLinks.push({ server: 'Vidsrc.to', url: vidsrcToUrl, type: 'iframe' });
-
-            // Vidapi/Vid2
-            const vidapiUrl = (type === 'tv' || type === 'show')
-                ? `https://vidapi.buzz/embed/tv/${tmdb}/${season}/${episode}`
-                : `https://vidapi.buzz/embed/movie/${tmdb}`;
-            finalLinks.push({ server: 'Vid2 (Buzz)', url: vidapiUrl, type: 'iframe' });
-
-            // MultiEmbed
             const multiEmbedUrl = (type === 'tv' || type === 'show')
                 ? `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1&s=${season}&e=${episode}`
                 : `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1`;
             finalLinks.push({ server: 'MultiEmbed', url: multiEmbedUrl, type: 'iframe' });
-            
-            // 2Embed
-            const twoEmbedUrl = (type === 'tv' || type === 'show')
-                ? `https://www.2embed.cc/embedtv/${tmdb}&s=${season}&e=${episode}`
-                : `https://www.2embed.cc/embedmovie/${tmdb}`;
-            finalLinks.push({ server: '2Embed', url: twoEmbedUrl, type: 'iframe' });
         }
 
         if (finalLinks.length > 0) {
@@ -222,30 +200,29 @@ app.use('/api/saavn', async (req, res) => {
 // ==========================================
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
-const LOCAL_APK = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v72.apk');
+const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
 
 app.get('/api/ota', (req, res) => {
-    // Dynamic Backend Discovery System (v66)
-    let backendUrl = 'https://streamy-vez5.onrender.com';
+    // Read the current build.gradle version dynamically!
+    // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
+    const targetGradle = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build.gradle');
     try {
-        const tunnelFile = path.join(__dirname, '..', 'tunnel_url.txt');
-        if (fs.existsSync(tunnelFile)) {
-            const content = fs.readFileSync(tunnelFile, 'utf8');
-            const match = content.match(/https:\/\/[^\s]+/);
-            if (match) backendUrl = match[0];
+        const gradleContent = fs.readFileSync(targetGradle, 'utf8');
+        const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
+        if (vCodeMatch) {
+            return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
         }
     } catch(e) {}
-
-    res.json({ available: true, version: 72, backend_url: backendUrl, download: '/api/ota/download' });
+    // Fallback for Render deployment where BeeTV folder is missing
+    res.json({ available: true, version: 40, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
-    const fileName = 'StreamOS_v72.apk';
     if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, fileName);
+        res.download(CLOUD_APK, 'StreamOS.apk');
     } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, fileName);
+        res.download(LOCAL_APK, 'StreamOS.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }

@@ -9,30 +9,38 @@ let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: '
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 70;
+const APP_VERSION = 72;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
     try {
         const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : UPDATE_SERVER;
+        console.log("[Discovery] Validating backend from coordination server...");
+        
         const res = await fetch(`${HOST}/api/ota`, { 
             method: 'GET', 
             cache: 'no-cache',
             headers: { 'bypass-tunnel-reminder': 'true' }
         });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error("OTA Fetch Fail");
+        
         const data = await res.json();
 
-        // Dynamic Backend Discovery (Sync extraction host with coordination server)
+        // Dynamic Backend Discovery (Force Sync)
         if (data.backend_url) {
-            globalThis.localStorage.setItem('streamy_backend_host', data.backend_url);
-            console.log("[Discovery] backend_url synced:", data.backend_url);
+            const oldHost = globalThis.localStorage.getItem('streamy_backend_host');
+            if (oldHost !== data.backend_url) {
+                globalThis.localStorage.setItem('streamy_backend_host', data.backend_url);
+                console.log("[Discovery] backend_url updated:", data.backend_url);
+            }
         }
 
         if (data.version && APP_VERSION < data.version) {
             showUpdateBanner(data.version, data.url);
         }
-    } catch(e) { }
+    } catch(e) { 
+        console.warn("[Discovery] Background sync failed:", e.message);
+    }
 }
 
 function showUpdateBanner(newVersionKey, downloadUrl) {
