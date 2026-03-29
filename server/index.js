@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -222,14 +222,14 @@ app.get('/api/ota', (req, res) => {
             const gradleContent = fs.readFileSync(targetGradle, 'utf8');
             const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
             if (vCodeMatch) {
-                return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
+                return res.json({ available: true, version: Number.parseInt(vCodeMatch[1], 10), download: '/api/ota/download' });
             }
         }
     } catch(e) {
         console.warn("[OTA] Dynamic version check failed, using fallback.");
     }
-    // Fallback for Render deployment (v76)
-    res.json({ available: true, version: 76, download: '/api/ota/download' });
+    // Fallback for Render deployment (v77)
+    res.json({ available: true, version: 77, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
