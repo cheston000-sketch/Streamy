@@ -198,31 +198,21 @@ app.use('/api/saavn', async (req, res) => {
 });
 
 // ==========================================
-// OTA UPDATE SERVER (For Firestick App)
+// OTA UPDATE SERVER (For StreamOS)
 // ==========================================
-const LOCAL_APK = path.join(__dirname, '..', '..', 'BeeTV', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
+const CLOUD_APK_v77 = path.join(__dirname, '..', 'StreamOS_v77.apk');
 
 app.get('/api/ota', (req, res) => {
-    // Read the current build.gradle version dynamically!
-    // (In a true production app, this would query a database, but we read the physical Gradle file locally!)
-    const targetGradle = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build.gradle');
-    try {
-        const gradleContent = fs.readFileSync(targetGradle, 'utf8');
-        const vCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
-        if (vCodeMatch) {
-            return res.json({ available: true, version: parseInt(vCodeMatch[1]), download: '/api/ota/download' });
-        }
-    } catch(e) {}
-    // Fallback for Render deployment where BeeTV folder is missing
-    res.json({ available: true, version: 40, download: '/api/ota/download' });
+    // Hardcoded version for v77 update
+    res.json({ available: true, version: 77, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
-    if (fs.existsSync(CLOUD_APK)) {
+    if (fs.existsSync(CLOUD_APK_v77)) {
+        res.download(CLOUD_APK_v77, 'StreamOS_v77.apk');
+    } else if (fs.existsSync(CLOUD_APK)) {
         res.download(CLOUD_APK, 'StreamOS.apk');
-    } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, 'StreamOS.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }
