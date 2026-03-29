@@ -1,5 +1,5 @@
 import { DOM, buildRow, renderGridItems, enableDragScroll } from './ui.js?v=70';
-import { discoverByCategory } from './api.js?v=70';
+import { discoverByCategory, discoverBackendHost, getProxyHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=70';
 import { openDetails } from './player.js?v=70';
 import { setupRouter, navigateTo } from './router.js?v=70';
 import { NavigationManager } from './navigation.js?v=70';
@@ -9,13 +9,13 @@ let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: '
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 76;
+const APP_VERSION = 86;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
     try {
-        const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : UPDATE_SERVER;
-        console.log("[Discovery] Validating backend from coordination server...");
+        const HOST = getProxyHost();
+        console.log(`[Discovery] Validating backend via ${HOST}...`);
         
         const res = await fetch(`${HOST}/api/ota`, { 
             method: 'GET', 
@@ -51,7 +51,7 @@ function showUpdateBanner(newVersionKey, downloadUrl) {
     banner.innerHTML = `<i class="fa-solid fa-download" style="font-size:24px;"></i> <div>Streamy Update Available!<br><span style="font-size:12px;font-weight:normal;">Click to install v${newVersionKey}.0</span></div>`;
     banner.onclick = () => {
         localStorage.setItem('streamy_build_version', newVersionKey);
-        if(globalThis.NativeBridge && globalThis.NativeBridge.downloadUpdate) {
+        if(globalThis.NativeBridge?.downloadUpdate) {
             globalThis.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
         } else {
             globalThis.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
@@ -89,7 +89,7 @@ function updateFilterDropdown(type) {
         }
         filter.classList.remove('hidden');
     } else if (type === 'tv') {
-        if (activeProfile && activeProfile.isKid) {
+        if (activeProfile?.isKid) {
             filter.innerHTML = `
                 <option value="" style="background:#141414;">All Kids Shows</option>
                 <optgroup label="Kids Networks" style="background:#141414; color:#aaa;">
@@ -133,7 +133,7 @@ function initProfiles() {
 
     let profilesUpdated = false;
     mandatory.forEach(m => {
-        if (!profiles.find(p => p.id === m.id)) {
+        if (!profiles.some(p => p.id === m.id)) {
             profiles.push(m);
             profilesUpdated = true;
         }
@@ -221,8 +221,8 @@ function openProfileModal(profile) {
     isKid.checked = profile ? !!profile.isKid : false;
     
     // Lock the "Is Kid" checkbox ONLY for mandatory profiles
-    const mandatoryIds = ['profile_adult', 'profile_kids'];
-    isKid.disabled = profile && mandatoryIds.includes(profile.id);
+    const mandatoryIds = new Set(['profile_adult', 'profile_kids']);
+    isKid.disabled = profile && mandatoryIds.has(profile.id);
     
     // Show Add Profile button
     document.getElementById('add-profile-btn').style.display = 'block';
@@ -295,30 +295,30 @@ async function loadMovieRows() {
     // Fetch History first
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
-    if(hList.length > 0) buildRow('Continue Watching', hList, true, 'movie', true, null, openDetails, null);
+    if(hList.length > 0) buildRow({ title: 'Continue Watching', items: hList, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
 
     const trending = await discoverByCategory('movie', 'trending', 1);
-    buildRow('Trending Now', trending, false, 'movie', hList.length === 0, 'trending', openDetails, openCategoryView);
+    buildRow({ title: 'Trending Now', items: trending, typeFallback: 'movie', isFirstRow: hList.length === 0, categoryVal: 'trending', onCardClick: openDetails, onViewAllClick: openCategoryView });
     
     // Asynchronous loading
     discoverByCategory('movie', '28', 1).then(action => {
-        buildRow('Action Blockbusters', action, false, 'movie', false, '28', openDetails, openCategoryView);
+        buildRow({ title: 'Action Blockbusters', items: action, typeFallback: 'movie', categoryVal: '28', onCardClick: openDetails, onViewAllClick: openCategoryView });
     });
     discoverByCategory('movie', '35', 1).then(comedy => {
-        buildRow('Comedy Gold', comedy, false, 'movie', false, '35', openDetails, openCategoryView);
+        buildRow({ title: 'Comedy Gold', items: comedy, typeFallback: 'movie', categoryVal: '35', onCardClick: openDetails, onViewAllClick: openCategoryView });
     });
 }
 
 async function loadTVRows() {
     DOM.rowsContainer.innerHTML = '';
     const trending = await discoverByCategory('tv', 'trending', 1);
-    buildRow('Trending Series', trending, false, 'tv', true, 'trending', openDetails, openCategoryView);
+    buildRow({ title: 'Trending Series', items: trending, typeFallback: 'tv', isFirstRow: true, categoryVal: 'trending', onCardClick: openDetails, onViewAllClick: openCategoryView });
     
     discoverByCategory('tv', '18', 1).then(action => {
-        buildRow('Binge-Worthy Dramas', action, false, 'tv', false, '18', openDetails, openCategoryView);
+        buildRow({ title: 'Binge-Worthy Dramas', items: action, typeFallback: 'tv', categoryVal: '18', onCardClick: openDetails, onViewAllClick: openCategoryView });
     });
     discoverByCategory('tv', 'network:213', 1).then(comedy => {
-        buildRow('Netflix Originals', comedy, false, 'tv', false, 'network:213', openDetails, openCategoryView);
+        buildRow({ title: 'Netflix Originals', items: comedy, typeFallback: 'tv', categoryVal: 'network:213', onCardClick: openDetails, onViewAllClick: openCategoryView });
     });
 }
 
@@ -326,7 +326,7 @@ function loadWatchlist() {
     DOM.rowsContainer.innerHTML = '';
     const watchKey = 'streamy_watchlist_' + (activeProfile ? activeProfile.id : 'default');
     let list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
-    if(list.length > 0) buildRow('My Watchlist', list, true, 'movie', true, 'watchlist', openDetails, null);
+    if(list.length > 0) buildRow({ title: 'My Watchlist', items: list, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, categoryVal: 'watchlist', onCardClick: openDetails });
     else DOM.rowsContainer.innerHTML = '<h2 style="padding: 100px; text-align:center; color:#555;">No Titles in Watchlist</h2>';
 }
 
@@ -416,7 +416,7 @@ function setupDpadLogic() {
         }
         
         if (e.key === 'Enter') {
-            if (document.activeElement && document.activeElement.click) {
+            if (document.activeElement?.click) {
                 // Pre-click feedback if needed
             }
         }
@@ -437,7 +437,7 @@ function initApp() {
     if (settingClearCache) {
         settingClearCache.onclick = async () => {
             settingClearCache.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Purging...';
-            window.indexedDB.deleteDatabase('StreamOS_CacheDB');
+            globalThis.indexedDB.deleteDatabase('StreamOS_CacheDB');
             setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-check"></i> Purged Successfully', 800);
             setTimeout(() => settingClearCache.innerHTML = '<i class="fa-solid fa-database"></i> Purge API Cache', 2500);
         };
@@ -448,9 +448,9 @@ function initApp() {
         settingCheckUpdate.onclick = async () => {
             settingCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
             try {
-                const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : UPDATE_SERVER;
-                const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache' });
-                if (!res.ok) throw new Error();
+                const HOST = getProxyHost();
+                const res = await fetch(`${HOST}/api/ota`, { method: 'GET', cache: 'no-cache', headers: { 'bypass-tunnel-reminder': 'true' } });
+                if (!res.ok) throw new Error("OTA version check failed: upstream unreachable");
                 const data = await res.json();
                 
                 if (data.backend_url) {
@@ -464,15 +464,45 @@ function initApp() {
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> You are up to date';
                 }
             } catch(e) {
+                console.error("[Update] Manual check failed:", e.message);
                 settingCheckUpdate.innerHTML = '<i class="fa-solid fa-xmark"></i> Server Unreachable';
             }
             setTimeout(() => settingCheckUpdate.innerHTML = '<i class="fa-solid fa-download"></i> Check for Updates', 3000);
         };
     }
 
+    // New Connectivity Settings (v77)
+    const backendInput = document.getElementById('setting-backend-input');
+    const saveBackendBtn = document.getElementById('setting-save-backend');
+    const copyLogsBtn = document.getElementById('setting-copy-logs');
+
+    if (backendInput) backendInput.value = localStorage.getItem('streamy_backend_host') || '';
+    
+    if (saveBackendBtn) {
+        saveBackendBtn.onclick = () => {
+            const val = backendInput.value.trim();
+            setManualBackendHost(val);
+            saveBackendBtn.innerHTML = '<i class="fa-solid fa-check"></i> Saved';
+            setTimeout(() => saveBackendBtn.innerText = 'Save', 1500);
+            discoverBackendHost(); // Immediate re-discovery
+        };
+    }
+
+    if (copyLogsBtn) {
+        copyLogsBtn.onclick = () => {
+            const logs = getDiscoveryLogs();
+            navigator.clipboard.writeText(logs).then(() => {
+                copyLogsBtn.innerHTML = '<i class="fa-solid fa-check"></i> Logs Copied';
+                setTimeout(() => copyLogsBtn.innerHTML = '<i class="fa-solid fa-clipboard-list"></i> Copy Debug Logs', 2000);
+            }).catch(() => {
+                alert("Failed to copy logs to clipboard. Check dev console.");
+            });
+        };
+    }
+
     DOM.navTabs.forEach(tab => {
         tab.addEventListener('click', () => {
-             const view = tab.getAttribute('data-view');
+             const view = tab.dataset.view;
              if(view === 'settings') DOM.settingsTab.click(); 
              navigateTo(`#${view}`);
         });
@@ -506,9 +536,9 @@ function initApp() {
         
         const label = e.target.options[e.target.selectedIndex].text;
         DOM.rowsContainer.innerHTML = '';
-        if(combined.length > 0) buildRow(`${label} - Top Picks`, combined.slice(0, 11), false, type, true, null, openDetails, null);
-        if(combined.length >= 12) buildRow(`${label} - Trending`, combined.slice(11, 22), false, type, false, null, openDetails, null);
-        if(combined.length >= 23) buildRow(`${label} - More Like This`, combined.slice(22, 33), false, type, false, val, openDetails, openCategoryView);
+        if(combined.length > 0) buildRow({ title: `${label} - Top Picks`, items: combined.slice(0, 11), typeFallback: type, isFirstRow: true, onCardClick: openDetails });
+        if(combined.length >= 12) buildRow({ title: `${label} - Trending`, items: combined.slice(11, 22), typeFallback: type, onCardClick: openDetails });
+        if(combined.length >= 23) buildRow({ title: `${label} - More Like This`, items: combined.slice(22, 33), typeFallback: type, categoryVal: val, onCardClick: openDetails, onViewAllClick: openCategoryView });
     });
     
     globalThis.addEventListener('load-movie-rows', () => {
@@ -525,6 +555,7 @@ function initApp() {
     });
     
     // First paint happens inside initProfiles -> selectProfile
+    discoverBackendHost(); // Start discovery in background
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

@@ -1,18 +1,12 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist } from './ui.js?v=29';
-import { fetchTVEpisodeList, fetchTVSeasons, IMAGE_URL } from './api.js?v=29';
-import { navigateTo } from './router.js?v=29';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist } from './ui.js?v=70';
+import { fetchTVEpisodeList, fetchTVSeasons, IMAGE_URL, getProxyHost, getDiscoveryLogs } from './api.js?v=70';
+import { navigateTo } from './router.js?v=70';
 
 let currentMovieContext = null;
 
-// Extractor Endpoint (Dynamic Discovery v66)
+// Extractor Endpoint (Dynamic Discovery v77)
 function getExtractionApi() {
-    const isLocal = globalThis.location.hostname === 'localhost' || globalThis.location.hostname === '127.0.0.1';
-    const storedHost = globalThis.localStorage.getItem('streamy_backend_host');
-    
-    // Priority: 1. Manual/Stored Override 2. Local Dev 3. Render Production
-    const host = storedHost || (isLocal ? 'http://localhost:3000' : 'https://streamy-vez5.onrender.com');
-    // Ensure host doesn't end with /
-    return host.replace(/\/$/, '');
+    return getProxyHost();
 }
 
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
@@ -151,73 +145,22 @@ async function loadEpisodes(tvId, seasonNum, progressRecord = null) {
     }
 }
 
-function updateWatchHistory(context) {
-    if (!context) return;
+// =============================================
+// MARCH 27 PROVEN ARCHITECTURE (a7b4290)
+// Server API → Show Links → Auto-Play Best
+// =============================================
+
+async function startScrapingSession(targetS = null, targetE = null) {
+    if (!currentMovieContext) return;
+    
+    // Save to active profile history
     const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
     const histKey = activeProfileRaw ? `streamy_history_${activeProfileRaw}` : 'streamy_history_default';
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
-    hList = hList.filter(m => m.id !== context.id);
-    hList.unshift(context);
+    hList = hList.filter(m => m.id !== currentMovieContext.id);
+    hList.unshift(currentMovieContext);
     if (hList.length > 25) hList = hList.slice(0, 25);
     globalThis.localStorage.setItem(histKey, JSON.stringify(hList));
-}
-
-function getInitialEpisode(context, targetS, targetE) {
-    if (context.type !== 'tv') return { s: 1, e: 1 };
-    if (targetS !== null && targetE !== null) return { s: targetS, e: targetE };
-    const progress = getSeriesProgress(context.id);
-    return { s: progress.last_season || 1, e: progress.last_episode || 1 };
-}
-
-async function performExtraction(hostUrl, movie, s, e) {
-    let apiUrl = `${hostUrl}/api/stream?tmdb=${movie.id}&type=${movie.type}&title=${encodeURIComponent(movie.title)}&year=${movie.year}`;
-    if (movie.type === 'tv') apiUrl += `&season=${s}&episode=${e}`;
-
-    console.log("[Extraction] Calling:", apiUrl);
-    const res = await fetch(apiUrl, {
-        headers: { 'bypass-tunnel-reminder': 'true' }
-    });
-    if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-    return await res.json();
-}
-
-function rankLinks(links) {
-    return links.sort((a, b) => {
-        const score = (link) => {
-            let s = 0;
-            const lowServ = link.server.toLowerCase();
-            const lowUrl = link.url.toLowerCase();
-            
-            if (lowServ.includes('vidlink')) s += 500; // v77: Absolute Primary (User Requested)
-            if (link.type !== 'iframe') s += 100; // Native is high priority
-            if (lowServ.includes('streamx')) s += 80;
-            if (lowServ.includes('vidsrc')) s += 50;
-            if (lowUrl.includes('.m3u8')) s += 20;
-            return s;
-        };
-        return score(b) - score(a);
-    });
-}
-
-const probeLink = async (link) => {
-    if (link.type === 'iframe') return true; // Assume iframes are alive
-    try {
-        console.log(`[Probe] Testing connectivity: ${link.server}...`);
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 3000); 
-        await fetch(link.url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
-        clearTimeout(id);
-        return true; 
-    } catch (e) {
-        console.warn(`[Probe] Link ${link.server} failed:`, e.message);
-        return false;
-    }
-};
-
-export async function startScrapingSession(targetS = null, targetE = null) {
-    if (!currentMovieContext) return;
-    
-    updateWatchHistory(currentMovieContext);
 
     DOM.serverList.innerHTML = '';
     DOM.linksTitle.textContent = `Resolving: ${currentMovieContext.title}`;
@@ -226,10 +169,30 @@ export async function startScrapingSession(targetS = null, targetE = null) {
     
     navigateTo('#links');
 
-    const { s, e } = getInitialEpisode(currentMovieContext, targetS, targetE);
+    let s = 1, e = 1;
     if (currentMovieContext.type === 'tv') {
+        if (targetS !== null && targetE !== null) {
+            s = targetS;
+            e = targetE;
+        } else {
+            const progress = getSeriesProgress(currentMovieContext.id);
+            s = progress.last_season || 1;
+            e = progress.last_episode || 1;
+        }
         saveSeriesProgress(currentMovieContext.id, s, e);
     }
+    
+    const performExtraction = async (hostUrl) => {
+        let apiUrl = `${hostUrl}/api/stream?tmdb=${currentMovieContext.id}&type=${currentMovieContext.type}&title=${encodeURIComponent(currentMovieContext.title)}&year=${currentMovieContext.year}`;
+        if (currentMovieContext.type === 'tv') apiUrl += `&season=${s}&episode=${e}`;
+
+        console.log("[Extraction] Calling:", apiUrl);
+        const res = await fetch(apiUrl, {
+            headers: { 'bypass-tunnel-reminder': 'true' }
+        });
+        if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
+        return await res.json();
+    };
 
     try {
         const primaryHost = getExtractionApi();
@@ -238,61 +201,56 @@ export async function startScrapingSession(targetS = null, targetE = null) {
         DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-satellite-dish fa-fade"></i> Connecting to extraction grid...</p>';
         
         try {
-            data = await performExtraction(primaryHost, currentMovieContext, s, e);
+            data = await performExtraction(primaryHost);
         } catch (primaryErr) {
             console.warn("[Extraction] Primary host failed, attempting production failover...");
             DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-shield-halved fa-fade"></i> Primary failed. Switching to failover node...</p>';
             if (primaryHost === UPDATE_SERVER) throw primaryErr;
-            data = await performExtraction(UPDATE_SERVER, currentMovieContext, s, e);
+            data = await performExtraction(UPDATE_SERVER);
             globalThis.localStorage.setItem('streamy_backend_host', UPDATE_SERVER);
         }
         
+        DOM.scraperStatus.classList.add('hidden');
+
         if(data.success && data.links && data.links.length > 0) {
-            const sortedLinks = rankLinks(data.links);
-            DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-wand-magic-sparkles fa-fade"></i> Analyzing stream quality & latency...</p>';
-            
             let bestLink = null;
-            for (const link of sortedLinks) {
-                const isAlive = await probeLink(link);
-                if (isAlive) {
-                    bestLink = link;
-                    break;
-                }
-            }
-
-            if (bestLink) {
-                console.log("[AutoSelection] Selected Best Source:", bestLink.server);
-                DOM.scraperStatus.innerHTML = `<p style="color:var(--primary);"><i class="fa-solid fa-check-circle"></i> Best source found: ${bestLink.server}. Launching theater...</p>`;
+            
+            data.links.forEach((link, index) => {
+                const li = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.className = 'server-btn';
+                btn.tabIndex = 0;
+                btn.innerHTML = `<i class="fa-solid fa-circle-play" style="color:var(--primary); font-size:36px;"></i> <div><b>Play Link ${index + 1} (${link.server})</b><br><span style="font-size:16px;color:#aaa;">Extracted format: ${link.type.toUpperCase()}</span></div>`;
                 
-                // Render the list in background for manual switcher
-                DOM.serverList.innerHTML = '';
-                sortedLinks.forEach((link, index) => {
-                    const li = document.createElement('li');
-                    const btn = document.createElement('button');
-                    btn.className = 'server-btn';
-                    if (link === bestLink) btn.style.borderColor = 'var(--primary)';
-                    btn.tabIndex = 0;
-                    btn.innerHTML = `<i class="fa-solid fa-circle-play" style="color:var(--primary); font-size:36px;"></i> <div><b>Link ${index + 1} (${link.server})</b><br><span style="font-size:16px;color:#aaa;">${link.type.toUpperCase()}</span></div>`;
-                    btn.onclick = () => {
-                        if (link.type === 'iframe') playIframeFallback(link.url);
-                        else playNativeVideo(link.url);
-                    };
-                    li.appendChild(btn);
-                    DOM.serverList.appendChild(li);
-                });
-
-                // Immediate Auto-Play (v77: VidLink Preferred)
-                if (bestLink.type === 'iframe') {
-                    playIframeFallback(bestLink.url);
-                } else {
-                    playNativeVideo(bestLink.url);
+                btn.onclick = () => {
+                    if (link.type === 'iframe') {
+                        playIframeFallback(link.url);
+                    } else {
+                        playNativeVideo(link.url);
+                    }
+                };
+                btn.onkeydown = (ev) => { if(ev.key === 'Enter') btn.click(); };
+                
+                li.appendChild(btn);
+                DOM.serverList.appendChild(li);
+                
+                if (index === 0) {
+                    bestLink = link;
+                    btn.style.borderColor = 'var(--primary)';
+                    btn.focus();
                 }
-            } else {
-                throw new Error("No responsive sources found in cluster.");
+            });
+
+            // Auto-Play best link after short delay (March 27 proven pattern)
+            if (bestLink) {
+                setTimeout(() => {
+                    if (bestLink.type === 'iframe') playIframeFallback(bestLink.url);
+                    else playNativeVideo(bestLink.url);
+                }, 800);
             }
         } else {
             DOM.scraperStatus.classList.remove('hidden');
-            DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction failed. Backend returned empty payload.</div>';
+            DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction failed. Node proxy returned empty payload.</div>';
         }
     } catch (err) {
         console.error("Stream extraction failed:", err);
@@ -300,18 +258,37 @@ export async function startScrapingSession(targetS = null, targetE = null) {
         DOM.scraperStatus.classList.remove('hidden');
         DOM.scraperStatus.innerHTML = `
             <div style="color:white; background:#e50914; padding:20px; border-radius:12px; margin-top:20px; border:4px solid #fff; box-shadow:0 0 40px rgba(229,9,20,0.5);">
-                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error (v77)</b><br>
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error</b><br>
                 <div style="background:rgba(0,0,0,0.5); padding:10px; border-radius:6px; margin-top:10px; text-align:left;">
                     <span style="font-size:14px;color:#ccc;display:block;">Primary Host: ${currentHost}</span>
                     <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error"}</span>
-                    <button onclick="location.reload()" style="margin-top:10px; padding:8px 15px; background:white; color:black; border:none; border-radius:4px; font-weight:bold; cursor:pointer; width:100%;">RETRY CONNECTION</button>
+                    <div style="display:flex;gap:10px;margin-top:15px;">
+                        <button onclick="location.reload()" style="flex:1;padding:10px;background:white;color:black;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">RETRY CONNECTION</button>
+                        <button id="copy-debug-logs-err-btn" style="flex:1;padding:10px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">COPY DEBUG LOGS</button>
+                    </div>
                 </div>
             </div>
         `;
+
+        const copyBtn = document.getElementById('copy-debug-logs-err-btn');
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                const logs = getDiscoveryLogs();
+                navigator.clipboard.writeText(logs).then(() => {
+                    copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED';
+                    setTimeout(() => { if (copyBtn) copyBtn.innerText = 'COPY DEBUG LOGS'; }, 2000);
+                });
+            };
+        }
     }
 }
 
-export function playIframeFallback(iframeUrl) {
+// =============================================
+// PROVEN PLAYBACK FUNCTIONS (March 27 a7b4290)
+// Simple, no gesture hacks, no bridge overrides
+// =============================================
+
+function playIframeFallback(iframeUrl) {
     DOM.videoPlayer.style.display = 'none';
     if (!DOM.videoPlayer.paused) DOM.videoPlayer.pause();
     
@@ -325,64 +302,159 @@ export function playIframeFallback(iframeUrl) {
         iframe.style.left = '0';
         iframe.style.width = '100%';
         iframe.style.height = '100%';
-        iframe.style.borderRadius = '12px';
         iframe.style.background = '#000';
+        iframe.style.zIndex = '100';
         iframe.allowFullscreen = true;
-        iframe.setAttribute('allow', 'fullscreen; encrypted-media; autoplay');
+        iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
         DOM.iframeWrapper.appendChild(iframe);
     }
     
-    // Force Autoplay for Iframes
-    let url = new URL(iframeUrl);
-    url.searchParams.set('autoplay', '1');
-    url.searchParams.set('muted', '0'); 
-    
-    iframe.src = url.toString();
+    iframe.src = iframeUrl;
     iframe.style.display = 'block';
     
     navigateTo('#player');
+
+    if (currentMovieContext?.type === 'tv') {
+        DOM.playerNextEpBtn?.classList.remove('hidden');
+        DOM.playerNextEpBtn.onclick = () => playNextEpisode();
+    } else {
+        DOM.playerNextEpBtn?.classList.add('hidden');
+    }
+
+    setTimeout(() => DOM.playerBackBtn?.focus(), 200);
 }
 
-export function playNativeVideo(streamUrl) {
+function playNativeVideo(streamUrl) {
+    // Native Android Bridge Support (March 27 proven pattern)
+    if (globalThis.NativeBridge) {
+        if (streamUrl.includes('m3u8')) {
+            console.log("[Bridge] Triggering Native ExoPlayer for M3U8");
+            globalThis.NativeBridge.playStream(streamUrl, "application/vnd.apple.mpegurl", currentMovieContext.title, "https://vidsrc.me/", currentMovieContext.id);
+        } else {
+            console.log("[Bridge] Launching Native WebPlayer for Web Payload");
+            globalThis.NativeBridge.openWebPlayer(streamUrl, currentMovieContext.title, currentMovieContext.id);
+        }
+        return;
+    }
+
+    // Also check StreamyPlayer bridge (v85 Capacitor bridge name)
+    if (globalThis.StreamyPlayer && typeof globalThis.StreamyPlayer.playStream === 'function') {
+        console.log("[Bridge] Routing to StreamyPlayer...");
+        const mimeType = streamUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4';
+        globalThis.StreamyPlayer.playStream(streamUrl, mimeType, currentMovieContext?.title || "StreamOS Video");
+        return;
+    }
+
     let iframe = document.getElementById('fallback-iframe');
     if (iframe) iframe.style.display = 'none';
     DOM.videoPlayer.style.display = 'block';
     navigateTo('#player');
+
+    if (currentMovieContext?.type === 'tv') {
+        DOM.playerNextEpBtn?.classList.remove('hidden');
+        DOM.playerNextEpBtn.onclick = () => playNextEpisode();
+    } else {
+        DOM.playerNextEpBtn?.classList.add('hidden');
+    }
+
+    setTimeout(() => DOM.playerBackBtn?.focus(), 250);
     
     DOM.videoPlayer.muted = false;
-    DOM.videoPlayer.volume = 1.0;
+    DOM.videoPlayer.volume = 1;
 
     const isM3U8 = streamUrl.includes('.m3u8');
     const canPlayNativeHLS = DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl');
 
-    if (isM3U8 && !canPlayNativeHLS && globalThis.Hls?.isSupported()) {
+    if (isM3U8 && !canPlayNativeHLS && globalThis.Hls && Hls.isSupported()) {
         const hls = new Hls();
         hls.loadSource(streamUrl);
         hls.attachMedia(DOM.videoPlayer);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-            DOM.videoPlayer.play().catch(() => {
-                DOM.videoPlayer.muted = true;
-                DOM.videoPlayer.play();
-            });
+            DOM.videoPlayer.play().catch(e => console.warn(e));
         });
     } else {
         DOM.videoPlayer.src = streamUrl;
-        DOM.videoPlayer.load();
-        DOM.videoPlayer.oncanplay = () => {
-             DOM.videoPlayer.play().catch(() => {
-                DOM.videoPlayer.muted = true;
-                DOM.videoPlayer.play();
-            });
-        };
+        DOM.videoPlayer.addEventListener('loadedmetadata', function() {
+            DOM.videoPlayer.play().catch(e => console.warn("Autoplay block:", e));
+        }, {once: true});
     }
     
-    if(currentMovieContext?.type === 'tv') {
-        DOM.videoPlayer.addEventListener('ended', playNextEpisode, {once: true});
+    // Auto Play Next episode feature
+    if(currentMovieContext && currentMovieContext.type === 'tv') {
+        DOM.videoPlayer.addEventListener('ended', () => {
+            console.log("[Player] Video ended. Starting autoplay sequence...");
+            showAutoplayCountdown();
+        }, {once: true});
     }
 }
 
-function playNextEpisode() {
-    DOM.playerBackBtn.click();
+// =============================================
+// AUTOPLAY NEXT EPISODE (kept from post-March 27)
+// =============================================
+
+let autoplayTimer = null;
+function showAutoplayCountdown() {
+    if (!currentMovieContext || currentMovieContext.type !== 'tv') return;
+    
+    const progress = getSeriesProgress(currentMovieContext.id);
+    const nextEpNum = (progress.last_episode || 1) + 1;
+    DOM.autoplayNextTitle.innerText = `Upcoming: Episode ${nextEpNum}`;
+    
+    DOM.autoplayOverlay.classList.remove('hidden');
+    let seconds = 5;
+    DOM.autoplayCountdown.innerText = seconds;
+    
+    DOM.autoplayCancelBtn.onclick = () => {
+        clearInterval(autoplayTimer);
+        DOM.autoplayOverlay.classList.add('hidden');
+    };
+    
+    setTimeout(() => DOM.autoplayCancelBtn?.focus(), 100);
+
+    autoplayTimer = setInterval(() => {
+        seconds--;
+        DOM.autoplayCountdown.innerText = seconds;
+        if (seconds <= 0) {
+            clearInterval(autoplayTimer);
+            DOM.autoplayOverlay.classList.add('hidden');
+            playNextEpisode();
+        }
+    }, 1000);
+}
+
+async function playNextEpisode() {
+    if (!currentMovieContext || currentMovieContext.type !== 'tv') {
+        DOM.playerBackBtn.click();
+        return;
+    }
+
+    const progress = getSeriesProgress(currentMovieContext.id);
+    const s = progress.last_season || 1;
+    const e = progress.last_episode || 1;
+
+    try {
+        const episodes = await fetchTVEpisodeList(currentMovieContext.id, s);
+        const nextEp = episodes.find(ep => ep.episode_number === e + 1);
+
+        if (nextEp) {
+            console.log(`[Autoplay] Moving to Next Episode: S${s} E${e + 1}`);
+            startScrapingSession(s, e + 1);
+        } else {
+            console.log(`[Autoplay] End of Season ${s}. Checking for Season ${s + 1}...`);
+            const seasons = await fetchTVSeasons(currentMovieContext.id);
+            const nextSeason = seasons.find(sea => sea.season_number === s + 1);
+            if (nextSeason) {
+                console.log(`[Autoplay] Moving to Next Season: S${s + 1} E1`);
+                startScrapingSession(s + 1, 1);
+            } else {
+                console.log("[Autoplay] End of Series reached.");
+                DOM.playerBackBtn.click();
+            }
+        }
+    } catch (err) {
+        console.error("[Autoplay] Failed to transition to next episode:", err);
+        DOM.playerBackBtn.click();
+    }
 }
 
 if (DOM.playerServerCycleBtn) {
