@@ -201,7 +201,7 @@ app.use('/api/saavn', async (req, res) => {
 // OTA UPDATE SERVER (For Firestick App)
 // ==========================================
 const LOCAL_APK = path.join(__dirname, '..', '..', 'Streamy', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v69.apk');
+const CLOUD_APK = path.join(__dirname, '..', 'StreamOS_v70.apk');
 
 app.get('/api/ota', (req, res) => {
     // Dynamic Backend Discovery System (v66)
@@ -215,14 +215,14 @@ app.get('/api/ota', (req, res) => {
         }
     } catch(e) {}
 
-    res.json({ available: true, version: 69, backend_url: backendUrl, download: '/api/ota/download' });
+    res.json({ available: true, version: 70, backend_url: backendUrl, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
     if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, 'StreamOS_v69.apk');
+        res.download(CLOUD_APK, 'StreamOS_v70.apk');
     } else if (fs.existsSync(LOCAL_APK)) {
-        res.download(LOCAL_APK, 'StreamOS_v69.apk');
+        res.download(LOCAL_APK, 'StreamOS_v70.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }

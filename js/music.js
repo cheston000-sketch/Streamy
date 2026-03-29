@@ -1,4 +1,4 @@
-import { fetchMusicManifest, searchMusic, searchMusicSaavn } from './api.js?v=69';
+import { fetchMusicManifest, searchMusic, searchMusicSaavn } from './api.js?v=70';
 
 export const MusicState = {
     playlists: {},

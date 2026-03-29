@@ -227,10 +227,12 @@ async function startScrapingSession(targetS = null, targetE = null) {
         const extractionUrl = getExtractionApi();
         DOM.scraperStatus.classList.remove('hidden');
         DOM.scraperStatus.innerHTML = `
-            <div style="color:var(--primary);">
-                <i class="fa-solid fa-triangle-exclamation"></i> <b>Extraction Error</b><br>
-                <span style="font-size:14px;color:#ccc;display:block;margin-top:10px;">URL: ${extractionUrl}</span>
-                <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error or JSON parse failed"}</span>
+            <div style="color:white; background:#e50914; padding:20px; border-radius:12px; margin-top:20px; border:4px solid #fff; box-shadow:0 0 40px rgba(229,9,20,0.5);">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error (v70)</b><br>
+                <div style="background:rgba(0,0,0,0.5); padding:10px; border-radius:6px; margin-top:10px; text-align:left;">
+                    <span style="font-size:14px;color:#ccc;display:block;">URL: ${extractionUrl}</span>
+                    <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error or JSON parse failed"}</span>
+                </div>
             </div>
         `;
     }
