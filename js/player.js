@@ -213,7 +213,9 @@ async function startScrapingSession(targetS = null, targetE = null) {
         DOM.scraperStatus.classList.add('hidden');
 
         if(data.success && data.links && data.links.length > 0) {
-            let bestLink = null;
+            const preferredBestLink = currentMovieContext?.type === 'tv'
+                ? data.links.find(link => link.type !== 'iframe') || data.links[0]
+                : data.links[0];
             
             data.links.forEach((link, index) => {
                 const li = document.createElement('li');
@@ -234,18 +236,17 @@ async function startScrapingSession(targetS = null, targetE = null) {
                 li.appendChild(btn);
                 DOM.serverList.appendChild(li);
                 
-                if (index === 0) {
-                    bestLink = link;
+                if (link === preferredBestLink) {
                     btn.style.borderColor = 'var(--primary)';
                     btn.focus();
                 }
             });
 
             // Auto-Play best link after short delay (March 27 proven pattern)
-            if (bestLink) {
+            if (preferredBestLink) {
                 setTimeout(() => {
-                    if (bestLink.type === 'iframe') playIframeFallback(bestLink.url);
-                    else playNativeVideo(bestLink.url);
+                    if (preferredBestLink.type === 'iframe') playIframeFallback(preferredBestLink.url);
+                    else playNativeVideo(preferredBestLink.url);
                 }, 800);
             }
         } else {
@@ -325,20 +326,20 @@ function playIframeFallback(iframeUrl) {
 }
 
 function playNativeVideo(streamUrl) {
+    const isTvEpisode = currentMovieContext?.type === 'tv';
+    const hasNativeBridge = !!globalThis.NativeBridge && typeof globalThis.NativeBridge.playStream === 'function';
+
     // Native Android Bridge Support (March 27 proven pattern)
-    if (globalThis.NativeBridge) {
+    if (hasNativeBridge && !isTvEpisode) {
         if (streamUrl.includes('m3u8')) {
             console.log("[Bridge] Triggering Native ExoPlayer for M3U8");
-            globalThis.NativeBridge.playStream(streamUrl, "application/vnd.apple.mpegurl", currentMovieContext.title, "https://vidsrc.me/", currentMovieContext.id);
-        } else {
-            console.log("[Bridge] Launching Native WebPlayer for Web Payload");
-            globalThis.NativeBridge.openWebPlayer(streamUrl, currentMovieContext.title, currentMovieContext.id);
+            globalThis.NativeBridge.playStream(streamUrl, "application/vnd.apple.mpegurl", currentMovieContext.title);
+            return;
         }
-        return;
     }
 
     // Also check StreamyPlayer bridge (v85 Capacitor bridge name)
-    if (globalThis.StreamyPlayer && typeof globalThis.StreamyPlayer.playStream === 'function') {
+    if (!isTvEpisode && globalThis.StreamyPlayer && typeof globalThis.StreamyPlayer.playStream === 'function') {
         console.log("[Bridge] Routing to StreamyPlayer...");
         const mimeType = streamUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4';
         globalThis.StreamyPlayer.playStream(streamUrl, mimeType, currentMovieContext?.title || "StreamOS Video");
@@ -379,12 +380,13 @@ function playNativeVideo(streamUrl) {
         }, {once: true});
     }
     
-    // Auto Play Next episode feature
-    if(currentMovieContext && currentMovieContext.type === 'tv') {
-        DOM.videoPlayer.addEventListener('ended', () => {
+    // Keep TV episodes in the in-app player so Fire TV can trigger JS autoplay.
+    DOM.videoPlayer.onended = null;
+    if (isTvEpisode) {
+        DOM.videoPlayer.onended = () => {
             console.log("[Player] Video ended. Starting autoplay sequence...");
             showAutoplayCountdown();
-        }, {once: true});
+        };
     }
 }
 
