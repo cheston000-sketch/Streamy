@@ -61,6 +61,12 @@ function injectFallbackLinks(links, { type, tmdb, season, episode }) {
     console.log(`[Extractor] Primary providers failed. Injecting fallback iframe embeds.`);
     const isTV = type === 'tv' || type === 'show';
     
+    // v77-v79: Absolute Primary (User Requested)
+    const vidlinkUrl = isTV
+        ? `https://vidlink.pro/tv/${tmdb}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`
+        : `https://vidlink.pro/movie/${tmdb}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`;
+    links.push({ server: 'Vidlink (Primary)', url: vidlinkUrl, type: 'iframe' });
+
     const vidsrcUrl = isTV
         ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
         : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
