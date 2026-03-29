@@ -12,75 +12,70 @@ export function navigateTo(hash) {
     }
 }
 
-export function handleRoute() {
-    const oldHash = globalThis.location.hash || '#home';
-    NavigationManager.saveFocus(oldHash);
+function stopVideoPlayback() {
+    const vp = document.getElementById('video-player');
+    if (vp) {
+        vp.pause();
+        vp.removeAttribute('src');
+        vp.load();
+        vp.style.display = 'none';
+    }
+    const iframe = document.getElementById('fallback-iframe');
+    if (iframe) {
+        iframe.removeAttribute('src');
+        iframe.style.display = 'none';
+    }
+    ['iframe-activation-overlay', 'autoplay-overlay'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
 
-    const hash = globalThis.location.hash || '#home';
-    
-    // Hide all views first
+function updateNavUI(activeHash) {
     const views = document.querySelectorAll('.view');
-    views.forEach(v => v.classList.add('hidden'));
-    
+    views.forEach(v => {
+        if (v.id === 'profile-selection-screen' && !v.classList.contains('hidden')) return;
+        v.classList.add('hidden');
+    });
+
     const navTabs = document.querySelectorAll('.nav-tab[data-view]');
     navTabs.forEach(t => t.classList.remove('active'));
 
-    const searchTab = document.querySelector('.nav-tab[data-view="search"]');
-    const moviesTab = document.querySelector('.nav-tab[data-view="movies"]');
-    const tvTab = document.querySelector('.nav-tab[data-view="tv"]');
-    const watchlistTab = document.querySelector('.nav-tab[data-view="watchlist"]');
-    const settingsTab = document.querySelector('.nav-tab[data-view="settings"]');
+    document.body.classList.toggle('video-playing', activeHash.startsWith('#player'));
+}
 
-    // Stop video playback when leaving player view
-    if (hash !== '#player') {
-         const vp = document.getElementById('video-player');
-         if(vp) { vp.pause(); vp.removeAttribute('src'); vp.load(); vp.style.display = 'none'; }
-         const iframe = document.getElementById('fallback-iframe');
-         if(iframe) { iframe.removeAttribute('src'); iframe.style.display = 'none'; }
-         const overlay = document.getElementById('iframe-activation-overlay');
-         if(overlay) overlay.style.display = 'none';
-         const autoplayOverlay = document.getElementById('autoplay-overlay');
-         if(autoplayOverlay) autoplayOverlay.style.display = 'none';
+export function handleRoute() {
+    const hash = globalThis.location.hash || '#home';
+    NavigationManager.saveFocus(hash);
+
+    if (hash !== '#player') stopVideoPlayback();
+    updateNavUI(hash);
+
+    const routeMap = {
+        '#search': { view: 'view-search', tab: 'search', focus: 'search-input' },
+        '#player': { view: 'view-player' },
+        '#details': { view: 'view-details' },
+        '#links': { view: 'view-links' },
+        '#category': { view: 'view-category' },
+        '#settings': { view: 'view-settings', tab: 'settings' },
+        '#watchlist': { view: 'view-home', tab: 'watchlist', event: 'load-watchlist-rows' },
+        '#tv': { view: 'view-home', tab: 'tv', event: 'load-tv-rows' },
+        '#home': { view: 'view-home', tab: 'movies', event: 'load-movie-rows' }
+    };
+
+    const routeKey = Object.keys(routeMap).find(k => hash.startsWith(k)) || '#home';
+    const route = routeMap[routeKey];
+
+    const viewEl = document.getElementById(route.view);
+    if (viewEl) viewEl.classList.remove('hidden');
+
+    if (route.tab) {
+        const tab = document.querySelector(`.nav-tab[data-view="${route.tab}"]`);
+        if (tab) tab.classList.add('active');
     }
 
-    if (hash.startsWith('#search')) {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-search').classList.remove('hidden');
-        if(searchTab) searchTab.classList.add('active');
-        document.getElementById('search-input').focus();
-    } else if (hash.startsWith('#player')) {
-        document.body.classList.add('video-playing');
-        document.getElementById('view-player').classList.remove('hidden');
-    } else if (hash.startsWith('#details')) {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-details').classList.remove('hidden');
-    } else if (hash.startsWith('#links')) {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-links').classList.remove('hidden');
-    } else if (hash.startsWith('#category')) {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-category').classList.remove('hidden');
-    } else if (hash.startsWith('#settings')) {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-settings').classList.remove('hidden');
-        if(settingsTab) settingsTab.classList.add('active');
-    } else if (hash === '#watchlist') {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-home').classList.remove('hidden');
-        if(watchlistTab) watchlistTab.classList.add('active');
-        globalThis.dispatchEvent(new Event('load-watchlist-rows'));
-    } else if (hash === '#tv') {
-        document.body.classList.remove('video-playing');
-        document.getElementById('view-home').classList.remove('hidden');
-        if(tvTab) tvTab.classList.add('active');
-        globalThis.dispatchEvent(new Event('load-tv-rows'));
-    } else {
-        document.body.classList.remove('video-playing');
-        // default home (movies array usually)
-        document.getElementById('view-home').classList.remove('hidden');
-        if(moviesTab) moviesTab.classList.add('active');
-        globalThis.dispatchEvent(new Event('load-movie-rows'));
-    }
+    if (route.event) globalThis.dispatchEvent(new Event(route.event));
+    if (route.focus) document.getElementById(route.focus)?.focus();
     
     // Smooth scroll reset
     const mainContent = document.getElementById('main-content');

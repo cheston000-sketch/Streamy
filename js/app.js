@@ -116,7 +116,11 @@ function updateFilterDropdown(type) {
 
 // Profiles System
 function getProfiles() {
-    return JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
+    try {
+        const raw = globalThis.localStorage.getItem('streamy_profiles');
+        const parsed = JSON.parse(raw || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch(e) { return []; }
 }
 function saveProfiles(profiles) {
     globalThis.localStorage.setItem('streamy_profiles', JSON.stringify(profiles));
@@ -145,31 +149,42 @@ function initProfiles() {
     if (activeId) {
         activeProfile = profiles.find(p => p.id === activeId);
     }
-    if (!activeProfile) activeProfile = profiles[0];
     
-    const activeIndex = profiles.findIndex(p => p.id === activeProfile.id);
+    // If we have an active profile, stay in the main app
+    if (activeProfile) {
+        selectProfile(activeProfile, true); // true = silent init
+        return true; 
+    } 
+    
+    // Otherwise, show the selection screen
+    const activeIndex = profiles.length > 0 ? 0 : -1;
     renderProfilesScreen(profiles, activeIndex);
+    DOM.profileSelectionScreen.classList.remove('hidden');
+    document.getElementById('main-content').classList.add('hidden');
+    DOM.topBar.classList.add('hidden');
+    return false;
+}
     
-    document.getElementById('edit-profiles-btn').onclick = () => {
-        const grid = document.getElementById('profiles-grid');
-        const isEditing = grid.classList.toggle('edit-mode');
-        document.getElementById('edit-profiles-btn').innerHTML = isEditing ? '<i class="fa-solid fa-check"></i> Done Editing' : '<i class="fa-solid fa-pen"></i> Manage Profiles';
+function initProfileBindings() {
+    DOM.editProfilesBtn.onclick = () => {
+        const isEditing = DOM.profilesGrid.classList.toggle('edit-mode');
+        DOM.editProfilesBtn.innerHTML = isEditing ? '<i class="fa-solid fa-check"></i> Done Editing' : '<i class="fa-solid fa-pen"></i> Manage Profiles';
         renderProfilesScreen(getProfiles(), -1, isEditing);
     };
 
-    document.getElementById('add-profile-btn').onclick = () => openProfileModal(null);
+    DOM.addProfileBtn.onclick = () => openProfileModal(null);
     DOM.settingManageProfiles.onclick = () => {
-        document.getElementById('profile-selection-screen').classList.remove('hidden');
+        DOM.profileSelectionScreen.classList.remove('hidden');
         document.getElementById('main-content').classList.add('hidden');
         DOM.topBar.classList.add('hidden');
-        document.getElementById('edit-profiles-btn').click();
+        DOM.editProfilesBtn.click();
     };
 
     document.getElementById('cancel-profile-btn').onclick = () => {
-        document.getElementById('profile-edit-modal').classList.add('hidden');
+        DOM.profileEditModal.classList.add('hidden');
     };
 
-    document.getElementById('add-profile-btn').style.display = 'none';
+    DOM.addProfileBtn.style.display = 'none';
     const versionEl = document.getElementById('setting-build-version');
     if (versionEl) versionEl.innerText = `${APP_VERSION}.0 (GLOBAL SYNC SUCCESS)`;
     
@@ -177,8 +192,7 @@ function initProfiles() {
 }
 
 function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
-    const grid = document.getElementById('profiles-grid');
-    grid.innerHTML = '';
+    DOM.profilesGrid.innerHTML = '';
     
     profiles.forEach((p, idx) => {
         const card = document.createElement('button');
@@ -186,7 +200,6 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         card.tabIndex = 0;
         card.style.background = 'transparent'; card.style.border = 'none'; card.style.color = 'white';
         
-        // Use basic fallback for avatar SVGs 
         const svgContent = `<i class="fa-solid fa-user"></i>`;
         
         card.innerHTML = `
@@ -195,98 +208,94 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         `;
         
         card.onclick = () => {
-            if (isEditing) { openProfileModal(p); }
-            else { selectProfile(p); }
+            if (isEditing) openProfileModal(p);
+            else selectProfile(p);
         };
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
-        grid.appendChild(card);
+        DOM.profilesGrid.appendChild(card);
         
-        if (focusIndex === idx) setTimeout(() => card.focus(), 100);
+        if (focusIndex === idx) setTimeout(() => card.focus(), 150);
     });
 
     NavigationManager.lockFocus('#profile-selection-screen');
 }
 
 function openProfileModal(profile) {
-    const modal = document.getElementById('profile-edit-modal');
-    const title = document.getElementById('modal-profile-title');
-    const input = document.getElementById('profile-name-input');
-    const isKid = document.getElementById('profile-kid-checkbox');
-    const saveBtn = document.getElementById('save-profile-btn');
-    const delBtn = document.getElementById('delete-profile-btn');
-    
     modal.dataset.editingId = profile ? profile.id : '';
-    title.textContent = profile ? 'Edit Profile' : 'Add Profile';
-    input.value = profile ? profile.name : '';
-    isKid.checked = profile ? !!profile.isKid : false;
+    DOM.modalProfileTitle.textContent = profile ? 'Edit Profile' : 'Add Profile';
+    DOM.profileNameInput.value = profile ? profile.name : '';
+    DOM.profileKidCheckbox.checked = profile ? !!profile.isKid : false;
     
     // Lock the "Is Kid" checkbox ONLY for mandatory profiles
     const mandatoryIds = new Set(['profile_adult', 'profile_kids']);
-    isKid.disabled = profile && mandatoryIds.has(profile.id);
+    DOM.profileKidCheckbox.disabled = profile && mandatoryIds.has(profile.id);
     
     // Show Add Profile button
-    document.getElementById('add-profile-btn').style.display = 'block';
+    DOM.addProfileBtn.style.display = 'block';
     
     // Manage Delete button: Hide for mandatory profiles
-    if (profile && !mandatoryIds.includes(profile.id)) delBtn.classList.remove('hidden');
-    else delBtn.classList.add('hidden');
+    if (profile && !mandatoryIds.has(profile.id)) DOM.deleteProfileBtn.classList.remove('hidden');
+    else DOM.deleteProfileBtn.classList.add('hidden');
     
     // Ensure "Manage Profiles" from settings is visible
     DOM.settingManageProfiles.style.display = 'flex';
     
     // Simulate Avatar Selection Grid
-    document.getElementById('avatar-selection-grid').innerHTML = `
+    DOM.avatarSelectionGrid.innerHTML = `
         <button class="nav-tab active" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-user"></i></button>
         <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-ghost"></i></button>
         <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-robot"></i></button>
     `;
 
-    saveBtn.onclick = () => {
-        if (!input.value.trim()) return;
+    DOM.saveProfileBtn.onclick = () => {
+        if (!DOM.profileNameInput.value.trim()) return;
         let profiles = getProfiles();
         if (profile) {
             const index = profiles.findIndex(x => x.id === profile.id);
             if (index > -1) {
-                profiles[index].name = input.value.trim();
-                profiles[index].isKid = isKid.checked;
+                profiles[index].name = DOM.profileNameInput.value.trim();
+                profiles[index].isKid = DOM.profileKidCheckbox.checked;
             }
         } else {
-            profiles.push({ id: Date.now().toString(), name: input.value.trim(), avatar: '1', isKid: isKid.checked });
+            profiles.push({ id: Date.now().toString(), name: DOM.profileNameInput.value.trim(), avatar: '1', isKid: DOM.profileKidCheckbox.checked });
         }
         saveProfiles(profiles);
-        modal.classList.add('hidden');
+        DOM.profileEditModal.classList.add('hidden');
         renderProfilesScreen(profiles, -1, true);
     };
 
-    delBtn.onclick = () => {
+    DOM.deleteProfileBtn.onclick = () => {
         let profiles = getProfiles();
         profiles = profiles.filter(x => x.id !== profile.id);
         if (activeProfile && activeProfile.id === profile.id) activeProfile = profiles[0];
         saveProfiles(profiles);
-        modal.classList.add('hidden');
+        DOM.profileEditModal.classList.add('hidden');
         renderProfilesScreen(profiles, -1, true);
     };
 
-    modal.classList.remove('hidden');
-    input.focus();
+    DOM.profileEditModal.classList.remove('hidden');
+    DOM.profileNameInput.focus();
     NavigationManager.lockFocus('#profile-edit-modal');
 }
 
 // Removed redundant fetchTMDB function
 
-function selectProfile(profile) {
+function selectProfile(profile, silent = false) {
     activeProfile = profile;
     globalThis.localStorage.setItem('streamy_active_profile', profile.id);
-    document.getElementById('current-profile-name').textContent = profile.name;
-    document.getElementById('profile-selection-screen').classList.add('hidden');
+    DOM.currentProfileName.textContent = profile.name;
+    
+    DOM.profileSelectionScreen.classList.add('hidden');
     document.getElementById('main-content').classList.remove('hidden');
     DOM.topBar.classList.remove('hidden');
     
-    // We explicitly re-enable the genre-filter for Kids so they can access Angel Studios and Animation networks!
-    document.getElementById('genre-filter').classList.remove('hidden');
-    document.getElementById('genre-filter').value = '';
+    DOM.genreFilter.classList.remove('hidden');
+    DOM.genreFilter.value = '';
     
-    loadMovieRows();
+    if (!silent) {
+        navigateTo('#home');
+        loadMovieRows();
+    }
 }
 
 // Data Fetching and Rows Array
@@ -428,6 +437,7 @@ function initApp() {
     enableDragScroll(DOM.episodeList);
     
     initProfiles();
+    initProfileBindings();
     initSearch();
     setupDpadLogic();
     setupRouter();
@@ -509,11 +519,11 @@ function initApp() {
         tab.addEventListener('keydown', (e) => { if(e.key==='Enter') tab.click(); });
     });
     
-    document.getElementById('switch-profile-tab').onclick = () => {
-        document.getElementById('profile-selection-screen').classList.remove('hidden');
+    DOM.switchProfileTab.onclick = () => {
+        DOM.profileSelectionScreen.classList.remove('hidden');
         document.getElementById('main-content').classList.add('hidden');
         DOM.topBar.classList.add('hidden');
-        document.getElementById('profiles-grid').firstChild?.focus();
+        DOM.profilesGrid.firstChild?.focus();
     };
     
     // Bind dynamic filter drop-down

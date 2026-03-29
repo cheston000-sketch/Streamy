@@ -51,10 +51,30 @@ export const DOM = {
     playerBackBtn: document.getElementById('player-back-btn'),
     playerFullscreenBtn: document.getElementById('player-fullscreen-btn'),
     playerServerCycleBtn: document.getElementById('player-server-cycle-btn'),
-    iframeWrapper: document.querySelector('.player-container')
+    playerNextEpBtn: document.getElementById('player-next-ep-btn'),
+    autoplayOverlay: document.getElementById('autoplay-overlay'),
+    autoplayCountdown: document.getElementById('autoplay-countdown-circle'),
+    autoplayNextTitle: document.getElementById('autoplay-next-title'),
+    autoplayCancelBtn: document.getElementById('autoplay-cancel-btn'),
+    iframeWrapper: document.querySelector('.player-container'),
+
+    // Profiles System
+    profileSelectionScreen: document.getElementById('profile-selection-screen'),
+    profilesGrid: document.getElementById('profiles-grid'),
+    addProfileBtn: document.getElementById('add-profile-btn'),
+    editProfilesBtn: document.getElementById('edit-profiles-btn'),
+    profileEditModal: document.getElementById('profile-edit-modal'),
+    profileNameInput: document.getElementById('profile-name-input'),
+    profileKidCheckbox: document.getElementById('profile-kid-checkbox'),
+    saveProfileBtn: document.getElementById('save-profile-btn'),
+    deleteProfileBtn: document.getElementById('delete-profile-btn'),
+    avatarSelectionGrid: document.getElementById('avatar-selection-grid'),
+    currentProfileName: document.getElementById('current-profile-name'),
+    currentProfileIcon: document.getElementById('current-profile-icon'),
+    switchProfileTab: document.getElementById('switch-profile-tab')
 };
 
-export let cachedBackdrops = {};
+export const cachedBackdrops = {};
 
 export function normalizeItem(item, typeFallback) {
     let type = item.media_type || item.type || typeFallback;
@@ -92,12 +112,10 @@ export function enableDragScroll(slider) {
     let isDown = false;
     let startX;
     let scrollLeft;
-    let isDragging = false;
     let animationFrame;
 
     slider.addEventListener('mousedown', (e) => {
         isDown = true;
-        isDragging = false;
         slider.classList.add('drag-active');
         startX = e.pageX - slider.offsetLeft;
         scrollLeft = slider.scrollLeft;
@@ -106,8 +124,7 @@ export function enableDragScroll(slider) {
 
     slider.addEventListener('mouseleave', () => {
         isDown = false;
-        slider.classList.remove('drag-active');
-        slider.classList.remove('dragging');
+        slider.classList.remove('drag-active', 'dragging');
         cancelAnimationFrame(animationFrame);
     });
 
@@ -125,7 +142,6 @@ export function enableDragScroll(slider) {
         const walk = (x - startX) * 2; 
         
         if (Math.abs(walk) > 10) {
-            isDragging = true;
             slider.classList.add('dragging');
         }
         
@@ -140,12 +156,14 @@ export function enableDragScroll(slider) {
             e.preventDefault();
             try { 
                 slider.scrollBy({ left: e.deltaY > 0 ? 300 : -300, behavior: 'smooth' }); 
-            } catch(e) {}
+            } catch(error) {
+                 console.warn("[Scroll] Wheel error:", error);
+            }
         }
     }, {passive: false});
 }
 
-export function buildRow(title, items, isWatchlistDict, typeFallback, isFirstRow, categoryVal, onCardClick, onViewAllClick) {
+export function buildRow({ title, items, isWatchlistDict = false, typeFallback = 'movie', isFirstRow = false, categoryVal, onCardClick, onViewAllClick }) {
     if(!DOM.rowsContainer) return;
     
     const rowDiv = document.createElement('div');
@@ -261,8 +279,8 @@ export function saveSeriesProgress(tmdbId, s, e) {
     const key = `streamy_series_progress_${activeProfileRaw || 'default'}`;
     const db = JSON.parse(localStorage.getItem(key) || '{}');
     if (!db[tmdbId]) db[tmdbId] = { watched: [] };
-    db[tmdbId].last_season = parseInt(s);
-    db[tmdbId].last_episode = parseInt(e);
+    db[tmdbId].last_season = Number.parseInt(s, 10);
+    db[tmdbId].last_episode = Number.parseInt(e, 10);
     const epKey = `s${s}e${e}`;
     if (!db[tmdbId].watched.includes(epKey)) db[tmdbId].watched.push(epKey);
     localStorage.setItem(key, JSON.stringify(db));
