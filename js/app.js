@@ -137,7 +137,7 @@ function initProfiles() {
 
     let profilesUpdated = false;
     mandatory.forEach(m => {
-        if (!profiles.some(p => p.id === m.id)) {
+        if (!profiles.some(p => p && p.id === m.id)) {
             profiles.push(m);
             profilesUpdated = true;
         }
@@ -147,7 +147,7 @@ function initProfiles() {
     
     const activeId = globalThis.localStorage.getItem('streamy_active_profile');
     if (activeId) {
-        activeProfile = profiles.find(p => p.id === activeId);
+        activeProfile = profiles.find(p => p && p.id === activeId);
     }
     
     // If we have an active profile, stay in the main app
@@ -160,7 +160,7 @@ function initProfiles() {
     const activeIndex = profiles.length > 0 ? 0 : -1;
     renderProfilesScreen(profiles, activeIndex);
     DOM.profileSelectionScreen.classList.remove('hidden');
-    document.getElementById('main-content').classList.add('hidden');
+    DOM.mainContent.classList.add('hidden');
     DOM.topBar.classList.add('hidden');
     return false;
 }
@@ -175,12 +175,12 @@ function initProfileBindings() {
     DOM.addProfileBtn.onclick = () => openProfileModal(null);
     DOM.settingManageProfiles.onclick = () => {
         DOM.profileSelectionScreen.classList.remove('hidden');
-        document.getElementById('main-content').classList.add('hidden');
+        DOM.mainContent.classList.add('hidden');
         DOM.topBar.classList.add('hidden');
         DOM.editProfilesBtn.click();
     };
 
-    document.getElementById('cancel-profile-btn').onclick = () => {
+    DOM.cancelProfileBtn.onclick = () => {
         DOM.profileEditModal.classList.add('hidden');
     };
 
@@ -221,7 +221,7 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
 }
 
 function openProfileModal(profile) {
-    modal.dataset.editingId = profile ? profile.id : '';
+    DOM.profileEditModal.dataset.editingId = profile ? profile.id : '';
     DOM.modalProfileTitle.textContent = profile ? 'Edit Profile' : 'Add Profile';
     DOM.profileNameInput.value = profile ? profile.name : '';
     DOM.profileKidCheckbox.checked = profile ? !!profile.isKid : false;
@@ -251,7 +251,7 @@ function openProfileModal(profile) {
         if (!DOM.profileNameInput.value.trim()) return;
         let profiles = getProfiles();
         if (profile) {
-            const index = profiles.findIndex(x => x.id === profile.id);
+            const index = profiles.findIndex(x => x && x.id === profile.id);
             if (index > -1) {
                 profiles[index].name = DOM.profileNameInput.value.trim();
                 profiles[index].isKid = DOM.profileKidCheckbox.checked;
@@ -266,7 +266,7 @@ function openProfileModal(profile) {
 
     DOM.deleteProfileBtn.onclick = () => {
         let profiles = getProfiles();
-        profiles = profiles.filter(x => x.id !== profile.id);
+        profiles = profiles.filter(x => x && x.id !== profile.id);
         if (activeProfile && activeProfile.id === profile.id) activeProfile = profiles[0];
         saveProfiles(profiles);
         DOM.profileEditModal.classList.add('hidden');
@@ -286,7 +286,7 @@ function selectProfile(profile, silent = false) {
     DOM.currentProfileName.textContent = profile.name;
     
     DOM.profileSelectionScreen.classList.add('hidden');
-    document.getElementById('main-content').classList.remove('hidden');
+    DOM.mainContent.classList.remove('hidden');
     DOM.topBar.classList.remove('hidden');
     
     DOM.genreFilter.classList.remove('hidden');
@@ -521,7 +521,7 @@ function initApp() {
     
     DOM.switchProfileTab.onclick = () => {
         DOM.profileSelectionScreen.classList.remove('hidden');
-        document.getElementById('main-content').classList.add('hidden');
+        DOM.mainContent.classList.add('hidden');
         DOM.topBar.classList.add('hidden');
         DOM.profilesGrid.firstChild?.focus();
     };

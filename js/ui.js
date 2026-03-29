@@ -69,9 +69,12 @@ export const DOM = {
     saveProfileBtn: document.getElementById('save-profile-btn'),
     deleteProfileBtn: document.getElementById('delete-profile-btn'),
     avatarSelectionGrid: document.getElementById('avatar-selection-grid'),
+    modalProfileTitle: document.getElementById('modal-profile-title'),
+    cancelProfileBtn: document.getElementById('cancel-profile-btn'),
     currentProfileName: document.getElementById('current-profile-name'),
     currentProfileIcon: document.getElementById('current-profile-icon'),
-    switchProfileTab: document.getElementById('switch-profile-tab')
+    switchProfileTab: document.getElementById('switch-profile-tab'),
+    mainContent: document.getElementById('main-content')
 };
 
 export const cachedBackdrops = {};
