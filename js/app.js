@@ -119,7 +119,7 @@ function getProfiles() {
     try {
         const raw = globalThis.localStorage.getItem('streamy_profiles');
         const parsed = JSON.parse(raw || '[]');
-        return Array.isArray(parsed) ? parsed : [];
+        return Array.isArray(parsed) ? parsed.filter(p => p && typeof p === 'object' && p.id) : [];
     } catch(e) { return []; }
 }
 function saveProfiles(profiles) {
