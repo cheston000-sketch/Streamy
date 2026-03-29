@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +26,57 @@ const providers = makeProviders({
     target: targets.ANY
 });
 
+function extractLinksFromOutput(output) {
+    if (!output?.stream) return [];
+    const finalLinks = [];
+    const streamArray = Array.isArray(output.stream) ? output.stream : [output.stream];
+    
+    streamArray.forEach(streamObj => {
+        if (!streamObj) return;
+
+        const sourceName = output?.sourceId || "Primary";
+        if (streamObj.url) {
+            finalLinks.push({ server: sourceName, url: streamObj.url, type: 'mp4' });
+        }
+        if (streamObj.playlistUrl) {
+            finalLinks.push({ server: `${sourceName} (Auto)`, url: streamObj.playlistUrl, type: 'hls' });
+        }
+        if (streamObj.playlist) {
+            finalLinks.push({ server: `${sourceName} (Auto)`, url: streamObj.playlist, type: 'hls' });
+        }
+        
+        if (streamObj.qualities) {
+            for (const q in streamObj.qualities) {
+                const qUrl = streamObj.qualities[q]?.url;
+                if (qUrl) {
+                    finalLinks.push({ server: `${sourceName} - ${q}`, url: qUrl, type: 'mp4' });
+                }
+            }
+        }
+    });
+    return finalLinks;
+}
+
+function injectFallbackLinks(links, { type, tmdb, season, episode }) {
+    console.log(`[Extractor] Primary providers failed. Injecting fallback iframe embeds.`);
+    const isTV = type === 'tv' || type === 'show';
+    
+    const vidsrcUrl = isTV
+        ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
+        : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
+    links.push({ server: 'Vidsrc.me', url: vidsrcUrl, type: 'iframe' });
+
+    const vidsrcNetUrl = isTV
+        ? `https://vidsrc.net/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
+        : `https://vidsrc.net/embed/movie?tmdb=${tmdb}`;
+    links.push({ server: 'Vidsrc.net', url: vidsrcNetUrl, type: 'iframe' });
+
+    const multiEmbedUrl = isTV
+        ? `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1&s=${season}&e=${episode}`
+        : `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1`;
+    links.push({ server: 'MultiEmbed', url: multiEmbedUrl, type: 'iframe' });
+}
+
 app.get('/api/stream', async (req, res) => {
     const { tmdb, type, title, year, season, episode } = req.query;
 
@@ -36,70 +87,25 @@ app.get('/api/stream', async (req, res) => {
     try {
         console.log(`[Extractor] Hunting raw streams for: ${title} (${year})`);
         
-        const media = (type === 'tv' || type === 'show') 
+        const isShow = type === 'tv' || type === 'show';
+        const media = isShow 
             ? { type: 'show', title, releaseYear: Number(year), tmdbId: tmdb, season: { number: Number(season) }, episode: { number: Number(episode) } }
             : { type: 'movie', title, releaseYear: Number(year), tmdbId: tmdb };
 
-        // To simulate BeeTV, we will run all providers and accumulate all streams
         const output = await Promise.race([
             providers.runAll({ media }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Headless Scraper Timeout Hit')), 12000))
         ]);
-        console.log("[Extractor] runAll RAW OUTPUT:", JSON.stringify(output, null, 2));
-
-        let finalLinks = [];
         
-        if (output && output.stream) {
-            // Handle if stream is an array
-            const streamArray = Array.isArray(output.stream) ? output.stream : [output.stream];
-            
-            streamArray.forEach(streamObj => {
-                if (!streamObj) return;
-
-                // Single URL formats
-                if (streamObj.url) {
-                    finalLinks.push({ server: `${output.sourceId}`, url: streamObj.url, type: 'mp4' });
-                }
-                if (streamObj.playlistUrl) {
-                    finalLinks.push({ server: `${output.sourceId} (Auto)`, url: streamObj.playlistUrl, type: 'hls' });
-                }
-                if (streamObj.playlist) {
-                    finalLinks.push({ server: `${output.sourceId} (Auto)`, url: streamObj.playlist, type: 'hls' });
-                }
-                
-                // Multiple qualities inside a single stream object
-                if (streamObj.qualities) {
-                    for (let q in streamObj.qualities) {
-                        if (streamObj.qualities[q] && streamObj.qualities[q].url) {
-                            finalLinks.push({ server: `${output.sourceId} - ${q}`, url: streamObj.qualities[q].url, type: 'mp4' });
-                        }
-                    }
-                }
-            });
-        }
+        let finalLinks = extractLinksFromOutput(output);
 
         // Deduplicate
         finalLinks = finalLinks.filter((value, index, self) =>
             index === self.findIndex((t) => (t.url === value.url))
         );
 
-        // If native extraction fails, inject robust fallback iframe embeds
         if (finalLinks.length === 0) {
-            console.log(`[Extractor] Primary providers failed. Injecting fallback iframe embeds.`);
-            const vidsrcUrl = (type === 'tv' || type === 'show')
-                ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
-                : `https://vidsrc.me/embed/movie?tmdb=${tmdb}`;
-            finalLinks.push({ server: 'Vidsrc.me', url: vidsrcUrl, type: 'iframe' });
-
-            const vidsrcNetUrl = (type === 'tv' || type === 'show')
-                ? `https://vidsrc.net/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
-                : `https://vidsrc.net/embed/movie?tmdb=${tmdb}`;
-            finalLinks.push({ server: 'Vidsrc.net', url: vidsrcNetUrl, type: 'iframe' });
-
-            const multiEmbedUrl = (type === 'tv' || type === 'show')
-                ? `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1&s=${season}&e=${episode}`
-                : `https://multiembed.mov/directstream.php?video_id=${tmdb}&tmdb=1`;
-            finalLinks.push({ server: 'MultiEmbed', url: multiEmbedUrl, type: 'iframe' });
+            injectFallbackLinks(finalLinks, { type, tmdb, season, episode });
         }
 
         if (finalLinks.length > 0) {
@@ -161,7 +167,7 @@ app.use('/api/deezer', async (req, res) => {
         });
         clearTimeout(timeout);
         const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
+        if (contentType && contentType.includes("application/json")) {
             const data = await response.json();
             res.json(data);
         } else {
@@ -200,19 +206,19 @@ app.use('/api/saavn', async (req, res) => {
 // ==========================================
 // OTA UPDATE SERVER (For StreamOS)
 // ==========================================
-const CLOUD_APK = path.join(__dirname, '..', 'StreamOS.apk');
-const CLOUD_APK_v77 = path.join(__dirname, '..', 'StreamOS_v77.apk');
+const CLOUD_APK_v78 = path.join(__dirname, '..', 'StreamOS_v78.apk');
+const CLOUD_APK_v79 = path.join(__dirname, '..', 'StreamOS_v79.apk');
 
 app.get('/api/ota', (req, res) => {
-    // Hardcoded version for v77 update
-    res.json({ available: true, version: 77, download: '/api/ota/download' });
+    // Hardcoded version for v79 update
+    res.json({ available: true, version: 79, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
-    if (fs.existsSync(CLOUD_APK_v77)) {
-        res.download(CLOUD_APK_v77, 'StreamOS_v77.apk');
-    } else if (fs.existsSync(CLOUD_APK)) {
-        res.download(CLOUD_APK, 'StreamOS.apk');
+    if (fs.existsSync(CLOUD_APK_v79)) {
+        res.download(CLOUD_APK_v79, 'StreamOS_v79.apk');
+    } else if (fs.existsSync(CLOUD_APK_v78)) {
+        res.download(CLOUD_APK_v78, 'StreamOS_v78.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }
