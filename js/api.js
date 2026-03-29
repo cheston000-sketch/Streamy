@@ -32,7 +32,10 @@ async function getCache(url) {
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
         });
-    } catch(e) { return null; }
+    } catch(e) { 
+        console.warn("[Cache] Read error:", e);
+        return null; 
+    }
 }
 
 async function setCache(url, data) {
@@ -45,34 +48,41 @@ async function setCache(url, data) {
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
         });
-    } catch(e) {}
+    } catch(e) {
+        console.warn("[Cache] Write error:", e);
+    }
 }
 
 export async function clearAPICache() {
     try {
         globalThis.indexedDB.deleteDatabase(DB_NAME);
         return true;
-    } catch(e) { return false; }
+    } catch(e) { 
+        console.warn("[Cache] Clear error:", e);
+        return false; 
+    }
+}
+
+function getKidModeParams(endpoint, profile) {
+    if (!profile?.isKid) return '';
+    let category = 'default';
+    if (endpoint.includes('/movie') || endpoint.includes('movie')) category = 'movie';
+    else if (endpoint.includes('/tv') || endpoint.includes('tv')) category = 'tv';
+    
+    const limit = category === 'tv' ? 'TV-14' : 'PG-13';
+    return `${endpoint.includes('?') ? '&' : '?'}certification_country=US&certification.lte=${limit}`;
 }
 
 export async function fetchFromTMDB(endpoint) {
-    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
-    if (activeProfileRaw) {
+    const activeProfileId = globalThis.localStorage.getItem('streamy_active_profile');
+    if (activeProfileId) {
         try {
-            const profilesRaw = globalThis.localStorage.getItem('streamy_profiles');
-            const profiles = JSON.parse(profilesRaw || '[]');
-            const profile = profiles.find(p => p.id === activeProfileRaw);
-
-            if (profile && profile.isKid) {
-                if (endpoint.includes('/movie') || endpoint.includes('movie')) {
-                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG-13';
-                } else if (endpoint.includes('/tv') || endpoint.includes('tv')) {
-                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=TV-14';
-                } else {
-                    endpoint += (endpoint.includes('?') ? '&' : '?') + 'certification_country=US&certification.lte=PG-13';
-                }
-            }
-        } catch(e) {}
+            const profiles = JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
+            const profile = profiles.find(p => p.id === activeProfileId);
+            endpoint += getKidModeParams(endpoint, profile);
+        } catch(e) {
+            console.warn("[Profile] Kid-mode check failed:", e);
+        }
     }
 
     const separator = endpoint.includes('?') ? '&' : '?';
@@ -127,13 +137,100 @@ export async function fetchTVEpisodeList(tvId, seasonNum) {
 }
 
 // MUSIC API (PROXIED)
-function getProxyHost() {
-    // Priority: 1. Local Browser/Dev 2. Native App with Local Server 3. Remote/Live Fallback
-    const isLocal = globalThis.location.hostname === 'localhost' || globalThis.location.hostname === '127.0.0.1';
-    if (isLocal) return 'http://localhost:3000';
+// BACKEND DISCOVERY SYSTEM (v77)
+let discoveredHost = globalThis.localStorage.getItem('streamy_backend_host') || null;
+const discoveryLogs = [];
+
+function logDiscovery(msg) {
+    const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    console.log(entry);
+    discoveryLogs.push(entry);
+    if (discoveryLogs.length > 50) discoveryLogs.shift();
+}
+
+export function getDiscoveryLogs() {
+    return discoveryLogs.join('\n');
+}
+
+export function setManualBackendHost(host) {
+    if (host) {
+        const formatted = host.replace(/\/$/, '');
+        discoveredHost = formatted;
+        globalThis.localStorage.setItem('streamy_backend_host', formatted);
+        logDiscovery(`Manual override set: ${formatted}`);
+    } else {
+        globalThis.localStorage.removeItem('streamy_backend_host');
+        discoveredHost = null;
+        logDiscovery("Manual override cleared. System will use auto-discovery on next probe.");
+    }
+}
+
+export async function discoverBackendHost() {
+    logDiscovery("Initiating Resilient Backend Search...");
     
-    // Live Render Proxy (Global Fallback for Mobile/Production)
-    return 'https://streamy-vez5.onrender.com';
+    // 1. Fetch Tunnel URL from local disk (if packaged)
+    let tunnelUrl = null;
+    try {
+        const tunnelRes = await fetch('tunnel_url.txt').catch(() => null);
+        if (tunnelRes?.ok) {
+            const raw = await tunnelRes.text();
+            const match = raw.match(/https?:\/\/[^\s]+/);
+            if (match) {
+                tunnelUrl = match[0].trim();
+                logDiscovery(`Found Tunnel URL in local disk: ${tunnelUrl}`);
+            }
+        }
+    } catch (e) {
+        logDiscovery(`Tunnel file read failed: ${e.message}`);
+    }
+
+    const rawHosts = [
+        discoveredHost, // Previously working or manual
+        'http://192.168.4.65:3000', // Hardcoded Local Dev IP
+        tunnelUrl, // Parsed from tunnel_url.txt
+        'http://localhost:3000', // Loopback
+        'https://streamy-vez5.onrender.com' // Cloud Production
+    ];
+    const POTENTIAL_HOSTS = rawHosts.filter(h => h?.startsWith('http'));
+
+    // Remove duplicates
+    const uniqueHosts = [...new Set(POTENTIAL_HOSTS)];
+    logDiscovery(`Probing Candidates: ${uniqueHosts.join(', ')}`);
+
+    const probe = async (host) => {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout per probe
+            const res = await fetch(`${host}/api/ota`, { 
+                signal: controller.signal,
+                headers: { 'bypass-tunnel-reminder': 'true' }
+            });
+            clearTimeout(timeout);
+            logDiscovery(`Probe ${host}: ${res.ok ? 'OK' : 'FAILED (' + res.status + ')'}`);
+            return res.ok;
+        } catch (e) { 
+            logDiscovery(`Probe ${host}: ERROR (${e.message})`);
+            return false; 
+        }
+    };
+
+    for (const host of uniqueHosts) {
+        if (await probe(host)) {
+            logDiscovery(`SUCCESS! Host selected: ${host}`);
+            discoveredHost = host;
+            globalThis.localStorage.setItem('streamy_backend_host', host);
+            return host;
+        }
+    }
+
+    logDiscovery("All candidates failed. Falling back to Production.");
+    discoveredHost = 'https://streamy-vez5.onrender.com';
+    return discoveredHost;
+}
+
+export function getProxyHost() {
+    // If we have a discovered host, use it. Otherwise, return fallback and let discovery catch up.
+    return discoveredHost || 'https://streamy-vez5.onrender.com';
 }
 
 export async function fetchMusicFromProxy(endpoint) {
@@ -166,7 +263,7 @@ export function fetchDeezerJSONP(endpoint) {
         const callbackName = 'deezer_cb_' + Math.round(100000 * Math.random());
         window[callbackName] = function(data) {
             delete window[callbackName];
-            document.body.removeChild(script);
+            script.remove();
             resolve(data);
         };
         const script = document.createElement('script');
@@ -193,8 +290,10 @@ export async function searchMusicSaavn(query) {
         const res = await fetch(`${host}/api/saavn/search/songs?query=${encodeURIComponent(query)}&limit=5`, {
             headers: { 'bypass-tunnel-reminder': 'true' }
         });
-        return await res.json();
+        const data = await res.json();
+        return data;
     } catch (e) {
+        console.warn("[Saavn] Search failed:", e);
         return { data: { results: [] } };
     }
 }

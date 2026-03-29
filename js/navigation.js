@@ -47,11 +47,9 @@ export const NavigationManager = {
                         last.focus();
                         e.preventDefault();
                     }
-                } else {
-                    if (document.activeElement === last) {
-                        first.focus();
-                        e.preventDefault();
-                    }
+                } else if (document.activeElement === last) {
+                    first.focus();
+                    e.preventDefault();
                 }
             }
             // For remote D-pad, native spatial navigation usually handles this, 
