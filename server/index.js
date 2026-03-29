@@ -212,22 +212,22 @@ app.use('/api/saavn', async (req, res) => {
 // ==========================================
 // OTA UPDATE SERVER (For StreamOS)
 // ==========================================
-const CLOUD_APK_v78 = path.join(__dirname, '..', 'StreamOS_v84.apk');
-const CLOUD_APK_v79 = path.join(__dirname, '..', 'StreamOS_v84.apk');
+const CLOUD_APK_v78 = path.join(__dirname, '..', 'StreamOS_v85.apk');
+const CLOUD_APK_v79 = path.join(__dirname, '..', 'StreamOS_v85.apk');
 
 app.get('/api/ota', (req, res) => {
     // Hardcoded version for v80 update
-    res.json({ available: true, version: 84, download: '/api/ota/download' });
+    res.json({ available: true, version: 85, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
-    const CLOUD_APK_v80 = path.join(__dirname, '..', 'StreamOS_v84.apk');
+    const CLOUD_APK_v80 = path.join(__dirname, '..', 'StreamOS_v85.apk');
     if (fs.existsSync(CLOUD_APK_v80)) {
-        res.download(CLOUD_APK_v80, 'StreamOS_v84.apk');
+        res.download(CLOUD_APK_v80, 'StreamOS_v85.apk');
     } else if (fs.existsSync(CLOUD_APK_v79)) {
-        res.download(CLOUD_APK_v79, 'StreamOS_v84.apk');
+        res.download(CLOUD_APK_v79, 'StreamOS_v85.apk');
     } else if (fs.existsSync(CLOUD_APK_v78)) {
-        res.download(CLOUD_APK_v78, 'StreamOS_v84.apk');
+        res.download(CLOUD_APK_v78, 'StreamOS_v85.apk');
     } else {
         res.status(404).send("APK sequence entirely absent from Cloud Node.");
     }
@@ -238,5 +238,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📂 App URI: http://localhost:${PORT}`);
     console.log(`📡 API URI: http://localhost:${PORT}/api/stream\n`);
 });
+
 
 

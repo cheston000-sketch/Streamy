@@ -331,27 +331,35 @@ export async function startScrapingSession(targetS = null, targetE = null) {
     try {
         const data = await fetchScraperLinks(ctx, s, e);
         if (data?.success && data.links?.length > 0) {
-            // Only switch away from Vidlink if we got a native (non-iframe) stream
             const nativeLink = data.links.find(l => l.type === 'mp4' || l.type === 'hls');
+            
+            // 🔥 NATIVE BRIDGE HAND-OFF 🔥
+            if (globalThis.StreamyPlayer && nativeLink) {
+                 console.log('[NativeBridge] Handing off native stream to StreamyPlayer...');
+                 const mimeType = nativeLink.url.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4';
+                 const title = ctx.title || "Unknown Title";
+                 globalThis.StreamyPlayer.playStream(nativeLink.url, mimeType, title);
+                 return;
+            }
+
             if (nativeLink) {
                 console.log('[AutoPlay] Switching to native stream:', nativeLink.server);
                 playNativeVideo(nativeLink.url);
             }
-            // Also render the server switcher UI so user can manually switch
             renderLinkSwitcher(data.links, nativeLink || data.links[0]);
         }
     } catch (err) {
-        // Vidlink is already playing — scraper failure is non-fatal
         console.warn('[Scraper] Background scrape failed, Vidlink continues:', err.message);
     }
 }
 
 export function playIframeFallback(iframeUrl) {
-    // 3/26 Proven Solution: Hand-off to Native Bridge if present
-    if (globalThis.NativeBridge && typeof globalThis.NativeBridge.presentStream === 'function') {
-         console.log("[NativeBridge] Routing stream to WebPlayerActivity...");
-         globalThis.NativeBridge.presentStream(iframeUrl);
-         return;
+    // 🔥 NATIVE HARDWARE BRIDGE: Hand-off to external player if available
+    if (globalThis.StreamyPlayer && typeof globalThis.StreamyPlayer.playStream === 'function') {
+         console.log("[NativeBridge] Routing iframe to StreamyPlayer...");
+         // If it's an iframeUrl (like Vidlink), we pass it as text/html or just handle it if the bridge supports it.
+         // In StreamBridge.java, playStream expects a media URL. 
+         // For Vidlink, we actually WANT to stay in the spoofed WebView to keep it "Ad-Free".
     }
 
     navigateTo('#player');
@@ -363,14 +371,11 @@ export function playIframeFallback(iframeUrl) {
         DOM.playerNextEpBtn?.classList.add('hidden');
     }
 
-    // Force focus to Back button for D-pad visibility
     setTimeout(() => DOM.playerBackBtn?.focus(), 200);
 
     DOM.videoPlayer.style.display = 'none';
     if (!DOM.videoPlayer.paused) DOM.videoPlayer.pause();
 
-    // Hide the gesture bridge overlay — not needed since MainActivity sets
-    // setMediaPlaybackRequiresUserGesture(false) for the whole WebView.
     const overlay = document.getElementById('iframe-activation-overlay');
     if (overlay) overlay.style.display = 'none';
     
@@ -389,20 +394,25 @@ export function playIframeFallback(iframeUrl) {
         DOM.iframeWrapper.appendChild(iframe);
     }
 
-    // Always re-set allow attribute before assigning src
     iframe.allowFullscreen = true;
     iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
 
-    // Block pointer events briefly to prevent accidental ad clicks on load
+    // Pointer events block to prevent accidental ad clicks
     iframe.style.pointerEvents = 'none';
     setTimeout(() => { iframe.style.pointerEvents = 'auto'; }, 2000);
 
-    // Force Autoplay parameters
+    // Optimized Vidlink/VidSrc Parameters for spoofed UA
     let url = new URL(iframeUrl);
     url.searchParams.set('autoplay', '1');
     url.searchParams.set('autoPlay', '1');
     url.searchParams.set('muted', '0');
     url.searchParams.set('volume', '1');
+    
+    // Explicitly set for Vidlink components
+    if (iframeUrl.includes('vidlink.pro')) {
+        url.searchParams.set('player', 'v2');
+        url.searchParams.set('primaryColor', '6366f1');
+    }
 
     iframe.src = url.toString();
     iframe.style.display = 'block';
@@ -411,10 +421,12 @@ export function playIframeFallback(iframeUrl) {
 }
 
 export function playNativeVideo(streamUrl) {
-    // 3/26 Proven Solution: Use Native WebPlayerActivity for robust playback on TV
-    if (globalThis.NativeBridge && typeof globalThis.NativeBridge.presentStream === 'function') {
-         console.log("[NativeBridge] Routing native stream to WebPlayerActivity...");
-         globalThis.NativeBridge.presentStream(streamUrl);
+    // 🔥 NATIVE BRIDGE: Route to external players (VLC, MX, etc)
+    if (globalThis.StreamyPlayer && typeof globalThis.StreamyPlayer.playStream === 'function') {
+         console.log("[NativeBridge] Routing native stream to StreamyPlayer...");
+         const mimeType = streamUrl.includes('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4';
+         const title = currentMovieContext?.title || "StreamOS Video";
+         globalThis.StreamyPlayer.playStream(streamUrl, mimeType, title);
          return;
     }
 
