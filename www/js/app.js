@@ -9,7 +9,7 @@ let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: '
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 85;
+const APP_VERSION = 87;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
@@ -116,10 +116,34 @@ function updateFilterDropdown(type) {
 
 // Profiles System
 function getProfiles() {
-    return JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
+    try {
+        const raw = globalThis.localStorage.getItem('streamy_profiles');
+        const parsed = JSON.parse(raw || '[]');
+        return Array.isArray(parsed) ? parsed.filter(p => p && typeof p === 'object' && p.id) : [];
+    } catch(e) { return []; }
 }
 function saveProfiles(profiles) {
     globalThis.localStorage.setItem('streamy_profiles', JSON.stringify(profiles));
+}
+
+function setProfilesEditing(isEditing) {
+    const grid = document.getElementById('profiles-grid');
+    const editBtn = document.getElementById('edit-profiles-btn');
+    grid.classList.toggle('edit-mode', isEditing);
+    editBtn.innerHTML = isEditing
+        ? '<i class="fa-solid fa-check"></i> Done Editing'
+        : '<i class="fa-solid fa-pen"></i> Manage Profiles';
+    renderProfilesScreen(getProfiles(), -1, isEditing);
+}
+
+function showProfilesScreen({ editing = false, focusFirst = true } = {}) {
+    document.getElementById('profile-selection-screen').classList.remove('hidden');
+    document.getElementById('main-content').classList.add('hidden');
+    DOM.topBar.classList.add('hidden');
+    setProfilesEditing(editing);
+    if (focusFirst) {
+        setTimeout(() => document.getElementById('profiles-grid').firstChild?.focus(), 160);
+    }
 }
 
 function initProfiles() {
@@ -145,25 +169,27 @@ function initProfiles() {
     if (activeId) {
         activeProfile = profiles.find(p => p.id === activeId);
     }
-    if (!activeProfile) activeProfile = profiles[0];
     
-    const activeIndex = profiles.findIndex(p => p.id === activeProfile.id);
+    const activeIndex = activeProfile ? profiles.findIndex(p => p.id === activeProfile.id) : 0;
     renderProfilesScreen(profiles, activeIndex);
     
+    if (activeProfile) {
+        selectProfile(activeProfile, true);
+        return true;
+    }
+    
+    showProfilesScreen({ editing: false, focusFirst: true });
+    return false;
+}
+
+function initProfileBindings() {
     document.getElementById('edit-profiles-btn').onclick = () => {
         const grid = document.getElementById('profiles-grid');
-        const isEditing = grid.classList.toggle('edit-mode');
-        document.getElementById('edit-profiles-btn').innerHTML = isEditing ? '<i class="fa-solid fa-check"></i> Done Editing' : '<i class="fa-solid fa-pen"></i> Manage Profiles';
-        renderProfilesScreen(getProfiles(), -1, isEditing);
+        setProfilesEditing(!grid.classList.contains('edit-mode'));
     };
-
+    
     document.getElementById('add-profile-btn').onclick = () => openProfileModal(null);
-    DOM.settingManageProfiles.onclick = () => {
-        document.getElementById('profile-selection-screen').classList.remove('hidden');
-        document.getElementById('main-content').classList.add('hidden');
-        DOM.topBar.classList.add('hidden');
-        document.getElementById('edit-profiles-btn').click();
-    };
+    DOM.settingManageProfiles.onclick = () => showProfilesScreen({ editing: true, focusFirst: true });
 
     document.getElementById('cancel-profile-btn').onclick = () => {
         document.getElementById('profile-edit-modal').classList.add('hidden');
@@ -228,7 +254,7 @@ function openProfileModal(profile) {
     document.getElementById('add-profile-btn').style.display = 'block';
     
     // Manage Delete button: Hide for mandatory profiles
-    if (profile && !mandatoryIds.includes(profile.id)) delBtn.classList.remove('hidden');
+    if (profile && !mandatoryIds.has(profile.id)) delBtn.classList.remove('hidden');
     else delBtn.classList.add('hidden');
     
     // Ensure "Manage Profiles" from settings is visible
@@ -261,7 +287,16 @@ function openProfileModal(profile) {
     delBtn.onclick = () => {
         let profiles = getProfiles();
         profiles = profiles.filter(x => x.id !== profile.id);
-        if (activeProfile && activeProfile.id === profile.id) activeProfile = profiles[0];
+        if (activeProfile && activeProfile.id === profile.id) {
+            activeProfile = profiles[0] || null;
+            if (activeProfile) {
+                globalThis.localStorage.setItem('streamy_active_profile', activeProfile.id);
+                document.getElementById('current-profile-name').textContent = activeProfile.name;
+            } else {
+                globalThis.localStorage.removeItem('streamy_active_profile');
+                document.getElementById('current-profile-name').textContent = 'User';
+            }
+        }
         saveProfiles(profiles);
         modal.classList.add('hidden');
         renderProfilesScreen(profiles, -1, true);
@@ -274,7 +309,7 @@ function openProfileModal(profile) {
 
 // Removed redundant fetchTMDB function
 
-function selectProfile(profile) {
+function selectProfile(profile, silent = false) {
     activeProfile = profile;
     globalThis.localStorage.setItem('streamy_active_profile', profile.id);
     document.getElementById('current-profile-name').textContent = profile.name;
@@ -286,7 +321,12 @@ function selectProfile(profile) {
     document.getElementById('genre-filter').classList.remove('hidden');
     document.getElementById('genre-filter').value = '';
     
-    loadMovieRows();
+    if (!silent) {
+        navigateTo('#home');
+        loadMovieRows();
+    } else {
+        loadMovieRows();
+    }
 }
 
 // Data Fetching and Rows Array
@@ -428,6 +468,7 @@ function initApp() {
     enableDragScroll(DOM.episodeList);
     
     initProfiles();
+    initProfileBindings();
     initSearch();
     setupDpadLogic();
     setupRouter();
@@ -510,10 +551,7 @@ function initApp() {
     });
     
     document.getElementById('switch-profile-tab').onclick = () => {
-        document.getElementById('profile-selection-screen').classList.remove('hidden');
-        document.getElementById('main-content').classList.add('hidden');
-        DOM.topBar.classList.add('hidden');
-        document.getElementById('profiles-grid').firstChild?.focus();
+        showProfilesScreen({ editing: false, focusFirst: true });
     };
     
     // Bind dynamic filter drop-down

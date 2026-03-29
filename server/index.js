@@ -212,17 +212,16 @@ app.use('/api/saavn', async (req, res) => {
 // ==========================================
 // OTA UPDATE SERVER (For StreamOS)
 // ==========================================
-const CLOUD_APK_v86 = path.join(__dirname, '..', 'StreamOS_v86.apk');
-const CLOUD_APK_FALLBACK = path.join(__dirname, '..', 'StreamOS_v85.apk');
+const CLOUD_APK_v87 = path.join(__dirname, '..', 'StreamOS_v87.apk');
+const CLOUD_APK_FALLBACK = path.join(__dirname, '..', 'StreamOS_v86.apk');
 
 app.get('/api/ota', (req, res) => {
-    // Hardcoded version for v86 update
-    res.json({ available: true, version: 86, download: '/api/ota/download' });
+    res.json({ available: true, version: 87, download: '/api/ota/download' });
 });
 
 app.get('/api/ota/download', (req, res) => {
-    if (fs.existsSync(CLOUD_APK_v86)) {
-        res.download(CLOUD_APK_v86, 'StreamOS_v86.apk');
+    if (fs.existsSync(CLOUD_APK_v87)) {
+        res.download(CLOUD_APK_v87, 'StreamOS_v87.apk');
     } else if (fs.existsSync(CLOUD_APK_FALLBACK)) {
         res.download(CLOUD_APK_FALLBACK, 'StreamOS_v86.apk');
     } else {

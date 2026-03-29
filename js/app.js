@@ -9,7 +9,7 @@ let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: '
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 86;
+const APP_VERSION = 87;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 
 async function checkForUpdatesBackground() {
@@ -126,6 +126,24 @@ function saveProfiles(profiles) {
     globalThis.localStorage.setItem('streamy_profiles', JSON.stringify(profiles));
 }
 
+function setProfilesEditing(isEditing) {
+    DOM.profilesGrid.classList.toggle('edit-mode', isEditing);
+    DOM.editProfilesBtn.innerHTML = isEditing
+        ? '<i class="fa-solid fa-check"></i> Done Editing'
+        : '<i class="fa-solid fa-pen"></i> Manage Profiles';
+    renderProfilesScreen(getProfiles(), -1, isEditing);
+}
+
+function showProfilesScreen({ editing = false, focusFirst = true } = {}) {
+    DOM.profileSelectionScreen.classList.remove('hidden');
+    DOM.mainContent.classList.add('hidden');
+    DOM.topBar.classList.add('hidden');
+    setProfilesEditing(editing);
+    if (focusFirst) {
+        setTimeout(() => DOM.profilesGrid.firstChild?.focus(), 160);
+    }
+}
+
 function initProfiles() {
     let profiles = getProfiles();
     
@@ -149,9 +167,13 @@ function initProfiles() {
     if (activeId) {
         activeProfile = profiles.find(p => p && p.id === activeId);
     }
+
+    const activeIndex = activeProfile
+        ? profiles.findIndex(p => p && p.id === activeProfile.id)
+        : 0;
     
     // Always render for the switcher even if we don't show the screen yet
-    renderProfilesScreen(profiles, 0);
+    renderProfilesScreen(profiles, activeIndex);
 
     // If we have an active profile, stay in the main app
     if (activeProfile) {
@@ -160,26 +182,15 @@ function initProfiles() {
     } 
     
     // Otherwise, show the selection screen
-    DOM.profileSelectionScreen.classList.remove('hidden');
-    DOM.mainContent.classList.add('hidden');
-    DOM.topBar.classList.add('hidden');
+    showProfilesScreen({ editing: false, focusFirst: true });
     return false;
 }
     
 function initProfileBindings() {
-    DOM.editProfilesBtn.onclick = () => {
-        const isEditing = DOM.profilesGrid.classList.toggle('edit-mode');
-        DOM.editProfilesBtn.innerHTML = isEditing ? '<i class="fa-solid fa-check"></i> Done Editing' : '<i class="fa-solid fa-pen"></i> Manage Profiles';
-        renderProfilesScreen(getProfiles(), -1, isEditing);
-    };
+    DOM.editProfilesBtn.onclick = () => setProfilesEditing(!DOM.profilesGrid.classList.contains('edit-mode'));
 
     DOM.addProfileBtn.onclick = () => openProfileModal(null);
-    DOM.settingManageProfiles.onclick = () => {
-        DOM.profileSelectionScreen.classList.remove('hidden');
-        DOM.mainContent.classList.add('hidden');
-        DOM.topBar.classList.add('hidden');
-        DOM.editProfilesBtn.click();
-    };
+    DOM.settingManageProfiles.onclick = () => showProfilesScreen({ editing: true, focusFirst: true });
 
     DOM.cancelProfileBtn.onclick = () => {
         DOM.profileEditModal.classList.add('hidden');
@@ -268,7 +279,16 @@ function openProfileModal(profile) {
     DOM.deleteProfileBtn.onclick = () => {
         let profiles = getProfiles();
         profiles = profiles.filter(x => x && x.id !== profile.id);
-        if (activeProfile && activeProfile.id === profile.id) activeProfile = profiles[0];
+        if (activeProfile && activeProfile.id === profile.id) {
+            activeProfile = profiles[0] || null;
+            if (activeProfile) {
+                globalThis.localStorage.setItem('streamy_active_profile', activeProfile.id);
+                DOM.currentProfileName.textContent = activeProfile.name;
+            } else {
+                globalThis.localStorage.removeItem('streamy_active_profile');
+                DOM.currentProfileName.textContent = 'User';
+            }
+        }
         saveProfiles(profiles);
         DOM.profileEditModal.classList.add('hidden');
         renderProfilesScreen(profiles, -1, true);
@@ -524,10 +544,7 @@ function initApp() {
     });
     
     DOM.switchProfileTab.onclick = () => {
-        DOM.profileSelectionScreen.classList.remove('hidden');
-        DOM.mainContent.classList.add('hidden');
-        DOM.topBar.classList.add('hidden');
-        DOM.profilesGrid.firstChild?.focus();
+        showProfilesScreen({ editing: false, focusFirst: true });
     };
     
     // Bind dynamic filter drop-down
