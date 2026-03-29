@@ -33,10 +33,7 @@ function stopVideoPlayback() {
 
 function updateNavUI(activeHash) {
     const views = document.querySelectorAll('.view');
-    views.forEach(v => {
-        if (v.id === 'profile-selection-screen' && !v.classList.contains('hidden')) return;
-        v.classList.add('hidden');
-    });
+    views.forEach(v => v.classList.add('hidden'));
 
     const navTabs = document.querySelectorAll('.nav-tab[data-view]');
     navTabs.forEach(t => t.classList.remove('active'));

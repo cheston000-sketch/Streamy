@@ -150,6 +150,9 @@ function initProfiles() {
         activeProfile = profiles.find(p => p && p.id === activeId);
     }
     
+    // Always render for the switcher even if we don't show the screen yet
+    renderProfilesScreen(profiles, 0);
+
     // If we have an active profile, stay in the main app
     if (activeProfile) {
         selectProfile(activeProfile, true); // true = silent init
@@ -157,8 +160,6 @@ function initProfiles() {
     } 
     
     // Otherwise, show the selection screen
-    const activeIndex = profiles.length > 0 ? 0 : -1;
-    renderProfilesScreen(profiles, activeIndex);
     DOM.profileSelectionScreen.classList.remove('hidden');
     DOM.mainContent.classList.add('hidden');
     DOM.topBar.classList.add('hidden');
@@ -294,6 +295,9 @@ function selectProfile(profile, silent = false) {
     
     if (!silent) {
         navigateTo('#home');
+        loadMovieRows();
+    } else {
+        // Even in silent init, we must load the rows for the first time!
         loadMovieRows();
     }
 }
@@ -433,8 +437,8 @@ function setupDpadLogic() {
 }
 
 function initApp() {
-    enableDragScroll(DOM.seasonTabs);
-    enableDragScroll(DOM.episodeList);
+    if (DOM.seasonTabs) enableDragScroll(DOM.seasonTabs);
+    if (DOM.episodeList) enableDragScroll(DOM.episodeList);
     
     initProfiles();
     initProfileBindings();
