@@ -1,0 +1,36 @@
+name: Publish StreamOS v112
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - release-v112.bundle
+      - .github/workflows/publish-v112.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-streamos-v112
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify and publish tested v112 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git bundle verify release-v112.bundle
+          git fetch release-v112.bundle refs/heads/master:refs/remotes/v112/master
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git cherry-pick refs/remotes/v112/master
+          git push origin HEAD:master
