@@ -1,0 +1,9 @@
+{
+  "appId": "org.streamy.app",
+  "appName": "StreamOS",
+  "webDir": "app-dist",
+  "backgroundColor": "#080b0f",
+  "android": {
+    "allowMixedContent": true
+  }
+}

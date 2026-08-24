@@ -1,0 +1,34 @@
+{
+  "name": "streamos-app",
+  "version": "112.0.0",
+  "description": "Remote-first streaming interface for Android TV and Fire TV",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run check:js && npm run test:navigation && npm run test:server && npm run test:android",
+    "check:js": "node --check www/js/api.js && node --check www/js/app.js && node --check www/js/grid-navigation.js && node --check www/js/navigation.js && node --check www/js/player.js && node --check www/js/router.js && node --check www/js/ui.js && node --check www/server/index.js",
+    "test:navigation": "node tests/grid-navigation.test.mjs",
+    "test:server": "node tests/server-resilience.test.mjs",
+    "test:android": "cd android && gradlew.bat testDebugUnitTest",
+    "prepare:android": "node scripts/prepare-app-web.mjs",
+    "sync:android": "npm run prepare:android && npx cap sync android",
+    "build:android": "npm run sync:android && cd android && gradlew.bat assembleDebug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
+    "@fontsource/barlow-condensed": "5.3.0",
+    "@fontsource/manrope": "5.3.0",
+    "@fortawesome/fontawesome-free": "6.6.0",
+    "@movie-web/providers": "^2.4.13",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "hls.js": "1.6.17"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.2.0"
+  }
+}

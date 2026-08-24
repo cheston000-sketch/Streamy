@@ -6,6 +6,27 @@ export const BACKDROP_URL = 'https://image.tmdb.org/t/p/w1280';
 const DB_NAME = 'Streamy_CacheDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'tmdb_cache';
+export const CACHE_DB_NAME = DB_NAME;
+
+function isTunnelHost(host) {
+    const lower = (host || '').toLowerCase();
+    return lower.includes('ngrok')
+        || lower.includes('trycloudflare')
+        || lower.includes('loca.lt')
+        || lower.includes('localhost.run');
+}
+
+export function buildBackendFetchOptions(host, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    if (isTunnelHost(host)) {
+        headers['bypass-tunnel-reminder'] = 'true';
+    }
+
+    return {
+        ...options,
+        headers
+    };
+}
 
 // IndexedDB Wrapper natively
 function getDB() {
@@ -73,7 +94,9 @@ function getKidModeParams(endpoint, profile) {
     return `${endpoint.includes('?') ? '&' : '?'}certification_country=US&certification.lte=${limit}`;
 }
 
-export async function fetchFromTMDB(endpoint) {
+export async function fetchFromTMDB(endpoint, options = {}) {
+    const { signal } = options;
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
     const activeProfileId = globalThis.localStorage.getItem('streamy_active_profile');
     if (activeProfileId) {
         try {
@@ -89,13 +112,14 @@ export async function fetchFromTMDB(endpoint) {
     const requestUrl = `${BASE_URL}${endpoint}${separator}api_key=${TMDB_API_KEY}`;
     
     const cachedItem = await getCache(requestUrl);
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
     // 12 hours cache
     if (cachedItem && (Date.now() - cachedItem.timestamp) < 43200000) {
         return cachedItem.data.results || cachedItem.data || [];
     }
 
     try {
-        const res = await fetch(requestUrl);
+        const res = await fetch(requestUrl, { signal });
         if(res.status === 401) {
             console.error("API Key Required or Invalid");
             return [];
@@ -104,42 +128,58 @@ export async function fetchFromTMDB(endpoint) {
         await setCache(requestUrl, data);
         return data.results ? data.results : data;
     } catch (e) {
+        if (e?.name === 'AbortError') throw e;
         console.error("TMDB error:", e);
         return [];
     }
 }
 
-export async function discoverByCategory(type, payload, page = 1) {
-    if (payload === 'trending') return await fetchFromTMDB(`/trending/${type}/day?page=${page}`);
+export async function discoverByCategory(type, payload, page = 1, options = {}) {
+    if (payload === 'trending') return await fetchFromTMDB(`/trending/${type}/day?page=${page}`, options);
+    if (payload === 'trending_week') return await fetchFromTMDB(`/trending/${type}/week?page=${page}`, options);
+    if (payload === 'popular') return await fetchFromTMDB(`/${type}/popular?page=${page}`, options);
+    if (payload === 'top_rated') return await fetchFromTMDB(`/${type}/top_rated?page=${page}`, options);
+    if (payload === 'now_playing' && type === 'movie') return await fetchFromTMDB(`/movie/now_playing?page=${page}`, options);
+    if (payload === 'upcoming' && type === 'movie') return await fetchFromTMDB(`/movie/upcoming?page=${page}`, options);
+    if (payload === 'airing_today' && type === 'tv') return await fetchFromTMDB(`/tv/airing_today?page=${page}`, options);
+    if (payload === 'on_the_air' && type === 'tv') return await fetchFromTMDB(`/tv/on_the_air?page=${page}`, options);
     if (payload.startsWith('company:')) {
         const companyId = payload.split(':')[1];
-        return await fetchFromTMDB(`/discover/${type}?with_companies=${companyId}&page=${page}`);
+        return await fetchFromTMDB(`/discover/${type}?with_companies=${companyId}&page=${page}`, options);
     }
     if (payload.startsWith('network:')) {
         const networkId = payload.split(':')[1];
-        return await fetchFromTMDB(`/discover/${type}?with_networks=${networkId}&page=${page}`);
+        return await fetchFromTMDB(`/discover/${type}?with_networks=${networkId}&page=${page}`, options);
     }
     // Assume genre or explicit parameter list fallback
     if (payload.includes('=')) {
-        return await fetchFromTMDB(`/discover/${type}?${payload}&page=${page}`);
+        return await fetchFromTMDB(`/discover/${type}?${payload}&page=${page}`, options);
     }
-    return await fetchFromTMDB(`/discover/${type}?with_genres=${payload}&page=${page}`);
+    return await fetchFromTMDB(`/discover/${type}?with_genres=${payload}&page=${page}`, options);
 }
 
-export async function fetchTVSeasons(tvId) {
-    const data = await fetchFromTMDB(`/tv/${tvId}`);
+export async function fetchTVSeasons(tvId, options = {}) {
+    const data = await fetchFromTMDB(`/tv/${tvId}`, options);
     return data.seasons || [];
 }
 
-export async function fetchTVEpisodeList(tvId, seasonNum) {
-    const data = await fetchFromTMDB(`/tv/${tvId}/season/${seasonNum}`);
+export async function fetchTVEpisodeList(tvId, seasonNum, options = {}) {
+    const data = await fetchFromTMDB(`/tv/${tvId}/season/${seasonNum}`, options);
     return data.episodes || [];
 }
 
 // MUSIC API (PROXIED)
 // BACKEND DISCOVERY SYSTEM (v77)
 let discoveredHost = globalThis.localStorage.getItem('streamy_backend_host') || null;
+let manualBackendHost = globalThis.localStorage.getItem('streamy_backend_manual_host') || null;
+let discoveryPromise = null;
+let lastDiscoveryAt = 0;
 const discoveryLogs = [];
+const LOCAL_DEV_HOST = 'http://192.168.4.65:3000';
+const PRODUCTION_HOST = 'https://streamy-vez5.onrender.com';
+const DISCOVERY_CACHE_MS = 60_000;
+const PROBE_TIMEOUT_MS = 4_000;
+const PRODUCTION_PROBE_TIMEOUT_MS = 15_000;
 
 function logDiscovery(msg) {
     const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -152,93 +192,160 @@ export function getDiscoveryLogs() {
     return discoveryLogs.join('\n');
 }
 
+export function rememberDiscoveredBackendHost(host) {
+    if (!host || manualBackendHost) return getProxyHost();
+    discoveredHost = host.replace(/\/$/, '');
+    globalThis.localStorage.setItem('streamy_backend_host', discoveredHost);
+    lastDiscoveryAt = Date.now();
+    return discoveredHost;
+}
+
+export function invalidateBackendHost(host) {
+    const normalizedHost = String(host || '').replace(/\/$/, '');
+    if (!normalizedHost || normalizedHost === manualBackendHost) return;
+
+    if (discoveredHost === normalizedHost) {
+        discoveredHost = null;
+        globalThis.localStorage.removeItem('streamy_backend_host');
+    }
+    lastDiscoveryAt = 0;
+    logDiscovery(`Invalidated failed backend: ${normalizedHost}`);
+}
+
 export function setManualBackendHost(host) {
     if (host) {
         const formatted = host.replace(/\/$/, '');
+        manualBackendHost = formatted;
         discoveredHost = formatted;
+        globalThis.localStorage.setItem('streamy_backend_manual_host', formatted);
         globalThis.localStorage.setItem('streamy_backend_host', formatted);
+        lastDiscoveryAt = Date.now();
         logDiscovery(`Manual override set: ${formatted}`);
     } else {
+        globalThis.localStorage.removeItem('streamy_backend_manual_host');
         globalThis.localStorage.removeItem('streamy_backend_host');
+        manualBackendHost = null;
         discoveredHost = null;
+        lastDiscoveryAt = 0;
         logDiscovery("Manual override cleared. System will use auto-discovery on next probe.");
     }
 }
 
-export async function discoverBackendHost() {
-    logDiscovery("Initiating Resilient Backend Search...");
-    
-    // 1. Fetch Tunnel URL from local disk (if packaged)
-    let tunnelUrl = null;
+export function getManualBackendHost() {
+    return manualBackendHost || '';
+}
+
+async function fetchProbeEndpoint(host, path, timeoutMs = PROBE_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const tunnelRes = await fetch('tunnel_url.txt').catch(() => null);
-        if (tunnelRes?.ok) {
-            const raw = await tunnelRes.text();
-            const match = raw.match(/https?:\/\/[^\s]+/);
-            if (match) {
-                tunnelUrl = match[0].trim();
-                logDiscovery(`Found Tunnel URL in local disk: ${tunnelUrl}`);
-            }
-        }
-    } catch (e) {
-        logDiscovery(`Tunnel file read failed: ${e.message}`);
+        return await fetch(`${host}${path}`, buildBackendFetchOptions(host, {
+            signal: controller.signal,
+            cache: 'no-cache'
+        }));
+    } finally {
+        clearTimeout(timeout);
     }
+}
 
-    const rawHosts = [
-        discoveredHost, // Previously working or manual
-        'http://192.168.4.65:3000', // Hardcoded Local Dev IP
-        tunnelUrl, // Parsed from tunnel_url.txt
-        'http://localhost:3000', // Loopback
-        'https://streamy-vez5.onrender.com' // Cloud Production
-    ];
-    const POTENTIAL_HOSTS = rawHosts.filter(h => h?.startsWith('http'));
+async function probeBackendHost(host) {
+    const timeoutMs = host === PRODUCTION_HOST ? PRODUCTION_PROBE_TIMEOUT_MS : PROBE_TIMEOUT_MS;
+    try {
+        const healthResponse = await fetchProbeEndpoint(host, '/api/health', timeoutMs).catch(() => null);
+        if (healthResponse?.ok) {
+            const health = await healthResponse.json().catch(() => ({}));
+            const providerApiReady = health.providerApi !== false;
+            logDiscovery(`Probe ${host}: health OK${health.version ? ` (v${health.version})` : ''}`);
+            return providerApiReady;
+        }
 
-    // Remove duplicates
-    const uniqueHosts = [...new Set(POTENTIAL_HOSTS)];
-    logDiscovery(`Probing Candidates: ${uniqueHosts.join(', ')}`);
+        const [otaResult, providersResult] = await Promise.allSettled([
+            fetchProbeEndpoint(host, '/api/ota', timeoutMs),
+            fetchProbeEndpoint(host, '/api/providers', timeoutMs)
+        ]);
+        const otaResponse = otaResult.status === 'fulfilled' ? otaResult.value : null;
+        const providersResponse = providersResult.status === 'fulfilled' ? providersResult.value : null;
+        const otaOk = !!otaResponse?.ok;
+        const providersOk = !!providersResponse?.ok;
+        logDiscovery(`Probe ${host}: OTA ${otaOk ? 'OK' : 'FAILED'}, providers ${providersOk ? 'OK' : 'FAILED'}`);
+        return otaOk && providersOk;
+    } catch (error) {
+        logDiscovery(`Probe ${host}: ERROR (${error.message})`);
+        return false;
+    }
+}
 
-    const probe = async (host) => {
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout per probe
-            const res = await fetch(`${host}/api/ota`, { 
-                signal: controller.signal,
-                headers: { 'bypass-tunnel-reminder': 'true' }
+async function findFirstHealthyHost(hosts) {
+    if (!hosts.length) return null;
+
+    return new Promise(resolve => {
+        let pending = hosts.length;
+        let settled = false;
+
+        hosts.forEach(host => {
+            probeBackendHost(host).then(ok => {
+                if (ok && !settled) {
+                    settled = true;
+                    resolve(host);
+                }
+            }).finally(() => {
+                pending--;
+                if (pending === 0 && !settled) {
+                    settled = true;
+                    resolve(null);
+                }
             });
-            clearTimeout(timeout);
-            logDiscovery(`Probe ${host}: ${res.ok ? 'OK' : 'FAILED (' + res.status + ')'}`);
-            return res.ok;
-        } catch (e) { 
-            logDiscovery(`Probe ${host}: ERROR (${e.message})`);
-            return false; 
-        }
-    };
+        });
+    });
+}
 
-    for (const host of uniqueHosts) {
-        if (await probe(host)) {
-            logDiscovery(`SUCCESS! Host selected: ${host}`);
-            discoveredHost = host;
-            globalThis.localStorage.setItem('streamy_backend_host', host);
-            return host;
-        }
-    }
+export async function discoverBackendHost({ force = false } = {}) {
+    if (!force && manualBackendHost) return manualBackendHost;
+    if (!force && discoveredHost && Date.now() - lastDiscoveryAt < DISCOVERY_CACHE_MS) return discoveredHost;
+    if (discoveryPromise) return discoveryPromise;
 
-    logDiscovery("All candidates failed. Falling back to Production.");
-    discoveredHost = 'https://streamy-vez5.onrender.com';
-    return discoveredHost;
+    discoveryPromise = (async () => {
+        logDiscovery("Initiating resilient backend search...");
+
+        const candidateHosts = [
+            manualBackendHost,
+            discoveredHost,
+            PRODUCTION_HOST,
+            LOCAL_DEV_HOST,
+            'http://localhost:3000'
+        ].filter(host => host?.startsWith('http'));
+        const uniqueHosts = [...new Set(candidateHosts)];
+        logDiscovery(`Probing candidates in parallel: ${uniqueHosts.join(', ')}`);
+
+        const healthyHost = await findFirstHealthyHost(uniqueHosts);
+        const selectedHost = healthyHost || PRODUCTION_HOST;
+
+        if (healthyHost) {
+            logDiscovery(`SUCCESS! Host selected: ${selectedHost}`);
+        } else {
+            logDiscovery("All probes failed. Falling back to production.");
+        }
+
+        discoveredHost = selectedHost;
+        globalThis.localStorage.setItem('streamy_backend_host', selectedHost);
+        lastDiscoveryAt = healthyHost ? Date.now() : 0;
+        return selectedHost;
+    })().finally(() => {
+        discoveryPromise = null;
+    });
+
+    return discoveryPromise;
 }
 
 export function getProxyHost() {
     // If we have a discovered host, use it. Otherwise, return fallback and let discovery catch up.
-    return discoveredHost || 'https://streamy-vez5.onrender.com';
+    return discoveredHost || PRODUCTION_HOST;
 }
 
 export async function fetchMusicFromProxy(endpoint) {
     try {
         const host = getProxyHost();
-        const res = await fetch(`${host}/api${endpoint}`, {
-            headers: { 'bypass-tunnel-reminder': 'true' }
-        });
+        const res = await fetch(`${host}/api${endpoint}`, buildBackendFetchOptions(host));
         const data = await res.json();
         return data;
     } catch (e) {
@@ -287,9 +394,7 @@ export async function fetchMusicManifest(trackId) {
 export async function searchMusicSaavn(query) {
     const host = getProxyHost();
     try {
-        const res = await fetch(`${host}/api/saavn/search/songs?query=${encodeURIComponent(query)}&limit=5`, {
-            headers: { 'bypass-tunnel-reminder': 'true' }
-        });
+        const res = await fetch(`${host}/api/saavn/search/songs?query=${encodeURIComponent(query)}&limit=5`, buildBackendFetchOptions(host));
         const data = await res.json();
         return data;
     } catch (e) {

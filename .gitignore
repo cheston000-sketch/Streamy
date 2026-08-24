@@ -1,3 +1,8 @@
 node_modules
 .env
 .DS_Store
+*.log
+app-dist/
+android/.gradle/
+android/**/build/
+android/local.properties

@@ -1,4 +1,4 @@
-import { IMAGE_URL, BACKDROP_URL } from './api.js?v=29';
+import { IMAGE_URL, BACKDROP_URL } from './api.js?v=112';
 
 export const DOM = {
     topBar: document.getElementById('top-bar'),
@@ -38,12 +38,17 @@ export const DOM = {
     seasonTabs: document.getElementById('season-tabs'),
     episodeList: document.getElementById('episode-list'),
     playBtn: document.getElementById('play-btn'),
+    nextEpisodeBtn: document.getElementById('next-episode-btn'),
     watchlistBtn: document.getElementById('watchlist-btn'),
+    watchedBtn: document.getElementById('watched-btn'),
+    detailsRecommendations: document.getElementById('details-recommendations'),
+    detailsRecommendationRow: document.getElementById('details-recommendation-row'),
     
     viewLinks: document.getElementById('view-links'),
     linksTitle: document.getElementById('links-title'),
     scraperStatus: document.getElementById('scraper-status'),
     serverList: document.getElementById('server-list'),
+    sourceFilterControls: document.getElementById('source-filter-controls'),
     
     // Web Player
     viewPlayer: document.getElementById('view-player'),
@@ -51,15 +56,55 @@ export const DOM = {
     playerBackBtn: document.getElementById('player-back-btn'),
     playerFullscreenBtn: document.getElementById('player-fullscreen-btn'),
     playerServerCycleBtn: document.getElementById('player-server-cycle-btn'),
+    playerReloadSourceBtn: document.getElementById('player-reload-source-btn'),
+    playerNextSourceBtn: document.getElementById('player-next-source-btn'),
+    playerDetailsBtn: document.getElementById('player-details-btn'),
     playerNextEpBtn: document.getElementById('player-next-ep-btn'),
     autoplayOverlay: document.getElementById('autoplay-overlay'),
     autoplayCountdown: document.getElementById('autoplay-countdown-circle'),
     autoplayNextTitle: document.getElementById('autoplay-next-title'),
+    autoplaySkipBtn: document.getElementById('autoplay-skip-btn'),
     autoplayCancelBtn: document.getElementById('autoplay-cancel-btn'),
-    iframeWrapper: document.querySelector('.player-container')
+    iframeWrapper: document.querySelector('.player-container'),
+
+    // Profiles System
+    profileSelectionScreen: document.getElementById('profile-selection-screen'),
+    profilesGrid: document.getElementById('profiles-grid'),
+    addProfileBtn: document.getElementById('add-profile-btn'),
+    editProfilesBtn: document.getElementById('edit-profiles-btn'),
+    profileEditModal: document.getElementById('profile-edit-modal'),
+    profileNameInput: document.getElementById('profile-name-input'),
+    profileKidCheckbox: document.getElementById('profile-kid-checkbox'),
+    saveProfileBtn: document.getElementById('save-profile-btn'),
+    deleteProfileBtn: document.getElementById('delete-profile-btn'),
+    avatarSelectionGrid: document.getElementById('avatar-selection-grid'),
+    modalProfileTitle: document.getElementById('modal-profile-title'),
+    cancelProfileBtn: document.getElementById('cancel-profile-btn'),
+    currentProfileName: document.getElementById('current-profile-name'),
+    currentProfileIcon: document.getElementById('current-profile-icon'),
+    switchProfileTab: document.getElementById('switch-profile-tab'),
+    mainContent: document.getElementById('main-content'),
+    playbackDiagnostics: document.getElementById('playback-diagnostics'),
+    refreshPlaybackDiagnosticsBtn: document.getElementById('setting-refresh-playback-diagnostics'),
+    copyPlaybackDiagnosticsBtn: document.getElementById('setting-copy-playback-diagnostics'),
+    sourcePreferenceSelect: document.getElementById('setting-source-preference'),
+    directSourceEndpointInput: document.getElementById('setting-direct-source-endpoint'),
+    autoplaySourcesToggle: document.getElementById('setting-autoplay-sources'),
+    autoplayNextEpisodeToggle: document.getElementById('setting-autoplay-next-episode'),
+    includeBackupSourcesToggle: document.getElementById('setting-include-backup-sources'),
+    resetSourceHealthBtn: document.getElementById('setting-reset-source-health')
 };
 
 export const cachedBackdrops = {};
+
+function escapeHtml(value = '') {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
 
 export function normalizeItem(item, typeFallback) {
     let type = item.media_type || item.type || typeFallback;
@@ -90,7 +135,7 @@ export function updateHeroBanner(movie) {
     }
     DOM.heroTitle.textContent = movie.title;
     DOM.heroDesc.textContent = movie.desc;
-    DOM.heroMeta.textContent = `${movie.year} • ${movie.type.toUpperCase()} • ${movie.rating}`;
+    DOM.heroMeta.textContent = `${movie.year} | ${movie.type.toUpperCase()} | ${movie.rating}`;
 }
 
 export function enableDragScroll(slider) {
@@ -162,17 +207,40 @@ export function buildRow({ title, items, isWatchlistDict = false, typeFallback =
     items.forEach((item, index) => {
         let parsed = isWatchlistDict ? item : normalizeItem(item, typeFallback);
         if (!parsed.poster || parsed.poster === 'null') return;
+        const isContinueWatchingRow = String(title || '').toLowerCase().includes('continue watching');
+        if (isWatchlistDict && isContinueWatchingRow && isCompletedHistoryItem(parsed)) return;
 
         const card = document.createElement('div');
         card.className = 'poster-card';
         card.tabIndex = 0;
         
-        let progressHtml = ''; // Can implement later via localStorage progress
-        card.innerHTML = `<img loading="lazy" src="${parsed.poster}" alt="${parsed.title}" draggable="false">${progressHtml}`;
+        const progress = getPlaybackProgressInfo(parsed);
+        let progressHtml = '';
+        if (progress.hasProgress) {
+            progressHtml = `
+                <div class="poster-progress-track">
+                    <div class="poster-progress-fill" style="width:${progress.percent}%;"></div>
+                </div>
+                <div class="poster-progress-label">${progress.label}</div>
+            `;
+        }
+        const watchedHtml = isCompletedHistoryItem(parsed)
+            ? '<div class="poster-watched-badge"><i class="fa-solid fa-check"></i> Watched</div>'
+            : '';
+        const ratingValue = parsed.vote_average ? Number(parsed.vote_average).toFixed(1) : '';
+        const metaText = [parsed.year, ratingValue ? `${ratingValue}/10` : parsed.rating].filter(Boolean).join(' | ');
+        card.innerHTML = `
+            <img loading="lazy" src="${parsed.poster}" alt="${escapeHtml(parsed.title)}" draggable="false">
+            <div class="poster-card-shine"></div>
+            <div class="poster-info">
+                <span class="poster-title">${escapeHtml(parsed.title)}</span>
+                <span class="poster-subline">${escapeHtml(metaText)}</span>
+            </div>
+            ${watchedHtml}${progressHtml}
+        `;
         
         card.addEventListener('focus', () => {
              updateHeroBanner(parsed);
-             card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         });
         
         // Mouse hover acts like D-Pad focus
@@ -204,52 +272,214 @@ export function buildRow({ title, items, isWatchlistDict = false, typeFallback =
     DOM.rowsContainer.appendChild(rowDiv);
 }
 
-export function renderGridItems(items, container, typeFallback, onCardClick) {
-    container.innerHTML = '';
-    items.forEach(item => {
-        let parsed = normalizeItem(item, typeFallback);
+export function renderGridItems(items, container, typeFallback, onCardClick, options = {}) {
+    const append = options.append === true;
+    if (!append) container.innerHTML = '';
+
+    const existingKeys = new Set(
+        Array.from(container.querySelectorAll('.poster-card[data-media-key]'))
+            .map(card => card.dataset.mediaKey)
+    );
+    const fragment = document.createDocumentFragment();
+    const renderedCards = [];
+
+    (Array.isArray(items) ? items : []).forEach(item => {
+        const parsed = normalizeItem(item, typeFallback);
         if (!parsed.poster || parsed.poster === 'null') return;
+
+        const mediaKey = parsed.id == null ? '' : `${parsed.type}:${parsed.id}`;
+        if (mediaKey && existingKeys.has(mediaKey)) return;
+        if (mediaKey) existingKeys.add(mediaKey);
 
         const card = document.createElement('div');
         card.className = 'poster-card';
         card.tabIndex = 0;
+        if (mediaKey) card.dataset.mediaKey = mediaKey;
         
-        card.innerHTML = `<img loading="lazy" src="${parsed.poster}" alt="${parsed.title}" draggable="false">`;
+        const watchedHtml = isCompletedHistoryItem(parsed)
+            ? '<div class="poster-watched-badge"><i class="fa-solid fa-check"></i> Watched</div>'
+            : '';
+        const ratingValue = parsed.vote_average ? Number(parsed.vote_average).toFixed(1) : '';
+        const metaText = [parsed.year, ratingValue ? `${ratingValue}/10` : parsed.rating].filter(Boolean).join(' | ');
+        card.innerHTML = `
+            <img loading="lazy" src="${parsed.poster}" alt="${escapeHtml(parsed.title)}" draggable="false">
+            <div class="poster-card-shine"></div>
+            <div class="poster-info">
+                <span class="poster-title">${escapeHtml(parsed.title)}</span>
+                <span class="poster-subline">${escapeHtml(metaText)}</span>
+            </div>
+            ${watchedHtml}
+        `;
         
         card.onclick = () => onCardClick(parsed);
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
-        container.appendChild(card);
+        card.addEventListener('mouseenter', () => card.focus());
+        fragment.appendChild(card);
+        renderedCards.push(card);
     });
+
+    container.appendChild(fragment);
+    return renderedCards;
 }
 
 // Watchlist Helpers
-export function isInWatchlist(id) {
+function getWatchlistKey() {
     const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
-    const watchKey = activeProfileRaw ? `streamy_watchlist_${activeProfileRaw}` : 'streamy_watchlist_default';
-    const list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
-    return list.some(x => x.id === id);
+    return activeProfileRaw ? `streamy_watchlist_${activeProfileRaw}` : 'streamy_watchlist_default';
+}
+
+function getActiveProfileId() {
+    return globalThis.localStorage.getItem('streamy_active_profile') || 'default';
+}
+
+function getPlaybackStoreKey() {
+    return `streamy_playback_progress_${getActiveProfileId()}`;
+}
+
+function getCompletedStoreKey() {
+    return `streamy_completed_${getActiveProfileId()}`;
+}
+
+function readJsonObject(key) {
+    try {
+        const parsed = JSON.parse(globalThis.localStorage.getItem(key) || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function getPlaybackMediaKeyForItem(item) {
+    if (!item?.id) return '';
+    const profileId = getActiveProfileId();
+    if ((item.type || 'movie') === 'tv') {
+        const progress = getSeriesProgress(item.id);
+        const seasonNumber = progress.last_season || 1;
+        const episodeNumber = progress.last_episode || 1;
+        return `${profileId}:tv:${item.id}:s${seasonNumber}:e${episodeNumber}`;
+    }
+    return `${profileId}:${item.type || 'movie'}:${item.id}`;
+}
+
+function getCompletedKeyForItem(item) {
+    if (!item?.id) return '';
+    const type = item.type || 'movie';
+    if (type === 'tv') {
+        const progress = getSeriesProgress(item.id);
+        return `tv:${item.id}:s${progress.last_season || 1}:e${progress.last_episode || 1}`;
+    }
+    return `${type}:${item.id}`;
+}
+
+function normalizeProgressRecord(raw) {
+    if (typeof raw === 'number') {
+        return { positionMs: raw, durationMs: 0, updatedAt: 0 };
+    }
+    if (raw && typeof raw === 'object') {
+        return {
+            positionMs: Number(raw.positionMs || raw.position || 0),
+            durationMs: Number(raw.durationMs || raw.duration || 0),
+            updatedAt: Number(raw.updatedAt || 0)
+        };
+    }
+    return { positionMs: 0, durationMs: 0, updatedAt: 0 };
+}
+
+export function getPlaybackProgressInfo(item) {
+    const mediaKey = getPlaybackMediaKeyForItem(item);
+    if (!mediaKey) return { hasProgress: false, percent: 0, label: '' };
+
+    const db = readJsonObject(getPlaybackStoreKey());
+    let record = normalizeProgressRecord(db[mediaKey]);
+
+    if (globalThis.NativeBridge && typeof globalThis.NativeBridge.getPlaybackProgress === 'function') {
+        const nativePosition = Number(globalThis.NativeBridge.getPlaybackProgress(mediaKey));
+        if (Number.isFinite(nativePosition) && nativePosition > record.positionMs) {
+            record = { ...record, positionMs: nativePosition };
+        }
+    }
+
+    if (!Number.isFinite(record.positionMs) || record.positionMs < 30000) {
+        return { hasProgress: false, percent: 0, label: '' };
+    }
+
+    const percent = record.durationMs > 0
+        ? Math.max(5, Math.min(96, Math.round((record.positionMs / record.durationMs) * 100)))
+        : 18;
+    const minutes = Math.max(1, Math.floor(record.positionMs / 60000));
+    return {
+        hasProgress: true,
+        percent,
+        label: `Resume ${minutes}m`
+    };
+}
+
+export function markPlaybackCompleted(item) {
+    const completedKey = getCompletedKeyForItem(item);
+    if (!completedKey) return;
+
+    const db = readJsonObject(getCompletedStoreKey());
+    db[completedKey] = Date.now();
+    globalThis.localStorage.setItem(getCompletedStoreKey(), JSON.stringify(db));
+}
+
+export function clearPlaybackCompleted(item) {
+    const completedKey = getCompletedKeyForItem(item);
+    if (!completedKey) return;
+
+    const db = readJsonObject(getCompletedStoreKey());
+    delete db[completedKey];
+    globalThis.localStorage.setItem(getCompletedStoreKey(), JSON.stringify(db));
+}
+
+export function isCompletedHistoryItem(item) {
+    const completedKey = getCompletedKeyForItem(item);
+    if (!completedKey) return false;
+
+    const db = readJsonObject(getCompletedStoreKey());
+    return !!db[completedKey];
+}
+
+export function getWatchlistItems() {
+    try {
+        const parsed = JSON.parse(globalThis.localStorage.getItem(getWatchlistKey()) || '[]');
+        return Array.isArray(parsed) ? parsed.filter(item => item && item.id) : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+export function isInWatchlist(id) {
+    return getWatchlistItems().some(x => String(x.id) === String(id));
 }
 
 export function toggleWatchlist(item, btnElement) {
-    const activeProfileRaw = globalThis.localStorage.getItem('streamy_active_profile');
-    const watchKey = activeProfileRaw ? `streamy_watchlist_${activeProfileRaw}` : 'streamy_watchlist_default';
-    let list = JSON.parse(globalThis.localStorage.getItem(watchKey) || '[]');
-    const index = list.findIndex(x => x.id === item.id);
+    if (!item?.id) return;
+    const watchKey = getWatchlistKey();
+    let list = getWatchlistItems();
+
+    const normalizedItem = normalizeItem(item, item.type || item.media_type || 'movie');
+    const index = list.findIndex(x => String(x.id) === String(normalizedItem.id));
+    let added = false;
     if (index > -1) {
         list.splice(index, 1);
         if(btnElement) {
             btnElement.innerHTML = '<i class="fa-solid fa-plus"></i> WATCHLIST';
             btnElement.classList.remove('active');
+            btnElement.setAttribute('aria-pressed', 'false');
         }
     } else {
-        list.push(item);
+        list.unshift(normalizedItem);
+        added = true;
         if(btnElement) {
             btnElement.innerHTML = '<i class="fa-solid fa-check"></i> ON WATCHLIST';
             btnElement.classList.add('active');
+            btnElement.setAttribute('aria-pressed', 'true');
         }
     }
     globalThis.localStorage.setItem(watchKey, JSON.stringify(list));
     globalThis.dispatchEvent(new Event('watchlist-updated'));
+    return added;
 }
 
 export function getSeriesProgress(tmdbId) {
