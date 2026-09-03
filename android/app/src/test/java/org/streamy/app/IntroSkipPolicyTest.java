@@ -20,6 +20,18 @@ public class IntroSkipPolicyTest {
     }
 
     @Test
+    public void showsRecapMarkerAtEpisodeStart() {
+        assertTrue(IntroSkipPolicy.shouldShow(
+            "profile:tv:123:s1:e2",
+            0L,
+            110_000L,
+            0L,
+            2_400_000L,
+            false
+        ));
+    }
+
+    @Test
     public void doesNotShowForMovies() {
         assertFalse(IntroSkipPolicy.shouldShow("profile:movie:123", 0L, 90_000L, 15_000L, 7_200_000L, false));
     }

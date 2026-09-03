@@ -1,9 +1,9 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=117';
-import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=117';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=117';
-import { setupRouter, navigateTo } from './router.js?v=117';
-import { NavigationManager } from './navigation.js?v=117';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=117';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=118';
+import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=118';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=118';
+import { setupRouter, navigateTo } from './router.js?v=118';
+import { NavigationManager } from './navigation.js?v=118';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=118';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -15,7 +15,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 117;
+const PACKAGED_APP_VERSION = 118;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;

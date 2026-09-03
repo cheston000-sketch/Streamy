@@ -43,13 +43,29 @@ const resolver = createIntroMarkerResolver({
     fetchImpl: async url => {
         requestCount++;
         if (url.hostname === 'api.skipdb.tv') {
-            return jsonResponse({ segments: { intro: null } });
+            return jsonResponse({
+                segments: {
+                    intro: null,
+                    recap: {
+                        start_ms: 0,
+                        end_ms: 11_000,
+                        confidence: 0.8,
+                        match: 'exact'
+                    }
+                }
+            });
         }
         return jsonResponse({
             intro: {
                 start_ms: 0,
                 end_ms: 9_000,
                 confidence: 1
+            },
+            recap: {
+                start_ms: 0,
+                end_ms: 10_000,
+                confidence: 0.95,
+                match: 'exact'
             }
         });
     }
@@ -59,11 +75,14 @@ const firstResult = await resolver.resolve({ imdbId: 'tt26545992', season: 1, ep
 assert.equal(firstResult.cached, false);
 assert.equal(firstResult.marker.provider, 'introdb');
 assert.equal(firstResult.marker.endMs, 9_000);
+assert.equal(firstResult.recapMarker.provider, 'introdb');
+assert.equal(firstResult.recapMarker.endMs, 10_000);
 assert.equal(requestCount, 2);
 
 const cachedResult = await resolver.resolve({ imdbId: 'tt26545992', season: 1, episode: 2 });
 assert.equal(cachedResult.cached, true);
 assert.equal(cachedResult.marker.endMs, 9_000);
+assert.equal(cachedResult.recapMarker.endMs, 10_000);
 assert.equal(requestCount, 2);
 
 console.log('Intro marker tests passed.');

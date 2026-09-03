@@ -15,7 +15,8 @@ const PROVIDERS = [
             if (durationSeconds > 0) url.searchParams.set('duration', durationSeconds);
             return url;
         },
-        readIntro: payload => payload?.segments?.intro || null
+        readIntro: payload => payload?.segments?.intro || null,
+        readRecap: payload => payload?.segments?.recap || null
     },
     {
         id: 'introdb',
@@ -26,7 +27,8 @@ const PROVIDERS = [
             url.searchParams.set('episode', episode);
             return url;
         },
-        readIntro: payload => payload?.intro || null
+        readIntro: payload => payload?.intro || null,
+        readRecap: payload => payload?.recap || null
     }
 ];
 
@@ -111,7 +113,10 @@ async function fetchProvider(provider, lookup, fetchImpl, timeoutMs) {
             throw new Error(`HTTP ${response.status}`);
         }
         const payload = await response.json();
-        return normalizeIntroCandidate(provider.readIntro(payload), provider.id);
+        return {
+            introMarker: normalizeIntroCandidate(provider.readIntro(payload), provider.id),
+            recapMarker: normalizeIntroCandidate(provider.readRecap(payload), provider.id)
+        };
     } finally {
         clearTimeout(timeout);
     }
@@ -141,7 +146,13 @@ export function createIntroMarkerResolver({
         async resolve(rawLookup) {
             const lookup = normalizeIntroLookup(rawLookup);
             if (!lookup) {
-                return { lookup: null, marker: null, cached: false, errors: ['Invalid episode lookup'] };
+                return {
+                    lookup: null,
+                    marker: null,
+                    recapMarker: null,
+                    cached: false,
+                    errors: ['Invalid episode lookup']
+                };
             }
 
             const cacheKey = getCacheKey(lookup);
@@ -154,12 +165,14 @@ export function createIntroMarkerResolver({
             const settled = await Promise.allSettled(
                 PROVIDERS.map(provider => fetchProvider(provider, lookup, fetchImpl, timeoutMs))
             );
-            const candidates = [];
+            const introCandidates = [];
+            const recapCandidates = [];
             const errors = [];
 
             settled.forEach((result, index) => {
                 if (result.status === 'fulfilled') {
-                    if (result.value) candidates.push(result.value);
+                    if (result.value.introMarker) introCandidates.push(result.value.introMarker);
+                    if (result.value.recapMarker) recapCandidates.push(result.value.recapMarker);
                     return;
                 }
                 const reason = result.reason?.name === 'AbortError'
@@ -168,10 +181,11 @@ export function createIntroMarkerResolver({
                 errors.push(`${PROVIDERS[index].id}: ${reason}`);
             });
 
-            const marker = chooseIntroMarker(candidates);
-            const result = { lookup, marker, cached: false, errors };
+            const marker = chooseIntroMarker(introCandidates);
+            const recapMarker = chooseIntroMarker(recapCandidates);
+            const result = { lookup, marker, recapMarker, cached: false, errors };
             setCached(cacheKey, {
-                expiresAt: now() + (marker ? POSITIVE_CACHE_TTL_MS : NEGATIVE_CACHE_TTL_MS),
+                expiresAt: now() + (marker || recapMarker ? POSITIVE_CACHE_TTL_MS : NEGATIVE_CACHE_TTL_MS),
                 result
             });
 

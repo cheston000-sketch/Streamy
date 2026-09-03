@@ -33,7 +33,7 @@
         android:visibility="gone" />
 
     <LinearLayout
-        android:id="@+id/native_intro_skip_prompt"
+        android:id="@+id/native_segment_skip_prompt"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="end|bottom"
@@ -46,7 +46,7 @@
         android:visibility="gone">
 
         <TextView
-            android:id="@+id/native_intro_skip_detail"
+            android:id="@+id/native_segment_skip_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/intro_skip_title"
@@ -55,10 +55,11 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/native_segment_skip_detail"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="@string/intro_skip_detail"
+            android:text="@string/segment_skip_detail"
             android:textColor="#B8FFFFFF"
             android:textSize="15sp" />
 
@@ -69,13 +70,13 @@
             android:orientation="horizontal">
 
             <Button
-                android:id="@+id/native_intro_skip_button"
+                android:id="@+id/native_segment_skip_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/skip_intro" />
 
             <Button
-                android:id="@+id/native_intro_skip_cancel"
+                android:id="@+id/native_segment_skip_cancel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"

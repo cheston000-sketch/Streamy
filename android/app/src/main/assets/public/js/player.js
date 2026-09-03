@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=117';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=117';
-import { navigateTo } from './router.js?v=117';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=118';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=118';
+import { navigateTo } from './router.js?v=118';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -12,6 +12,7 @@ let currentPlaybackSourceIndex = -1;
 let currentPlaybackSeason = 1;
 let currentPlaybackEpisode = 1;
 let currentIntroMarker = null;
+let currentRecapMarker = null;
 let browserFailoverTimer = null;
 let extractionSessionId = 0;
 let extractionAbortController = null;
@@ -39,7 +40,7 @@ function getImdbId(movie = currentMovieContext) {
     return movie?.imdb_id || movie?.imdbId || movie?.external_ids?.imdb_id || '';
 }
 
-function normalizeIntroMarker(marker) {
+function normalizeSkipMarker(marker) {
     if (!marker || typeof marker !== 'object') return null;
     const startMs = Number(marker.startMs);
     const endMs = Number(marker.endMs);
@@ -62,7 +63,8 @@ function getPlaybackMetadataPayload() {
         imdbId: getImdbId(currentMovieContext),
         season: currentPlaybackSeason,
         episode: currentPlaybackEpisode,
-        introMarker: currentMovieContext?.type === 'tv' ? currentIntroMarker : null
+        introMarker: currentMovieContext?.type === 'tv' ? currentIntroMarker : null,
+        recapMarker: currentMovieContext?.type === 'tv' ? currentRecapMarker : null
     });
 }
 
@@ -1489,6 +1491,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
         && !controller.signal.aborted;
     currentNextEpisodeTarget = null;
     currentIntroMarker = null;
+    currentRecapMarker = null;
     try {
         await ensureExternalIds(sessionMovie, controller.signal);
     } catch (error) {
@@ -1648,7 +1651,10 @@ async function startScrapingSession(targetS = null, targetE = null) {
         }
         if (!isCurrentSession()) return;
         currentIntroMarker = sessionMovie.type === 'tv'
-            ? normalizeIntroMarker(data.introMarker)
+            ? normalizeSkipMarker(data.introMarker)
+            : null;
+        currentRecapMarker = sessionMovie.type === 'tv'
+            ? normalizeSkipMarker(data.recapMarker)
             : null;
         
         DOM.scraperStatus.classList.add('hidden');

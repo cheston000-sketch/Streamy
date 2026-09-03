@@ -550,7 +550,8 @@ app.get('/api/segments', async (req, res) => {
         return res.status(400).json({
             success: false,
             error: 'A valid IMDb ID, season, and episode are required',
-            introMarker: null
+            introMarker: null,
+            recapMarker: null
         });
     }
 
@@ -560,6 +561,7 @@ app.get('/api/segments', async (req, res) => {
         season: result.lookup.season,
         episode: result.lookup.episode,
         introMarker: result.marker,
+        recapMarker: result.recapMarker,
         cached: result.cached,
         degraded: result.errors.length > 0
     });
@@ -640,6 +642,7 @@ app.get('/api/stream', async (req, res) => {
             success: true,
             links: finalLinks,
             introMarker: introMarkerResult.marker,
+            recapMarker: introMarkerResult.recapMarker,
             providerStatus
         });
     } catch (error) {
@@ -650,6 +653,7 @@ app.get('/api/stream', async (req, res) => {
             success: true,
             links,
             introMarker: null,
+            recapMarker: null,
             providerStatus: buildProviderStatus(0, warnings, Date.now() - startedAt)
         });
     }

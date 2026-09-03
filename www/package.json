@@ -1,6 +1,6 @@
 {
   "name": "streamos",
-  "version": "117.0.0",
+  "version": "118.0.0",
   "description": "StreamOS web application and OTA backend",
   "main": "index.js",
   "scripts": {

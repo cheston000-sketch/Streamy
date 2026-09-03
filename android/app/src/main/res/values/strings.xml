@@ -10,9 +10,11 @@
     <string name="next_episode">Next Episode</string>
     <string name="not_now">Not Now</string>
     <string name="intro_skip_title">Intro detected</string>
-    <string name="intro_skip_detail">Episode marker ready</string>
-    <string name="intro_skip_detail_format">Skip ahead to %1$s</string>
+    <string name="recap_skip_title">Recap detected</string>
+    <string name="segment_skip_detail">Episode marker ready</string>
+    <string name="segment_skip_detail_format">Skip ahead to %1$s</string>
     <string name="skip_intro">Skip Intro</string>
+    <string name="skip_recap">Skip Recap</string>
     <string name="audio_button">Audio</string>
     <string name="audio_button_format">Audio: %1$s</string>
     <string name="audio_tracks_title">Audio Tracks</string>

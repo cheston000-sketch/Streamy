@@ -1,12 +1,12 @@
 {
   "name": "streamos-app",
-  "version": "117.0.0",
+  "version": "118.0.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "streamos-app",
-      "version": "117.0.0",
+      "version": "118.0.0",
       "license": "ISC",
       "dependencies": {
         "@capacitor/android": "^8.2.0",
