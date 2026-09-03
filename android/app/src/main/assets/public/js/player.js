@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=112';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=112';
-import { navigateTo } from './router.js?v=112';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=116';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=116';
+import { navigateTo } from './router.js?v=116';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -11,6 +11,7 @@ let currentPlaybackLinks = [];
 let currentPlaybackSourceIndex = -1;
 let currentPlaybackSeason = 1;
 let currentPlaybackEpisode = 1;
+let currentIntroMarker = null;
 let browserFailoverTimer = null;
 let extractionSessionId = 0;
 let extractionAbortController = null;
@@ -24,6 +25,7 @@ const SOURCE_HEALTH_KEY = 'streamy_source_health_v1';
 const PLAYBACK_DIAGNOSTICS_KEY = 'streamy_playback_diagnostics_v1';
 const PLAYBACK_SETTINGS_KEY = 'streamy_playback_settings_v1';
 let activeSourceFilter = 'all';
+let nativeNextEpisodeRequestKey = '';
 
 function cancelActiveExtraction() {
     extractionSessionId++;
@@ -35,6 +37,33 @@ function cancelActiveExtraction() {
 
 function getImdbId(movie = currentMovieContext) {
     return movie?.imdb_id || movie?.imdbId || movie?.external_ids?.imdb_id || '';
+}
+
+function normalizeIntroMarker(marker) {
+    if (!marker || typeof marker !== 'object') return null;
+    const startMs = Number(marker.startMs);
+    const endMs = Number(marker.endMs);
+    const confidence = Number(marker.confidence);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs <= startMs) {
+        return null;
+    }
+    return {
+        startMs: Math.round(startMs),
+        endMs: Math.round(endMs),
+        confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0.5,
+        match: String(marker.match || 'reported'),
+        provider: String(marker.provider || 'episode database'),
+        adjusted: marker.adjusted === true
+    };
+}
+
+function getPlaybackMetadataPayload() {
+    return JSON.stringify({
+        imdbId: getImdbId(currentMovieContext),
+        season: currentPlaybackSeason,
+        episode: currentPlaybackEpisode,
+        introMarker: currentMovieContext?.type === 'tv' ? currentIntroMarker : null
+    });
 }
 
 async function ensureExternalIds(movie = currentMovieContext, signal = null) {
@@ -1459,6 +1488,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
         && currentMovieContext === sessionMovie
         && !controller.signal.aborted;
     currentNextEpisodeTarget = null;
+    currentIntroMarker = null;
     try {
         await ensureExternalIds(sessionMovie, controller.signal);
     } catch (error) {
@@ -1617,6 +1647,9 @@ async function startScrapingSession(targetS = null, targetE = null) {
             });
         }
         if (!isCurrentSession()) return;
+        currentIntroMarker = sessionMovie.type === 'tv'
+            ? normalizeIntroMarker(data.introMarker)
+            : null;
         
         DOM.scraperStatus.classList.add('hidden');
 
@@ -1712,7 +1745,21 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
         const autoplayNextEpisode = String(getPlaybackSettings().autoplayNextEpisode);
         try {
             console.log(`[Autoplay] Passing browser target S${nextSeason}E${nextEpisode}, enabled=${autoplayNextEpisode}`);
-            if (typeof globalThis.NativeBridge.openWebPlayerWithContext === 'function') {
+            if (typeof globalThis.NativeBridge.openWebPlayerWithMetadata === 'function') {
+                globalThis.NativeBridge.openWebPlayerWithMetadata(
+                    iframeUrl,
+                    `${currentMovieContext?.title || 'StreamOS'} | ${link?.server || 'Browser Player'}`,
+                    String(currentMovieContext?.id || ''),
+                    mediaKey,
+                    String(savedPositionMs),
+                    nextSeason,
+                    nextEpisode,
+                    getPlayableSourcePayload(),
+                    String(sourceIndex),
+                    autoplayNextEpisode,
+                    getPlaybackMetadataPayload()
+                );
+            } else if (typeof globalThis.NativeBridge.openWebPlayerWithContext === 'function') {
                 globalThis.NativeBridge.openWebPlayerWithContext(
                     iframeUrl,
                     `${currentMovieContext?.title || 'StreamOS'} | ${link?.server || 'Browser Player'}`,
@@ -1795,7 +1842,8 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
     nearEndPromptShown = false;
     const hasNativeBridge = !!globalThis.NativeBridge && typeof globalThis.NativeBridge.playStream === 'function';
     const hasNativeResumeBridge = !!globalThis.NativeBridge && (
-        typeof globalThis.NativeBridge.playStreamWithContext === 'function'
+        typeof globalThis.NativeBridge.playStreamWithMetadata === 'function'
+        || typeof globalThis.NativeBridge.playStreamWithContext === 'function'
         || typeof globalThis.NativeBridge.playStreamWithProgress === 'function'
     );
     const savedPositionMs = getSavedPlaybackPositionMs(currentMovieContext);
@@ -1821,7 +1869,24 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
             const autoplayNextEpisode = String(getPlaybackSettings().autoplayNextEpisode);
             try {
                 console.log(`[Autoplay] Passing native target S${nextSeason}E${nextEpisode}, enabled=${autoplayNextEpisode}`);
-                if (typeof globalThis.NativeBridge.playStreamWithContext === 'function') {
+                if (typeof globalThis.NativeBridge.playStreamWithMetadata === 'function') {
+                    globalThis.NativeBridge.playStreamWithMetadata(
+                        streamUrl,
+                        nativeMimeType,
+                        currentMovieContext.title,
+                        getPlaybackMediaKey(currentMovieContext),
+                        String(savedPositionMs),
+                        link?.referer || '',
+                        link?.origin || '',
+                        link?.cookie || '',
+                        getPlayableSourcePayload(),
+                        String(sourceIndex),
+                        nextSeason,
+                        nextEpisode,
+                        autoplayNextEpisode,
+                        getPlaybackMetadataPayload()
+                    );
+                } else if (typeof globalThis.NativeBridge.playStreamWithContext === 'function') {
                     globalThis.NativeBridge.playStreamWithContext(
                         streamUrl,
                         nativeMimeType,
@@ -2072,11 +2137,15 @@ if (DOM.playerFullscreenBtn) {
 
 globalThis.StreamOSNative = globalThis.StreamOSNative || {};
 globalThis.StreamOSNative.playNextEpisodeFromNative = (season, episode) => {
-    if (!currentMovieContext || currentMovieContext.type !== 'tv') return;
+    if (!currentMovieContext || currentMovieContext.type !== 'tv') return false;
     const nextSeason = Number(season);
     const nextEpisode = Number(episode);
-    if (!Number.isFinite(nextSeason) || !Number.isFinite(nextEpisode) || nextSeason <= 0 || nextEpisode <= 0) return;
+    if (!Number.isFinite(nextSeason) || !Number.isFinite(nextEpisode) || nextSeason <= 0 || nextEpisode <= 0) return false;
+    const requestKey = `${currentMovieContext.id}:s${nextSeason}:e${nextEpisode}`;
+    if (nativeNextEpisodeRequestKey === requestKey) return true;
+    nativeNextEpisodeRequestKey = requestKey;
     startScrapingSession(nextSeason, nextEpisode);
+    return true;
 };
 
 globalThis.addEventListener('hashchange', () => {

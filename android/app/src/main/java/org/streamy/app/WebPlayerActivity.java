@@ -59,6 +59,7 @@ public class WebPlayerActivity extends AppCompatActivity {
     private volatile String currentPageUrl = "";
     private String promotedIframeUrl;
     private String sourceJson;
+    private String playbackMetadataJson;
     private int sourceIndex;
     private String playbackTitle;
     private final Runnable noMediaFailoverRunnable = new Runnable() {
@@ -85,13 +86,9 @@ public class WebPlayerActivity extends AppCompatActivity {
         playbackTitle = title;
         mediaKey = getIntent().getStringExtra("mediaKey");
         sourceJson = getIntent().getStringExtra("sourceJson");
+        playbackMetadataJson = getIntent().getStringExtra("playbackMetadataJson");
         sourceIndex = getIntent().getIntExtra("sourceIndex", -1);
-        String rawStartPositionMs = getIntent().getStringExtra("startPositionMs");
-        try {
-            startPositionMs = Long.parseLong(rawStartPositionMs == null ? "0" : rawStartPositionMs);
-        } catch (NumberFormatException ignored) {
-            startPositionMs = 0L;
-        }
+        startPositionMs = PlaybackIntentParser.parseLong(getIntentExtra("startPositionMs"), 0L);
         nextSeason = parseIntExtra("nextSeason");
         nextEpisode = parseIntExtra("nextEpisode");
         autoplayNextEpisode = getIntent().getBooleanExtra("autoplayNextEpisode", true);
@@ -624,6 +621,7 @@ public class WebPlayerActivity extends AppCompatActivity {
         intent.putExtra("autoplayNextEpisode", autoplayNextEpisode);
         intent.putExtra("sourceJson", sourceJson);
         intent.putExtra("sourceIndex", sourceIndex);
+        intent.putExtra("playbackMetadataJson", playbackMetadataJson);
         Log.i(TAG, "launchNativePlayer mediaKey=" + mediaKey + " startPositionMs=" + startPositionMs + " next=S" + nextSeason + "E" + nextEpisode + " mimeType=" + mimeType);
         startActivity(intent);
         finish();
@@ -733,12 +731,12 @@ public class WebPlayerActivity extends AppCompatActivity {
     }
 
     private int parseIntExtra(String key) {
-        String raw = getIntent().getStringExtra(key);
-        try {
-            return Integer.parseInt(raw == null ? "0" : raw);
-        } catch (NumberFormatException ignored) {
-            return 0;
-        }
+        return PlaybackIntentParser.parseInt(getIntentExtra(key), 0);
+    }
+
+    private Object getIntentExtra(String key) {
+        Bundle extras = getIntent().getExtras();
+        return extras == null ? null : extras.get(key);
     }
 
     private void enterImmersiveMode() {

@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const packageMetadata = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'));
+const expectedBuild = Number.parseInt(packageMetadata.version, 10);
 
 async function getAvailablePort() {
     const server = createServer();
@@ -50,13 +53,14 @@ serverProcess.stderr.on('data', chunk => { output += chunk.toString(); });
 try {
     const health = await waitForHealth(baseUrl, () => output);
     assert.equal(health.status, 'ok');
-    assert.equal(health.build, 112);
+    assert.equal(health.build, expectedBuild);
     assert.equal(health.providerApi, true);
+    assert.equal(health.introMarkers, true);
 
     const providersResponse = await fetch(`${baseUrl}/api/providers`);
     assert.equal(providersResponse.status, 200);
     const providerInfo = await providersResponse.json();
-    assert.equal(providerInfo.backendBuild, 112);
+    assert.equal(providerInfo.backendBuild, expectedBuild);
     assert.equal(providerInfo.builtInProvidersEnabled, false);
 
     const streamResponse = await fetch(`${baseUrl}/api/stream?tmdb=550&type=movie&title=Fight%20Club&year=1999`);
@@ -66,6 +70,9 @@ try {
     assert.equal(streamData.providerStatus.fallbackOnly, true);
     assert.equal(streamData.providerStatus.degraded, true);
     assert.ok(streamData.links.some(link => link.server === 'Vidlink' && link.type === 'iframe'));
+
+    const invalidSegmentsResponse = await fetch(`${baseUrl}/api/segments?imdb=bad&season=1&episode=1`);
+    assert.equal(invalidSegmentsResponse.status, 400);
 
     assert.equal((await fetch(`${baseUrl}/server/index.js`)).status, 404);
     assert.equal((await fetch(`${baseUrl}/package.json`)).status, 404);

@@ -2,7 +2,6 @@ package org.streamy.app;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 
@@ -100,7 +99,17 @@ public class StreamBridge {
     }
 
     @JavascriptInterface
+    public void playStreamWithMetadata(String url, String mimeType, String title, String mediaKey, String startPositionMs, String referer, String origin, String cookie, String sourceJson, String sourceIndex, String nextSeason, String nextEpisode, String autoplayNextEpisode, String playbackMetadataJson) {
+        Log.i(TAG, "playStreamWithMetadata next=S" + nextSeason + "E" + nextEpisode + " hasMetadata=" + (playbackMetadataJson != null && !playbackMetadataJson.isEmpty()));
+        launchNativePlayer(url, mimeType, title, mediaKey, startPositionMs, referer, origin, cookie, sourceJson, sourceIndex, nextSeason, nextEpisode, autoplayNextEpisode, playbackMetadataJson);
+    }
+
+    @JavascriptInterface
     public void playStreamWithHeaders(String url, String mimeType, String title, String mediaKey, String startPositionMs, String referer, String origin, String cookie, String sourceJson, String sourceIndex, String nextSeason, String nextEpisode, String autoplayNextEpisode) {
+        launchNativePlayer(url, mimeType, title, mediaKey, startPositionMs, referer, origin, cookie, sourceJson, sourceIndex, nextSeason, nextEpisode, autoplayNextEpisode, "");
+    }
+
+    private void launchNativePlayer(String url, String mimeType, String title, String mediaKey, String startPositionMs, String referer, String origin, String cookie, String sourceJson, String sourceIndex, String nextSeason, String nextEpisode, String autoplayNextEpisode, String playbackMetadataJson) {
         long parsedStartPositionMs = 0L;
         try {
             parsedStartPositionMs = Long.parseLong(startPositionMs == null ? "0" : startPositionMs);
@@ -122,6 +131,7 @@ public class StreamBridge {
         intent.putExtra("nextSeason", parseInt(nextSeason, 0));
         intent.putExtra("nextEpisode", parseInt(nextEpisode, 0));
         intent.putExtra("autoplayNextEpisode", parseBoolean(autoplayNextEpisode, true));
+        intent.putExtra("playbackMetadataJson", playbackMetadataJson == null ? "" : playbackMetadataJson);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(intent);
     }
@@ -155,9 +165,30 @@ public class StreamBridge {
             return;
         }
         Log.i(TAG, "downloadUpdate url=" + url);
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(intent);
+        if (context instanceof MainActivity) {
+            ((MainActivity) context).downloadAndInstallUpdate(url, 0L);
+        }
+    }
+
+    @JavascriptInterface
+    public void downloadRequiredUpdate(String url, String expectedVersion) {
+        long parsedVersion = 0L;
+        try {
+            parsedVersion = Long.parseLong(expectedVersion == null ? "0" : expectedVersion);
+        } catch (NumberFormatException ignored) {
+            parsedVersion = 0L;
+        }
+        Log.i(TAG, "downloadRequiredUpdate expectedVersion=" + parsedVersion + " url=" + url);
+        if (context instanceof MainActivity) {
+            ((MainActivity) context).downloadAndInstallUpdate(url, parsedVersion);
+        }
+    }
+
+    @JavascriptInterface
+    public void exitApp() {
+        if (context instanceof MainActivity) {
+            ((MainActivity) context).exitForRequiredUpdate();
+        }
     }
 
     @JavascriptInterface
@@ -182,6 +213,10 @@ public class StreamBridge {
 
     @JavascriptInterface
     public void openWebPlayer(String url, String title, String tmdbId, String mediaKey, String startPositionMs, String nextSeason, String nextEpisode, String sourceJson, String sourceIndex, String autoplayNextEpisode) {
+        launchWebPlayer(url, title, tmdbId, mediaKey, startPositionMs, nextSeason, nextEpisode, sourceJson, sourceIndex, autoplayNextEpisode, "");
+    }
+
+    private void launchWebPlayer(String url, String title, String tmdbId, String mediaKey, String startPositionMs, String nextSeason, String nextEpisode, String sourceJson, String sourceIndex, String autoplayNextEpisode, String playbackMetadataJson) {
         // WebPlayerActivity exists only as a bridge/fallback path so it can
         // discover real stream requests and hand them off to PlayerActivity.
         Intent intent = new Intent(context, WebPlayerActivity.class);
@@ -195,6 +230,7 @@ public class StreamBridge {
         intent.putExtra("autoplayNextEpisode", parseBoolean(autoplayNextEpisode, true));
         intent.putExtra("sourceJson", sourceJson);
         intent.putExtra("sourceIndex", parseInt(sourceIndex, -1));
+        intent.putExtra("playbackMetadataJson", playbackMetadataJson == null ? "" : playbackMetadataJson);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(intent);
     }
@@ -204,6 +240,12 @@ public class StreamBridge {
     public void openWebPlayerWithContext(String url, String title, String tmdbId, String mediaKey, String startPositionMs, String nextSeason, String nextEpisode, String sourceJson, String sourceIndex, String autoplayNextEpisode) {
         Log.i(TAG, "openWebPlayerWithContext mediaKey=" + mediaKey + " next=S" + nextSeason + "E" + nextEpisode + " autoplayNext=" + autoplayNextEpisode);
         openWebPlayer(url, title, tmdbId, mediaKey, startPositionMs, nextSeason, nextEpisode, sourceJson, sourceIndex, autoplayNextEpisode);
+    }
+
+    @JavascriptInterface
+    public void openWebPlayerWithMetadata(String url, String title, String tmdbId, String mediaKey, String startPositionMs, String nextSeason, String nextEpisode, String sourceJson, String sourceIndex, String autoplayNextEpisode, String playbackMetadataJson) {
+        Log.i(TAG, "openWebPlayerWithMetadata mediaKey=" + mediaKey + " next=S" + nextSeason + "E" + nextEpisode + " hasMetadata=" + (playbackMetadataJson != null && !playbackMetadataJson.isEmpty()));
+        launchWebPlayer(url, title, tmdbId, mediaKey, startPositionMs, nextSeason, nextEpisode, sourceJson, sourceIndex, autoplayNextEpisode, playbackMetadataJson);
     }
 
     private int parseInt(String raw, int fallback) {

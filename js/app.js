@@ -1,8 +1,9 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=112';
-import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=112';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=112';
-import { setupRouter, navigateTo } from './router.js?v=112';
-import { NavigationManager } from './navigation.js?v=112';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=116';
+import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=116';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=116';
+import { setupRouter, navigateTo } from './router.js?v=116';
+import { NavigationManager } from './navigation.js?v=116';
+import { isUpdateRequired, normalizeBuildVersion, resolveUpdateDownloadUrl } from './update-policy.js?v=116';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -14,21 +15,45 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 112;
+const APP_VERSION = 115;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
+const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+let requiredUpdate = null;
+let updateCheckInFlight = null;
 
-async function checkForUpdatesBackground() {
-    try {
-        const HOST = getProxyHost();
-        console.log(`[Discovery] Validating backend via ${HOST}...`);
-        
-        const res = await fetch(`${HOST}/api/ota`, buildBackendFetchOptions(HOST, { 
-            method: 'GET', 
-            cache: 'no-cache'
-        }));
-        if (!res.ok) throw new Error("OTA Fetch Fail");
-        
-        const data = await res.json();
+async function fetchOtaMetadata() {
+    const hosts = [...new Set([UPDATE_SERVER, getProxyHost()].filter(Boolean))];
+    let lastError = null;
+
+    for (const host of hosts) {
+        const controller = new AbortController();
+        const timeoutId = globalThis.setTimeout(() => controller.abort(), 12_000);
+        try {
+            const response = await fetch(`${host}/api/ota`, buildBackendFetchOptions(host, {
+                method: 'GET',
+                cache: 'no-cache',
+                signal: controller.signal
+            }));
+            if (!response.ok) throw new Error(`OTA server returned ${response.status}`);
+            return { data: await response.json(), host };
+        } catch (error) {
+            lastError = error;
+            console.warn(`[Update] OTA check failed via ${host}:`, error.message);
+        } finally {
+            globalThis.clearTimeout(timeoutId);
+        }
+    }
+
+    throw lastError || new Error('No OTA server is available');
+}
+
+async function checkForUpdatesBackground({ force = false } = {}) {
+    if (updateCheckInFlight && !force) return updateCheckInFlight;
+
+    updateCheckInFlight = (async () => {
+        try {
+        const { data, host: HOST } = await fetchOtaMetadata();
+        console.log(`[Discovery] OTA backend validated via ${HOST}.`);
 
         // Dynamic Backend Discovery (Force Sync)
         if (data.backend_url) {
@@ -39,32 +64,114 @@ async function checkForUpdatesBackground() {
             }
         }
 
-        if (data.version && APP_VERSION < data.version) {
-            showUpdateBanner(data.version, data.url);
+        const availableVersion = normalizeBuildVersion(data.version);
+        if (isUpdateRequired(APP_VERSION, availableVersion)) {
+            showRequiredUpdate(availableVersion, resolveUpdateDownloadUrl(data.url, HOST));
         }
-    } catch(e) { 
-        console.warn("[Discovery] Background sync failed:", e.message);
+        return data;
+        } catch(e) {
+            console.warn("[Discovery] Background sync failed:", e.message);
+            return null;
+        } finally {
+            updateCheckInFlight = null;
+        }
+    })();
+
+    return updateCheckInFlight;
+}
+
+function setUpdateStatus(message, state = 'ready') {
+    const status = document.getElementById('required-update-status');
+    const updateButton = document.getElementById('required-update-install');
+    if (status) status.textContent = message;
+    if (updateButton) {
+        updateButton.disabled = state === 'downloading' || state === 'installing';
+        updateButton.innerHTML = state === 'downloading'
+            ? '<i class="fa-solid fa-spinner fa-spin"></i> Downloading update...'
+            : state === 'installing'
+                ? '<i class="fa-solid fa-box-open"></i> Complete installation'
+                : '<i class="fa-solid fa-download"></i> Update now';
     }
 }
 
-function showUpdateBanner(newVersionKey, downloadUrl) {
-    const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed; top:20px; right:20px; background:#ff8a1f; color:#071017; padding:15px; border-radius:14px; z-index:999999; display:flex; align-items:center; gap:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5); font-weight:bold; cursor:pointer; font-size:18px; border:2px solid white;';
-    banner.tabIndex = 0;
-    const HOST = globalThis.location.hostname === 'localhost' ? 'http://localhost:3000' : `https://${globalThis.location.hostname}`;
-    banner.innerHTML = `<i class="fa-solid fa-download" style="font-size:24px;"></i> <div>Streamy Update Available!<br><span style="font-size:12px;font-weight:normal;">Click to install v${newVersionKey}.0</span></div>`;
-    banner.onclick = () => {
-        localStorage.setItem('streamy_build_version', newVersionKey);
-        if(globalThis.NativeBridge?.downloadUpdate) {
-            globalThis.NativeBridge.downloadUpdate(downloadUrl || `${HOST}/api/ota/download`);
-        } else {
-            globalThis.open(downloadUrl || `${HOST}/api/ota/download`, '_blank');
-        }
-        banner.remove();
-    };
-    banner.onkeydown = (e) => { if(e.key === 'Enter') banner.click(); };
-    document.body.appendChild(banner);
+function startRequiredUpdate() {
+    if (!requiredUpdate) return;
+    setUpdateStatus('Downloading the verified update. Please keep StreamOS open.', 'downloading');
+
+    if (globalThis.NativeBridge?.downloadRequiredUpdate) {
+        globalThis.NativeBridge.downloadRequiredUpdate(requiredUpdate.url, String(requiredUpdate.version));
+    } else if (globalThis.NativeBridge?.downloadUpdate) {
+        globalThis.NativeBridge.downloadUpdate(requiredUpdate.url);
+    } else {
+        globalThis.open(requiredUpdate.url, '_blank');
+        setUpdateStatus('Install the update, then reopen StreamOS.', 'installing');
+    }
 }
+
+function exitForRequiredUpdate() {
+    if (globalThis.NativeBridge?.exitApp) {
+        globalThis.NativeBridge.exitApp();
+        return;
+    }
+    globalThis.close();
+}
+
+function showRequiredUpdate(newVersionKey, downloadUrl) {
+    requiredUpdate = { version: Number(newVersionKey), url: downloadUrl };
+    let overlay = document.getElementById('required-update-overlay');
+    if (!overlay) {
+        overlay = document.createElement('section');
+        overlay.id = 'required-update-overlay';
+        overlay.setAttribute('role', 'alertdialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'required-update-title');
+        overlay.innerHTML = `
+            <div class="required-update-card">
+                <div class="required-update-mark"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
+                <p class="required-update-kicker">Required update</p>
+                <h1 id="required-update-title">A newer StreamOS is ready</h1>
+                <p class="required-update-copy">Update to continue using movies, TV shows, profiles, and playback.</p>
+                <p id="required-update-version" class="required-update-version"></p>
+                <p id="required-update-status" class="required-update-status" aria-live="polite">Choose Update now to begin.</p>
+                <div class="required-update-actions">
+                    <button id="required-update-install" class="required-update-primary" tabindex="0"><i class="fa-solid fa-download"></i> Update now</button>
+                    <button id="required-update-exit" class="required-update-exit" tabindex="0"><i class="fa-solid fa-power-off"></i> Exit app</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        document.getElementById('required-update-install').onclick = startRequiredUpdate;
+        document.getElementById('required-update-exit').onclick = exitForRequiredUpdate;
+        overlay.addEventListener('keydown', event => {
+            if (event.key === 'Escape' || event.key === 'Backspace') {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }, true);
+    }
+
+    const version = document.getElementById('required-update-version');
+    if (version) version.textContent = `Installed v${APP_VERSION}.0  |  Required v${requiredUpdate.version}.0`;
+    overlay.classList.add('visible');
+    document.body.classList.add('update-required');
+    NavigationManager.lockFocus('#required-update-overlay');
+    setTimeout(() => document.getElementById('required-update-install')?.focus(), 50);
+}
+
+globalThis.StreamOSUpdate = {
+    isRequired: () => !!requiredUpdate,
+    onDownloadState(state, message) {
+        const normalizedState = String(state || 'ready');
+        setUpdateStatus(message || 'Update status changed.', normalizedState);
+        if (normalizedState === 'failed' || normalizedState === 'ready') {
+            setTimeout(() => document.getElementById('required-update-install')?.focus(), 50);
+        }
+    },
+    onInstallerReturned() {
+        if (!requiredUpdate) return;
+        setUpdateStatus('Installation was not completed. Select Update now to try again.', 'ready');
+        setTimeout(() => document.getElementById('required-update-install')?.focus(), 50);
+    }
+};
 
 const TV_NETWORKS = {
     '213': 'Netflix',
@@ -845,17 +952,14 @@ function initApp() {
         settingCheckUpdate.onclick = async () => {
             settingCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
             try {
-                const HOST = getProxyHost();
-                const res = await fetch(`${HOST}/api/ota`, buildBackendFetchOptions(HOST, { method: 'GET', cache: 'no-cache' }));
-                if (!res.ok) throw new Error("OTA version check failed: upstream unreachable");
-                const data = await res.json();
+                const { data, host: HOST } = await fetchOtaMetadata();
                 
                 if (data.backend_url) {
                     rememberDiscoveredBackendHost(data.backend_url);
                 }
 
                 if (data.version && APP_VERSION < data.version) {
-                    showUpdateBanner(data.version, data.url);
+                    showRequiredUpdate(normalizeBuildVersion(data.version), resolveUpdateDownloadUrl(data.url, HOST));
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> Update Found!';
                 } else {
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> You are up to date';
@@ -1051,6 +1155,10 @@ function initApp() {
     
     // Backend discovery runs independently while the initial route paints.
     discoverBackendHost(); // Start discovery in background
+    globalThis.setInterval(() => checkForUpdatesBackground(), UPDATE_CHECK_INTERVAL_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkForUpdatesBackground({ force: true });
+    });
     forceInitialFireTvPaint();
     setTimeout(forceInitialFireTvPaint, 750);
 }

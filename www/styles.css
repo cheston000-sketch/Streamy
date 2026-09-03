@@ -146,6 +146,138 @@ body {
     box-shadow: 0 1px 6px rgba(0,0,0,0.8);
 }
 
+/* Mandatory OTA gate: TV users must update or leave the app. */
+#required-update-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+    background:
+        radial-gradient(circle at 78% 18%, rgba(255, 145, 48, 0.22), transparent 34%),
+        linear-gradient(135deg, rgba(5, 12, 17, 0.98), rgba(15, 24, 29, 0.99));
+}
+
+#required-update-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.22;
+    background-image: repeating-linear-gradient(120deg, transparent 0 42px, rgba(255, 255, 255, 0.06) 43px 44px);
+    pointer-events: none;
+}
+
+#required-update-overlay.visible {
+    display: flex;
+}
+
+.required-update-card {
+    position: relative;
+    width: min(920px, 88vw);
+    padding: 54px 62px 50px;
+    overflow: hidden;
+    color: #f6f1e7;
+    text-align: center;
+    border: 2px solid rgba(255, 195, 117, 0.55);
+    border-radius: 30px;
+    background: linear-gradient(145deg, rgba(22, 31, 36, 0.98), rgba(8, 15, 19, 0.98));
+    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.72), inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.required-update-mark {
+    width: 92px;
+    height: 92px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 22px;
+    color: #111a1e;
+    font-size: 38px;
+    border-radius: 24px;
+    background: linear-gradient(145deg, #ffd79c, #ff8a1f);
+    box-shadow: 0 14px 40px rgba(255, 138, 31, 0.28);
+}
+
+.required-update-kicker {
+    margin: 0 0 8px;
+    color: #ffad53;
+    font: 800 20px/1 'Barlow Condensed', sans-serif;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.required-update-card h1 {
+    margin: 0;
+    font: 900 clamp(44px, 5vw, 68px)/0.98 'Barlow Condensed', sans-serif;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+}
+
+.required-update-copy {
+    max-width: 700px;
+    margin: 24px auto 12px;
+    color: #d4d9dc;
+    font-size: 25px;
+    line-height: 1.4;
+}
+
+.required-update-version {
+    margin: 0;
+    color: #ffca85;
+    font-size: 19px;
+    font-weight: 800;
+}
+
+.required-update-status {
+    min-height: 28px;
+    margin: 25px 0 22px;
+    color: #aeb9be;
+    font-size: 18px;
+}
+
+.required-update-actions {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.required-update-actions button {
+    min-width: 250px;
+    min-height: 68px;
+    padding: 15px 28px;
+    color: #f7f3ea;
+    font: 800 24px/1 'Barlow Condensed', sans-serif;
+    letter-spacing: 0.025em;
+    border: 3px solid transparent;
+    border-radius: 16px;
+    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.required-update-primary {
+    color: #11191d !important;
+    background: linear-gradient(135deg, #ffdca5, #ff912e);
+}
+
+.required-update-exit {
+    background: #273238;
+}
+
+.required-update-actions button:focus {
+    outline: none;
+    transform: scale(1.07);
+    border-color: #fff;
+    box-shadow: 0 0 0 6px rgba(255, 152, 53, 0.45), 0 16px 36px rgba(0, 0, 0, 0.45);
+}
+
+.required-update-actions button:disabled {
+    opacity: 0.76;
+}
+
+body.update-required {
+    overflow: hidden;
+}
+
 .poster-progress-fill {
     height: 100%;
     background: var(--primary);

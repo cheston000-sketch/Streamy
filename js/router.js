@@ -1,8 +1,13 @@
-import { NavigationManager } from './navigation.js?v=112';
+import { NavigationManager } from './navigation.js?v=116';
 
 let currentRouteKey = null;
 
 function handleNativeBack() {
+    if (globalThis.StreamOSUpdate?.isRequired?.()) {
+        document.getElementById('required-update-install')?.focus();
+        return 'handled';
+    }
+
     const profileModal = document.querySelector('#profile-edit-modal:not(.hidden)');
     if (profileModal) {
         document.getElementById('cancel-profile-btn')?.click();
@@ -46,6 +51,11 @@ export function setupRouter() {
 }
 
 export function navigateTo(hash) {
+    if (globalThis.StreamOSUpdate?.isRequired?.()) {
+        document.getElementById('required-update-install')?.focus();
+        return;
+    }
+
     if (globalThis.location.hash === hash) {
         handleRoute();
     } else {

@@ -39,3 +39,9 @@ When changing playback logic in the future:
 2. Use `WebPlayerActivity` only for iframe/browser-hosted discovery or fallback.
 3. Test on the actual Fire TV before shipping changes.
 4. If native playback opens with no video, inspect the request headers before changing the player surface.
+
+## Episode intro markers
+
+TV intro timestamps are resolved by `www/server/intro-markers.js` from SkipDB and IntroDB. The selected marker is returned by `/api/stream`, serialized by `www/js/player.js`, and passed as `playbackMetadataJson` through `StreamBridge`, `WebPlayerActivity`, and every source failover into `PlayerActivity`.
+
+Do not replace this chain with a fixed skip duration. Markers are episode-specific, and losing `playbackMetadataJson` during a browser-to-native handoff or source failover disables the prompt by design rather than risking an incorrect seek.

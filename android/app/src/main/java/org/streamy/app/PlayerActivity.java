@@ -58,6 +58,10 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView nextEpisodeTitle;
     private Button nextEpisodeButton;
     private Button nextEpisodeCancelButton;
+    private LinearLayout introSkipPrompt;
+    private TextView introSkipDetail;
+    private Button introSkipButton;
+    private Button introSkipCancelButton;
     private View audioTrackScrim;
     private LinearLayout audioTrackPanel;
     private LinearLayout audioTrackList;
@@ -72,13 +76,20 @@ public class PlayerActivity extends AppCompatActivity {
     private boolean nextPromptShown;
     private boolean nextPromptDismissed;
     private boolean nextEpisodeLaunchRequested;
+    private boolean introSkipPromptShown;
+    private boolean introSkipPromptDismissed;
+    private long introMarkerStartMs = -1L;
+    private long introMarkerEndMs = -1L;
+    private String introMarkerProvider = "";
     private String sourceJson;
+    private String playbackMetadataJson;
     private int sourceIndex;
     private boolean failedOverAfterError;
     private long lastProgressPersistElapsedMs;
     private final Runnable nextPromptChecker = new Runnable() {
         @Override
         public void run() {
+            updateIntroSkipPrompt();
             updateNextEpisodePrompt();
             long now = SystemClock.elapsedRealtime();
             if (player != null && player.isPlaying() && now - lastProgressPersistElapsedMs >= 10_000L) {
@@ -102,6 +113,10 @@ public class PlayerActivity extends AppCompatActivity {
         nextEpisodeTitle = findViewById(R.id.native_next_episode_title);
         nextEpisodeButton = findViewById(R.id.native_next_episode_button);
         nextEpisodeCancelButton = findViewById(R.id.native_next_episode_cancel);
+        introSkipPrompt = findViewById(R.id.native_intro_skip_prompt);
+        introSkipDetail = findViewById(R.id.native_intro_skip_detail);
+        introSkipButton = findViewById(R.id.native_intro_skip_button);
+        introSkipCancelButton = findViewById(R.id.native_intro_skip_cancel);
         audioTrackScrim = findViewById(R.id.native_audio_track_scrim);
         audioTrackPanel = findViewById(R.id.native_audio_track_panel);
         audioTrackList = findViewById(R.id.native_audio_track_list);
@@ -115,6 +130,10 @@ public class PlayerActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+                if (isIntroSkipPromptVisible()) {
+                    dismissIntroSkipPrompt();
+                    return;
+                }
                 if (isAudioTrackPanelVisible()) {
                     closeAudioTrackPanel();
                     return;
@@ -136,6 +155,8 @@ public class PlayerActivity extends AppCompatActivity {
         nextEpisode = getIntent().getIntExtra("nextEpisode", 0);
         autoplayNextEpisode = getIntent().getBooleanExtra("autoplayNextEpisode", true);
         sourceJson = getIntent().getStringExtra("sourceJson");
+        playbackMetadataJson = getIntent().getStringExtra("playbackMetadataJson");
+        parseIntroMarker(playbackMetadataJson);
         sourceIndex = getIntent().getIntExtra("sourceIndex", -1);
         resumeSeekApplied = false;
         failedOverAfterError = false;
@@ -151,6 +172,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
 
         setupNextEpisodePrompt();
+        setupIntroSkipPrompt();
 
         Map<String, String> requestHeaders = new HashMap<>();
         requestHeaders.put("Referer", getRefererValue(referer, url));
@@ -200,6 +222,9 @@ public class PlayerActivity extends AppCompatActivity {
                     Log.i(TAG, "Applying resume seek mediaKey=" + mediaKey + " positionMs=" + pendingStartPositionMs);
                     player.seekTo(pendingStartPositionMs);
                     resumeSeekApplied = true;
+                }
+                if (playbackState == Player.STATE_READY) {
+                    updateIntroSkipPrompt();
                 }
                 if (playbackState == Player.STATE_ENDED) {
                     Log.i(TAG, "Playback ended; clearing saved progress for mediaKey=" + mediaKey);
@@ -298,6 +323,7 @@ public class PlayerActivity extends AppCompatActivity {
             intent.putExtra("autoplayNextEpisode", autoplayNextEpisode);
             intent.putExtra("sourceJson", sourceJson);
             intent.putExtra("sourceIndex", index);
+            intent.putExtra("playbackMetadataJson", playbackMetadataJson);
             startActivity(intent);
             finish();
         } catch (Exception error) {
@@ -412,6 +438,9 @@ public class PlayerActivity extends AppCompatActivity {
             nextPromptShown = false;
             hideNextEpisodePrompt();
         }
+        if (isIntroSkipPromptVisible()) {
+            dismissIntroSkipPrompt();
+        }
 
         audioTrackScrim.setVisibility(View.VISIBLE);
         audioTrackPanel.setVisibility(View.VISIBLE);
@@ -457,7 +486,8 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         boolean nextPromptVisible = nextEpisodePrompt != null && nextEpisodePrompt.getVisibility() == View.VISIBLE;
-        boolean shouldShow = hasAudioTracks && playerControlsVisible && !isAudioTrackPanelVisible() && !nextPromptVisible;
+        boolean introPromptVisible = isIntroSkipPromptVisible();
+        boolean shouldShow = hasAudioTracks && playerControlsVisible && !isAudioTrackPanelVisible() && !nextPromptVisible && !introPromptVisible;
         audioTrackButton.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
     }
 
@@ -763,6 +793,130 @@ public class PlayerActivity extends AppCompatActivity {
         }
         Log.i(TAG, "clearSavedProgress mediaKey=" + mediaKey);
         playbackPrefs.edit().remove(mediaKey).apply();
+    }
+
+    private void parseIntroMarker(String metadataJson) {
+        introMarkerStartMs = -1L;
+        introMarkerEndMs = -1L;
+        introMarkerProvider = "";
+        if (metadataJson == null || metadataJson.isEmpty() || mediaKey == null || !mediaKey.contains(":tv:")) {
+            return;
+        }
+
+        try {
+            JSONObject metadata = new JSONObject(metadataJson);
+            int season = metadata.optInt("season", 0);
+            int episode = metadata.optInt("episode", 0);
+            String expectedEpisodeSuffix = ":s" + season + ":e" + episode;
+            if (season <= 0 || episode <= 0 || !mediaKey.endsWith(expectedEpisodeSuffix)) {
+                Log.w(TAG, "Ignoring intro marker that does not match mediaKey=" + mediaKey);
+                return;
+            }
+
+            JSONObject marker = metadata.optJSONObject("introMarker");
+            if (marker == null) return;
+
+            long startMs = marker.optLong("startMs", -1L);
+            long endMs = marker.optLong("endMs", -1L);
+            double confidence = marker.optDouble("confidence", 0.5d);
+            String match = marker.optString("match", "reported");
+            if (startMs < 0L || endMs <= startMs || confidence < 0.5d || "out-of-range".equalsIgnoreCase(match)) {
+                Log.w(TAG, "Ignoring invalid intro marker startMs=" + startMs + " endMs=" + endMs + " confidence=" + confidence + " match=" + match);
+                return;
+            }
+
+            introMarkerStartMs = startMs;
+            introMarkerEndMs = endMs;
+            introMarkerProvider = marker.optString("provider", "episode database");
+            Log.i(TAG, "Loaded intro marker from " + introMarkerProvider + " startMs=" + startMs + " endMs=" + endMs);
+        } catch (Exception error) {
+            Log.w(TAG, "Ignoring malformed playback metadata", error);
+        }
+    }
+
+    private void setupIntroSkipPrompt() {
+        introSkipPromptShown = false;
+        introSkipPromptDismissed = false;
+        hideIntroSkipPrompt();
+        if (introSkipButton == null || introSkipCancelButton == null) {
+            return;
+        }
+
+        configurePromptButton(introSkipButton, true);
+        configurePromptButton(introSkipCancelButton, false);
+        if (introSkipDetail != null && introMarkerEndMs > 0L) {
+            introSkipDetail.setText(getString(R.string.intro_skip_detail_format, formatPlaybackPosition(introMarkerEndMs)));
+        }
+        introSkipButton.setOnClickListener(v -> skipIntro());
+        introSkipCancelButton.setOnClickListener(v -> dismissIntroSkipPrompt());
+    }
+
+    private void updateIntroSkipPrompt() {
+        if (player == null || introSkipPrompt == null || introSkipPromptDismissed || isAudioTrackPanelVisible()) {
+            return;
+        }
+
+        long duration = player.getDuration();
+        long position = player.getCurrentPosition();
+        if (introSkipPromptShown) {
+            if (!IntroSkipPolicy.shouldShow(mediaKey, introMarkerStartMs, introMarkerEndMs, position, duration, false)) {
+                introSkipPromptDismissed = IntroSkipPolicy.hasPassed(introMarkerEndMs, position);
+                introSkipPromptShown = false;
+                hideIntroSkipPrompt();
+            }
+            return;
+        }
+        if (!IntroSkipPolicy.shouldShow(mediaKey, introMarkerStartMs, introMarkerEndMs, position, duration, false)) {
+            if (IntroSkipPolicy.hasPassed(introMarkerEndMs, position)) {
+                introSkipPromptDismissed = true;
+            }
+            return;
+        }
+
+        introSkipPromptShown = true;
+        introSkipPrompt.setVisibility(View.VISIBLE);
+        introSkipPrompt.bringToFront();
+        updateAudioTrackButtonVisibility();
+        introSkipButton.requestFocus();
+        Log.i(TAG, "Showing skip intro prompt at positionMs=" + position + " marker=" + introMarkerStartMs + "-" + introMarkerEndMs + " provider=" + introMarkerProvider);
+    }
+
+    private void skipIntro() {
+        if (player == null) {
+            return;
+        }
+
+        long targetPosition = IntroSkipPolicy.resolveSeekPosition(player.getCurrentPosition(), introMarkerEndMs, player.getDuration());
+        Log.i(TAG, "Skipping intro to positionMs=" + targetPosition);
+        introSkipPromptDismissed = true;
+        hideIntroSkipPrompt();
+        player.seekTo(targetPosition);
+        player.play();
+        playerView.requestFocus();
+    }
+
+    private void dismissIntroSkipPrompt() {
+        introSkipPromptDismissed = true;
+        hideIntroSkipPrompt();
+        if (playerView != null) {
+            playerView.requestFocus();
+        }
+    }
+
+    private boolean isIntroSkipPromptVisible() {
+        return introSkipPrompt != null && introSkipPrompt.getVisibility() == View.VISIBLE;
+    }
+
+    private void hideIntroSkipPrompt() {
+        if (introSkipPrompt != null) {
+            introSkipPrompt.setVisibility(View.GONE);
+        }
+        updateAudioTrackButtonVisibility();
+    }
+
+    private String formatPlaybackPosition(long positionMs) {
+        long totalSeconds = Math.max(0L, positionMs) / 1000L;
+        return String.format(Locale.US, "%d:%02d", totalSeconds / 60L, totalSeconds % 60L);
     }
 
     private void setupNextEpisodePrompt() {

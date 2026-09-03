@@ -1,12 +1,14 @@
 {
   "name": "streamos-app",
-  "version": "112.0.0",
+  "version": "116.0.0",
   "description": "Remote-first streaming interface for Android TV and Fire TV",
   "main": "index.js",
   "scripts": {
-    "test": "npm run check:js && npm run test:navigation && npm run test:server && npm run test:android",
-    "check:js": "node --check www/js/api.js && node --check www/js/app.js && node --check www/js/grid-navigation.js && node --check www/js/navigation.js && node --check www/js/player.js && node --check www/js/router.js && node --check www/js/ui.js && node --check www/server/index.js",
+    "test": "npm run check:js && npm run test:navigation && npm run test:update && npm run test:intro-markers && npm run test:server && npm run test:android",
+    "check:js": "node --check www/js/api.js && node --check www/js/app.js && node --check www/js/grid-navigation.js && node --check www/js/navigation.js && node --check www/js/player.js && node --check www/js/router.js && node --check www/js/ui.js && node --check www/js/update-policy.js && node --check www/server/intro-markers.js && node --check www/server/index.js",
     "test:navigation": "node tests/grid-navigation.test.mjs",
+    "test:update": "node tests/update-policy.test.mjs",
+    "test:intro-markers": "node tests/intro-markers.test.mjs",
     "test:server": "node tests/server-resilience.test.mjs",
     "test:android": "cd android && gradlew.bat testDebugUnitTest",
     "prepare:android": "node scripts/prepare-app-web.mjs",

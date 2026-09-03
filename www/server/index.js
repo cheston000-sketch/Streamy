@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
+import { createIntroMarkerResolver } from './intro-markers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,7 @@ const APP_VERSION = (() => {
     }
 })();
 const APP_BUILD = Number.parseInt(APP_VERSION, 10) || 0;
+const introMarkerResolver = createIntroMarkerResolver();
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[Ghost Thread] Blocked rogue unhandled rejection:', reason?.message || reason);
@@ -511,6 +513,7 @@ app.get('/api/health', (req, res) => {
         version: APP_VERSION,
         build: APP_BUILD,
         providerApi: true,
+        introMarkers: true,
         uptimeSeconds: Math.floor(process.uptime())
     });
 });
@@ -532,6 +535,33 @@ app.get('/api/providers', (req, res) => {
             label: addon.label,
             baseUrl: addon.baseUrl
         }))
+    });
+});
+
+app.get('/api/segments', async (req, res) => {
+    const result = await introMarkerResolver.resolve({
+        imdbId: req.query.imdb || req.query.imdb_id,
+        season: req.query.season,
+        episode: req.query.episode,
+        durationSeconds: req.query.duration
+    });
+
+    if (!result.lookup) {
+        return res.status(400).json({
+            success: false,
+            error: 'A valid IMDb ID, season, and episode are required',
+            introMarker: null
+        });
+    }
+
+    return res.json({
+        success: true,
+        imdbId: result.lookup.imdbId,
+        season: result.lookup.season,
+        episode: result.lookup.episode,
+        introMarker: result.marker,
+        cached: result.cached,
+        degraded: result.errors.length > 0
     });
 });
 
@@ -571,7 +601,7 @@ app.get('/api/stream', async (req, res) => {
 
     try {
         console.log(`[Extractor] Resolving streams for: ${mediaTitle} (${releaseYear || 'year unknown'})`);
-        const [directLinks, stremioLinks, builtInLinks] = await Promise.all([
+        const [directLinks, stremioLinks, builtInLinks, introMarkerResult] = await Promise.all([
             fetchDirectSourceLinks(params).catch(error => {
                 warnings.push(`Direct providers: ${error.message}`);
                 console.warn('[Extractor] Direct providers failed:', error.message);
@@ -586,7 +616,14 @@ app.get('/api/stream', async (req, res) => {
                 warnings.push(`Built-in providers: ${error.message}`);
                 console.warn('[Extractor] Built-in providers failed:', error.message);
                 return [];
-            })
+            }),
+            normalizedType === 'tv' && imdb
+                ? introMarkerResolver.resolve({
+                    imdbId: imdb,
+                    season: normalizedSeason,
+                    episode: normalizedEpisode
+                })
+                : Promise.resolve({ marker: null })
         ]);
 
         let finalLinks = dedupeLinks([...directLinks, ...stremioLinks, ...builtInLinks]);
@@ -599,7 +636,12 @@ app.get('/api/stream', async (req, res) => {
         const directLinkCount = finalLinks.filter(link => link.type !== 'iframe').length;
         const providerStatus = buildProviderStatus(directLinkCount, warnings, Date.now() - startedAt);
         console.log(`[Extractor] Ready: ${finalLinks.length} sources (${directLinkCount} direct) in ${providerStatus.elapsedMs}ms.`);
-        return res.json({ success: true, links: finalLinks, providerStatus });
+        return res.json({
+            success: true,
+            links: finalLinks,
+            introMarker: introMarkerResult.marker,
+            providerStatus
+        });
     } catch (error) {
         console.error('[Extractor] Runtime degraded to fallback:', error.message);
         warnings.push(`Runtime: ${error.message}`);
@@ -607,6 +649,7 @@ app.get('/api/stream', async (req, res) => {
         return res.json({
             success: true,
             links,
+            introMarker: null,
             providerStatus: buildProviderStatus(0, warnings, Date.now() - startedAt)
         });
     }
