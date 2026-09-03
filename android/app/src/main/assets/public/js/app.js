@@ -1,9 +1,9 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=116';
-import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=116';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=116';
-import { setupRouter, navigateTo } from './router.js?v=116';
-import { NavigationManager } from './navigation.js?v=116';
-import { isUpdateRequired, normalizeBuildVersion, resolveUpdateDownloadUrl } from './update-policy.js?v=116';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=117';
+import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=117';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=117';
+import { setupRouter, navigateTo } from './router.js?v=117';
+import { NavigationManager } from './navigation.js?v=117';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=117';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -15,11 +15,34 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const APP_VERSION = 115;
+const PACKAGED_APP_VERSION = 117;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
 let updateCheckInFlight = null;
+
+function isNativeAppRuntime() {
+    try {
+        if (!globalThis.NativeBridge || typeof globalThis.NativeBridge.isNative !== 'function') return false;
+        const nativeResult = globalThis.NativeBridge.isNative();
+        return nativeResult === true || nativeResult === 'true';
+    } catch (error) {
+        console.warn('[Update] Unable to query the native runtime:', error.message);
+        return false;
+    }
+}
+
+function getInstalledAppVersion() {
+    let nativeVersion = 0;
+    if (isNativeAppRuntime() && typeof globalThis.NativeBridge.getInstalledVersionCode === 'function') {
+        try {
+            nativeVersion = globalThis.NativeBridge.getInstalledVersionCode();
+        } catch (error) {
+            console.warn('[Update] Unable to read Android versionCode:', error.message);
+        }
+    }
+    return resolveInstalledBuildVersion(nativeVersion, PACKAGED_APP_VERSION);
+}
 
 async function fetchOtaMetadata() {
     const hosts = [...new Set([UPDATE_SERVER, getProxyHost()].filter(Boolean))];
@@ -48,6 +71,10 @@ async function fetchOtaMetadata() {
 }
 
 async function checkForUpdatesBackground({ force = false } = {}) {
+    if (!isNativeAppRuntime()) {
+        clearRequiredUpdate();
+        return null;
+    }
     if (updateCheckInFlight && !force) return updateCheckInFlight;
 
     updateCheckInFlight = (async () => {
@@ -65,8 +92,11 @@ async function checkForUpdatesBackground({ force = false } = {}) {
         }
 
         const availableVersion = normalizeBuildVersion(data.version);
-        if (isUpdateRequired(APP_VERSION, availableVersion)) {
+        const installedVersion = getInstalledAppVersion();
+        if (shouldEnforceUpdate(true, installedVersion, availableVersion)) {
             showRequiredUpdate(availableVersion, resolveUpdateDownloadUrl(data.url, HOST));
+        } else {
+            clearRequiredUpdate();
         }
         return data;
         } catch(e) {
@@ -116,8 +146,21 @@ function exitForRequiredUpdate() {
     globalThis.close();
 }
 
+function clearRequiredUpdate() {
+    requiredUpdate = null;
+    document.getElementById('required-update-overlay')?.remove();
+    document.body?.classList.remove('update-required');
+}
+
 function showRequiredUpdate(newVersionKey, downloadUrl) {
-    requiredUpdate = { version: Number(newVersionKey), url: downloadUrl };
+    const installedVersion = getInstalledAppVersion();
+    const requiredVersion = normalizeBuildVersion(newVersionKey);
+    if (!shouldEnforceUpdate(isNativeAppRuntime(), installedVersion, requiredVersion)) {
+        clearRequiredUpdate();
+        return;
+    }
+
+    requiredUpdate = { version: requiredVersion, url: downloadUrl };
     let overlay = document.getElementById('required-update-overlay');
     if (!overlay) {
         overlay = document.createElement('section');
@@ -150,7 +193,7 @@ function showRequiredUpdate(newVersionKey, downloadUrl) {
     }
 
     const version = document.getElementById('required-update-version');
-    if (version) version.textContent = `Installed v${APP_VERSION}.0  |  Required v${requiredUpdate.version}.0`;
+    if (version) version.textContent = `Installed v${installedVersion}.0  |  Required v${requiredUpdate.version}.0`;
     overlay.classList.add('visible');
     document.body.classList.add('update-required');
     NavigationManager.lockFocus('#required-update-overlay');
@@ -158,7 +201,7 @@ function showRequiredUpdate(newVersionKey, downloadUrl) {
 }
 
 globalThis.StreamOSUpdate = {
-    isRequired: () => !!requiredUpdate,
+    isRequired: () => isNativeAppRuntime() && !!requiredUpdate,
     onDownloadState(state, message) {
         const normalizedState = String(state || 'ready');
         setUpdateStatus(message || 'Update status changed.', normalizedState);
@@ -166,10 +209,12 @@ globalThis.StreamOSUpdate = {
             setTimeout(() => document.getElementById('required-update-install')?.focus(), 50);
         }
     },
-    onInstallerReturned() {
-        if (!requiredUpdate) return;
-        setUpdateStatus('Installation was not completed. Select Update now to try again.', 'ready');
-        setTimeout(() => document.getElementById('required-update-install')?.focus(), 50);
+    async onInstallerReturned() {
+        await checkForUpdatesBackground({ force: true });
+        if (requiredUpdate) {
+            setUpdateStatus('Installation was not completed. Select Update now to try again.', 'ready');
+            setTimeout(() => document.getElementById('required-update-install')?.focus(), 50);
+        }
     }
 };
 
@@ -400,7 +445,11 @@ function initProfileBindings() {
         setTimeout(() => DOM.addProfileBtn?.focus(), 120);
     };
     const versionEl = document.getElementById('setting-build-version');
-    if (versionEl) versionEl.innerText = `${APP_VERSION}.0 (GLOBAL SYNC SUCCESS)`;
+    if (versionEl) {
+        versionEl.innerText = isNativeAppRuntime()
+            ? `${getInstalledAppVersion()}.0 (GLOBAL SYNC SUCCESS)`
+            : 'Web app';
+    }
     
     checkForUpdatesBackground();
 }
@@ -949,7 +998,12 @@ function initApp() {
     
     const settingCheckUpdate = document.getElementById('setting-check-update');
     if (settingCheckUpdate) {
+        if (!isNativeAppRuntime()) {
+            settingCheckUpdate.classList.add('hidden');
+            settingCheckUpdate.tabIndex = -1;
+        }
         settingCheckUpdate.onclick = async () => {
+            if (!isNativeAppRuntime()) return;
             settingCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
             try {
                 const { data, host: HOST } = await fetchOtaMetadata();
@@ -958,10 +1012,12 @@ function initApp() {
                     rememberDiscoveredBackendHost(data.backend_url);
                 }
 
-                if (data.version && APP_VERSION < data.version) {
+                const installedVersion = getInstalledAppVersion();
+                if (shouldEnforceUpdate(true, installedVersion, data.version)) {
                     showRequiredUpdate(normalizeBuildVersion(data.version), resolveUpdateDownloadUrl(data.url, HOST));
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> Update Found!';
                 } else {
+                    clearRequiredUpdate();
                     settingCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> You are up to date';
                 }
             } catch(e) {
@@ -1155,10 +1211,12 @@ function initApp() {
     
     // Backend discovery runs independently while the initial route paints.
     discoverBackendHost(); // Start discovery in background
-    globalThis.setInterval(() => checkForUpdatesBackground(), UPDATE_CHECK_INTERVAL_MS);
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') checkForUpdatesBackground({ force: true });
-    });
+    if (isNativeAppRuntime()) {
+        globalThis.setInterval(() => checkForUpdatesBackground(), UPDATE_CHECK_INTERVAL_MS);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdatesBackground({ force: true });
+        });
+    }
     forceInitialFireTvPaint();
     setTimeout(forceInitialFireTvPaint, 750);
 }

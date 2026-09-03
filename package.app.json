@@ -1,6 +1,6 @@
 {
   "name": "streamos-app",
-  "version": "116.0.0",
+  "version": "117.0.0",
   "description": "Remote-first streaming interface for Android TV and Fire TV",
   "main": "index.js",
   "scripts": {

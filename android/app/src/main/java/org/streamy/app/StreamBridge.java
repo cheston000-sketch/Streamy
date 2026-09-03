@@ -2,6 +2,9 @@ package org.streamy.app;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 
@@ -26,6 +29,21 @@ public class StreamBridge {
     @JavascriptInterface
     public boolean isNative() {
         return true;
+    }
+
+    /** Returns the version installed by Android rather than a web-bundle constant. */
+    @JavascriptInterface
+    public long getInstalledVersionCode() {
+        try {
+            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                return packageInfo.getLongVersionCode();
+            }
+            return packageInfo.versionCode;
+        } catch (PackageManager.NameNotFoundException error) {
+            Log.w(TAG, "Unable to read installed versionCode", error);
+            return 0L;
+        }
     }
 
     /** Forces Fire OS to present the first completed WebView frame. */
