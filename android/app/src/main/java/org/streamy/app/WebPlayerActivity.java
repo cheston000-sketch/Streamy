@@ -42,7 +42,7 @@ public class WebPlayerActivity extends AppCompatActivity {
     private static final boolean ENABLE_TEXT_RESOURCE_PROXY = false;
     private static final String DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
     private static final Pattern STREAM_URL_PATTERN = Pattern.compile(
-        "https?://[^\\\"'\\s<>]+?(?:m3u8|mp4|mkv)(?:[^\\\"'\\s<>]*)?",
+        "https?://[^\\\"'\\s<>]+?(?:m3u8|mpd|mp4|mkv)(?:[^\\\"'\\s<>]*)?",
         Pattern.CASE_INSENSITIVE
     );
     private WebView webView;
@@ -344,6 +344,7 @@ public class WebPlayerActivity extends AppCompatActivity {
         return lower.contains(".js")
             || lower.contains(".json")
             || lower.contains(".m3u8")
+            || lower.contains(".mpd")
             || lower.contains("playlist")
             || lower.contains("source")
             || lower.contains("stream")
@@ -444,7 +445,8 @@ public class WebPlayerActivity extends AppCompatActivity {
             || contentType.contains("xml")
             || lowerUrl.contains(".js")
             || lowerUrl.contains(".json")
-            || lowerUrl.contains(".m3u8");
+            || lowerUrl.contains(".m3u8")
+            || lowerUrl.contains(".mpd");
     }
 
     private byte[] readLimitedBytes(InputStream inputStream, int maxBytes) throws Exception {
@@ -545,6 +547,9 @@ public class WebPlayerActivity extends AppCompatActivity {
         if (lower.contains(".m3u8") || lower.contains("m3u8")) {
             return "application/vnd.apple.mpegurl";
         }
+        if (lower.contains(".mpd")) {
+            return "application/dash+xml";
+        }
         if (lower.contains(".mp4") || lower.contains("video/mp4")) {
             return "video/mp4";
         }
@@ -555,10 +560,18 @@ public class WebPlayerActivity extends AppCompatActivity {
     }
 
     private String normalizeReportedMimeType(String mimeType, String url) {
+        String inferredFromUrl = sniffPlayableMimeType(url);
+        if ("application/vnd.apple.mpegurl".equals(inferredFromUrl)
+            || "application/dash+xml".equals(inferredFromUrl)) {
+            return inferredFromUrl;
+        }
         if (mimeType != null && !mimeType.isEmpty()) {
             String lower = mimeType.toLowerCase(Locale.ROOT);
             if (lower.contains("mpegurl") || lower.contains("m3u8")) {
                 return "application/vnd.apple.mpegurl";
+            }
+            if (lower.contains("dash") || lower.contains("mpd")) {
+                return "application/dash+xml";
             }
             if (lower.contains("mp4")) {
                 return "video/mp4";
@@ -567,7 +580,7 @@ public class WebPlayerActivity extends AppCompatActivity {
                 return "video/x-matroska";
             }
         }
-        return sniffPlayableMimeType(url);
+        return inferredFromUrl;
     }
 
     private void reportDetectedMedia(String mediaUrl, String mimeType) {
@@ -790,9 +803,9 @@ public class WebPlayerActivity extends AppCompatActivity {
             "var looksPlayable=function(raw, mime){" +
             "var url=(raw||'').toLowerCase();" +
             "var type=(mime||'').toLowerCase();" +
-            "return url.indexOf('.m3u8')>=0||url.indexOf('.mp4')>=0||url.indexOf('.mkv')>=0||type.indexOf('mpegurl')>=0||type.indexOf('mp4')>=0||type.indexOf('matroska')>=0;" +
+            "return url.indexOf('.m3u8')>=0||url.indexOf('.mpd')>=0||url.indexOf('.mp4')>=0||url.indexOf('.mkv')>=0||type.indexOf('mpegurl')>=0||type.indexOf('dash')>=0||type.indexOf('mp4')>=0||type.indexOf('matroska')>=0;" +
             "};" +
-            "var streamUrlRe=/https?:\\/\\/[^\\\"'\\s<>]+(?:m3u8|mp4|mkv)(?:[^\\\"'\\s<>]*)?/ig;" +
+            "var streamUrlRe=/https?:\\/\\/[^\\\"'\\s<>]+(?:m3u8|mpd|mp4|mkv)(?:[^\\\"'\\s<>]*)?/ig;" +
             "var decodeStreamUrl=function(raw){" +
             "return String(raw||'').replace(/\\\\u0026/g,'&').replace(/&amp;/g,'&').replace(/\\\\\\//g,'/');" +
             "};" +
@@ -818,7 +831,7 @@ public class WebPlayerActivity extends AppCompatActivity {
             "};" +
             "var inspectMediaElements=function(){" +
             "document.querySelectorAll('video').forEach(function(v){" +
-            "reportMedia(v.currentSrc||v.src||'', v.currentSrc&&v.currentSrc.indexOf('.m3u8')>=0?'application/vnd.apple.mpegurl':'video/mp4');" +
+            "reportMedia(v.currentSrc||v.src||'',v.currentSrc&&v.currentSrc.indexOf('.m3u8')>=0?'application/vnd.apple.mpegurl':v.currentSrc&&v.currentSrc.indexOf('.mpd')>=0?'application/dash+xml':'video/mp4');" +
             "Array.prototype.forEach.call(v.querySelectorAll('source[src]'), function(source){" +
             "reportMedia(source.src||source.getAttribute('src')||'', source.type||'');" +
             "});" +

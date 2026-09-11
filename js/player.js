@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=118';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=118';
-import { navigateTo } from './router.js?v=118';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=119';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=119';
+import { navigateTo } from './router.js?v=119';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -621,6 +621,7 @@ function inferDirectStreamType(url, rawType = '') {
     const lowerType = String(rawType || '').toLowerCase();
     if (lowerType.includes('iframe') || lowerType.includes('embed')) return 'iframe';
     if (lowerType.includes('hls') || lowerType.includes('mpegurl') || lowerUrl.includes('.m3u8')) return 'hls';
+    if (lowerType.includes('dash') || lowerType.includes('mpd') || lowerUrl.includes('.mpd')) return 'dash';
     if (lowerType.includes('mp4') || lowerUrl.includes('.mp4')) return 'mp4';
     if (lowerType.includes('mkv') || lowerUrl.includes('.mkv')) return 'mp4';
     return lowerUrl.startsWith('http') ? 'mp4' : null;
@@ -1865,9 +1866,12 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
     // video rendering proved unreliable when direct links fell back to browser-
     // hosted playback, so this branch should remain the preferred path.
     if (hasNativeBridge) {
-        const nativeMimeType = streamUrl.includes('m3u8')
+        const normalizedStreamUrl = streamUrl.toLowerCase();
+        const nativeMimeType = normalizedStreamUrl.includes('.m3u8')
             ? "application/vnd.apple.mpegurl"
-            : "video/mp4";
+            : normalizedStreamUrl.includes('.mpd')
+                ? "application/dash+xml"
+                : "video/mp4";
         console.log("[Bridge] Triggering Native ExoPlayer for direct stream");
         if (hasNativeResumeBridge) {
             const nextSeason = String(currentNextEpisodeTarget?.season || 0);

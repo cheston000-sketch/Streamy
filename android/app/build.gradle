@@ -7,8 +7,8 @@ android {
         applicationId "org.streamy.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 118
-        versionName "118.0"
+        versionCode 119
+        versionName "119.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -43,6 +43,7 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.media3:media3-exoplayer:1.8.0"
     implementation "androidx.media3:media3-ui:1.8.0"
+    implementation "androidx.media3:media3-exoplayer-dash:1.8.0"
     implementation "androidx.media3:media3-exoplayer-hls:1.8.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"

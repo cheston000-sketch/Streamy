@@ -158,6 +158,7 @@ function inferDirectStreamType(url, rawType = '') {
     const lowerType = String(rawType || '').toLowerCase();
     if (lowerType.includes('iframe') || lowerType.includes('embed')) return 'iframe';
     if (lowerType.includes('hls') || lowerType.includes('mpegurl') || lowerUrl.includes('.m3u8')) return 'hls';
+    if (lowerType.includes('dash') || lowerType.includes('mpd') || lowerUrl.includes('.mpd')) return 'dash';
     if (lowerType.includes('mp4') || lowerUrl.includes('.mp4')) return 'mp4';
     if (lowerType.includes('mkv') || lowerUrl.includes('.mkv')) return 'mp4';
     return lowerUrl.startsWith('http') ? 'mp4' : null;

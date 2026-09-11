@@ -32,6 +32,7 @@ import androidx.media3.common.Tracks;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.dash.DashMediaSource;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
@@ -215,6 +216,8 @@ public class PlayerActivity extends AppCompatActivity {
         MediaSource mediaSource;
         if (MimeTypes.APPLICATION_M3U8.equals(mimeType)) {
             mediaSource = new HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem);
+        } else if (MimeTypes.APPLICATION_MPD.equals(mimeType)) {
+            mediaSource = new DashMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem);
         } else {
             mediaSource = new ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem);
         }
@@ -348,17 +351,24 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
-    private String normalizeMimeType(String mimeType, String url) {
-        if (mimeType != null && !mimeType.isEmpty()) {
-            if ("application/x-mpegURL".equalsIgnoreCase(mimeType) || "application/vnd.apple.mpegurl".equalsIgnoreCase(mimeType)) {
-                return MimeTypes.APPLICATION_M3U8;
-            }
-            return mimeType;
-        }
-
+    static String normalizeMimeType(String mimeType, String url) {
         String lower = url == null ? "" : url.toLowerCase(Locale.ROOT);
         if (lower.contains(".m3u8")) {
             return MimeTypes.APPLICATION_M3U8;
+        }
+        if (lower.contains(".mpd")) {
+            return MimeTypes.APPLICATION_MPD;
+        }
+
+        String lowerMimeType = mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT);
+        if (lowerMimeType.contains("mpegurl") || lowerMimeType.contains("m3u8") || lowerMimeType.equals("hls")) {
+            return MimeTypes.APPLICATION_M3U8;
+        }
+        if (lowerMimeType.contains("dash") || lowerMimeType.contains("mpd")) {
+            return MimeTypes.APPLICATION_MPD;
+        }
+        if (!lowerMimeType.isEmpty()) {
+            return mimeType;
         }
         if (lower.contains(".mp4")) {
             return MimeTypes.VIDEO_MP4;
