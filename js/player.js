@@ -1,6 +1,6 @@
 import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=119';
 import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=119';
-import { navigateTo } from './router.js?v=119';
+import { navigateTo } from './router.js?v=119-live1';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;

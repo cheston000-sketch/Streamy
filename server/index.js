@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
 import { createIntroMarkerResolver } from './intro-markers.js';
+import { createLiveTvService } from './live-tv.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,7 @@ const APP_VERSION = (() => {
 })();
 const APP_BUILD = Number.parseInt(APP_VERSION, 10) || 0;
 const introMarkerResolver = createIntroMarkerResolver();
+const liveTvService = createLiveTvService();
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[Ghost Thread] Blocked rogue unhandled rejection:', reason?.message || reason);
@@ -515,6 +517,7 @@ app.get('/api/health', (req, res) => {
         build: APP_BUILD,
         providerApi: true,
         introMarkers: true,
+        liveTv: true,
         uptimeSeconds: Math.floor(process.uptime())
     });
 });
@@ -537,6 +540,19 @@ app.get('/api/providers', (req, res) => {
             baseUrl: addon.baseUrl
         }))
     });
+});
+
+app.get('/api/live-tv/channels', async (req, res) => {
+    try {
+        const catalog = await liveTvService.getCatalog();
+        res.json({ success: true, ...catalog });
+    } catch (error) {
+        console.error('[LiveTV] Channel guide unavailable:', error.message);
+        res.status(error.name === 'AbortError' ? 504 : 502).json({
+            success: false,
+            error: 'The Live TV guide is temporarily unavailable.'
+        });
+    }
 });
 
 app.get('/api/segments', async (req, res) => {

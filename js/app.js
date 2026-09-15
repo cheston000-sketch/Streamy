@@ -1,9 +1,10 @@
 import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=119';
 import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=119';
 import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=119';
-import { setupRouter, navigateTo } from './router.js?v=119';
+import { setupRouter, navigateTo } from './router.js?v=119-live1';
 import { NavigationManager } from './navigation.js?v=119';
 import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=119';
+import { initLiveTv } from './live-tv.js?v=119-live1';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -571,7 +572,7 @@ function selectProfile(profile, silent = false) {
     DOM.genreFilter.value = '';
     
     if (!silent) {
-        navigateTo('#home');
+        navigateTo(globalThis.location.hash.startsWith('#live-tv') ? '#live-tv' : '#home');
     }
 }
 
@@ -982,6 +983,7 @@ function initApp() {
     initProfiles();
     initProfileBindings();
     initSearch();
+    initLiveTv();
     setupDpadLogic();
     setupRouter();
     

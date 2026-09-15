@@ -100,6 +100,7 @@ export function handleRoute() {
 
     const routeMap = {
         '#search': { view: 'view-search', tab: 'search', focus: 'search-input' },
+        '#live-tv': { view: 'view-live-tv', tab: 'live-tv', event: 'load-live-tv' },
         '#player': { view: 'view-player' },
         '#details': { view: 'view-details' },
         '#links': { view: 'view-links' },
@@ -137,6 +138,8 @@ export function handleRoute() {
     setTimeout(() => {
         if (hash.startsWith('#search')) {
             NavigationManager.restoreFocus(routeKey, '#search-input');
+        } else if (hash.startsWith('#live-tv')) {
+            NavigationManager.restoreFocus(routeKey, '.nav-tab[data-view="live-tv"]');
         } else if (hash.startsWith('#details')) {
              NavigationManager.restoreFocus(routeKey, '#play-btn');
         } else if (hash.startsWith('#links')) {

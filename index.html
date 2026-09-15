@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=119">
+    <link rel="stylesheet" href="styles.css?v=119-live1">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -27,6 +27,8 @@
         <nav class="nav-tabs">
             <a href="#movies" class="nav-tab active" data-view="movies" tabindex="0">Movies</a>
             <a href="#tv" class="nav-tab" data-view="tv" tabindex="0">TV Shows</a>
+            <a href="#live-tv" class="nav-tab" data-view="live-tv" tabindex="0"><i
+                    class="fa-solid fa-tower-broadcast"></i> Live TV</a>
             <a href="#watchlist" class="nav-tab" data-view="watchlist" tabindex="0"><i class="fa-solid fa-bookmark"></i>
                 Watchlist</a>
             <a href="#search" class="nav-tab" data-view="search" tabindex="0"><i
@@ -124,6 +126,66 @@
             <!-- DYNAMIC CATEGORY ROWS -->
             <div id="rows-container"></div>
 
+        </div>
+
+        <!-- WEBSITE-ONLY LIVE TV VIEW -->
+        <div id="view-live-tv" class="view hidden live-tv-view">
+            <section class="live-tv-hero" aria-labelledby="live-tv-title">
+                <div class="live-tv-heading">
+                    <div class="live-tv-eyebrow"><span></span> StreamOS Broadcast Desk</div>
+                    <h1 id="live-tv-title">Live TV</h1>
+                    <p>Free live channels, tuned in one place. Pick a station below and StreamOS will automatically try its strongest available signal.</p>
+                </div>
+                <div class="live-tv-clock-card" aria-label="Current local time">
+                    <small>Local time</small>
+                    <strong id="live-tv-clock">--:--</strong>
+                    <span><i></i> Guide online</span>
+                </div>
+            </section>
+
+            <section class="live-tv-on-air" aria-label="Live channel player">
+                <div id="live-tv-player-shell" class="live-tv-player-shell">
+                    <video id="live-tv-player" controls playsinline preload="none"></video>
+                    <div id="live-tv-player-message" class="live-tv-player-message">
+                        <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i>
+                        <strong>Choose a channel</strong>
+                        <span>Select any station from the guide to start watching.</span>
+                    </div>
+                    <div class="live-tv-screen-corner"><span></span> Live signal</div>
+                </div>
+                <aside class="live-tv-now-card">
+                    <div class="live-tv-now-label"><i></i> Now tuned</div>
+                    <div id="live-tv-now-logo" class="live-tv-now-logo"><span>TV</span></div>
+                    <h2 id="live-tv-now-name">No channel selected</h2>
+                    <p id="live-tv-now-meta">Choose a station from the channel guide.</p>
+                    <div class="live-tv-now-actions">
+                        <button id="live-tv-fullscreen" type="button"><i class="fa-solid fa-expand"></i> Fullscreen</button>
+                        <a id="live-tv-network-link" class="hidden" href="#" target="_blank" rel="noopener noreferrer"><i
+                                class="fa-solid fa-arrow-up-right-from-square"></i> Network site</a>
+                    </div>
+                    <p class="live-tv-region-note"><i class="fa-solid fa-location-dot"></i> Availability can vary by region and broadcaster.</p>
+                </aside>
+            </section>
+
+            <section class="live-tv-guide" aria-labelledby="live-tv-guide-title">
+                <div class="live-tv-guide-header">
+                    <div>
+                        <span class="live-tv-section-kicker">Channel guide</span>
+                        <h2 id="live-tv-guide-title">What is on now</h2>
+                    </div>
+                    <label class="live-tv-search-wrap" for="live-tv-search">
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        <input id="live-tv-search" type="search" placeholder="Find a channel" autocomplete="off">
+                    </label>
+                </div>
+                <div id="live-tv-filters" class="live-tv-filters" aria-label="Filter channels by category"></div>
+                <div class="live-tv-guide-summary">
+                    <span id="live-tv-channel-count">Loading channels</span>
+                    <span id="live-tv-guide-status" data-state="loading" role="status">Refreshing the live channel guide...</span>
+                </div>
+                <div id="live-tv-channel-grid" class="live-tv-channel-grid" aria-live="polite"></div>
+                <p class="live-tv-attribution">Channel metadata and public stream listings are refreshed from IPTV-org.</p>
+            </section>
         </div>
 
         <!-- SEARCH VIEW -->
@@ -331,7 +393,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=119"></script>
+    <script type="module" src="js/app.js?v=119-live1"></script>
 </body>
 
 </html>
