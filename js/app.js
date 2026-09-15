@@ -4,7 +4,7 @@ import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPl
 import { setupRouter, navigateTo } from './router.js?v=119-live1';
 import { NavigationManager } from './navigation.js?v=119';
 import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=119';
-import { initLiveTv } from './live-tv.js?v=119-live1';
+import { initLiveTv } from './live-tv.js?v=119-live2';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }

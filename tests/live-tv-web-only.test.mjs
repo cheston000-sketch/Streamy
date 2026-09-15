@@ -16,9 +16,11 @@ const [websiteIndex, websiteRouter, packagedIndex, androidIndex, androidRouter] 
 
 assert.match(websiteIndex, /data-view="live-tv"/);
 assert.match(websiteIndex, /id="view-live-tv"/);
+assert.match(websiteIndex, /id="sports-game-finder-title"/);
+assert.match(websiteIndex, /id="sports-game-grid"/);
 assert.match(websiteRouter, /'#live-tv'/);
-assert.doesNotMatch(packagedIndex, /data-view="live-tv"|id="view-live-tv"/);
-assert.doesNotMatch(androidIndex, /data-view="live-tv"|id="view-live-tv"/);
+assert.doesNotMatch(packagedIndex, /data-view="live-tv"|id="view-live-tv"|sports-game-finder/);
+assert.doesNotMatch(androidIndex, /data-view="live-tv"|id="view-live-tv"|sports-game-finder/);
 assert.doesNotMatch(androidRouter, /'#live-tv'/);
 
 console.log('Live TV website-only boundary tests passed.');

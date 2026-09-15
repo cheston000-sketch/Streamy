@@ -8,6 +8,13 @@ const state = {
     query: '',
     activeChannel: null,
     activeStreamIndex: 0,
+    games: [],
+    gameLeagues: [],
+    gameQuery: '',
+    gameWindow: 'today',
+    activeGameLeague: 'all',
+    gamesLoading: false,
+    gamesLoaded: false,
     hls: null,
     tuneTimer: null,
     tuneToken: 0,
@@ -220,6 +227,302 @@ function tuneChannel(channel, streamIndex = 0) {
     }
 }
 
+function setGameStatus(message, stateName = 'ready') {
+    if (!dom.gameStatus) return;
+    dom.gameStatus.textContent = message;
+    dom.gameStatus.dataset.state = stateName;
+}
+
+function isSameLocalDay(date, comparison) {
+    return date.getFullYear() === comparison.getFullYear()
+        && date.getMonth() === comparison.getMonth()
+        && date.getDate() === comparison.getDate();
+}
+
+function formatGameStart(startTime, { compact = false } = {}) {
+    const date = new Date(startTime);
+    if (!Number.isFinite(date.getTime())) return 'Time pending';
+    return new Intl.DateTimeFormat(undefined, compact ? {
+        hour: 'numeric',
+        minute: '2-digit'
+    } : {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    }).format(date);
+}
+
+function getGameStatusLabel(game) {
+    if (game.status?.state === 'live') return game.status.detail || 'Live now';
+    if (game.status?.state === 'final') return game.status.detail || 'Final';
+    const start = new Date(game.startTime);
+    return Number.isFinite(start.getTime()) && isSameLocalDay(start, new Date())
+        ? `Today ${formatGameStart(game.startTime, { compact: true })}`
+        : formatGameStart(game.startTime);
+}
+
+function getVisibleGames() {
+    const queryTokens = state.gameQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+
+    return state.games.filter(game => {
+        if (state.activeGameLeague !== 'all' && game.league?.id !== state.activeGameLeague) return false;
+
+        const searchable = [
+            game.title,
+            game.fullTitle,
+            game.league?.label,
+            game.venue?.name,
+            game.venue?.location,
+            ...(game.broadcasts || []),
+            ...(game.competitors || []).flatMap(competitor => [competitor.name, competitor.shortName, competitor.abbreviation])
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (queryTokens.length && !queryTokens.every(token => searchable.includes(token))) return false;
+
+        const start = new Date(game.startTime);
+        if (!Number.isFinite(start.getTime())) return state.gameWindow === 'all';
+        if (state.gameWindow === 'live') return game.status?.state === 'live';
+        if (state.gameWindow === 'today') return isSameLocalDay(start, now);
+        if (state.gameWindow === 'week') {
+            return game.status?.state !== 'final' && start <= weekFromNow && start >= new Date(now.getTime() - (6 * 60 * 60 * 1000));
+        }
+        return true;
+    });
+}
+
+function renderGameWindowFilters() {
+    if (!dom.gameWindows) return;
+    const liveCount = state.games.filter(game => game.status?.state === 'live').length;
+    if (dom.liveGameCount) dom.liveGameCount.textContent = String(liveCount);
+    dom.gameWindows.querySelectorAll('button[data-window]').forEach(button => {
+        const isActive = button.dataset.window === state.gameWindow;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+    });
+}
+
+function renderGameLeagueFilters() {
+    if (!dom.gameLeagueFilters) return;
+    const filters = [
+        { id: 'all', label: 'All leagues', count: state.games.length },
+        ...state.gameLeagues
+    ];
+    dom.gameLeagueFilters.innerHTML = filters.map(league => `
+        <button type="button" class="sports-league-filter${league.id === state.activeGameLeague ? ' active' : ''}"
+            data-league="${escapeHtml(league.id)}" aria-pressed="${league.id === state.activeGameLeague}">
+            <span>${escapeHtml(league.label)}</span><small>${Number(league.count) || 0}</small>
+        </button>
+    `).join('');
+    dom.gameLeagueFilters.querySelectorAll('.sports-league-filter').forEach(button => {
+        button.addEventListener('click', () => {
+            state.activeGameLeague = button.dataset.league || 'all';
+            renderGameLeagueFilters();
+            renderGames();
+        });
+    });
+}
+
+function renderGameTeam(competitor, showScore) {
+    const fallback = getInitials(competitor.shortName || competitor.name);
+    return `
+        <div class="sports-game-team${competitor.winner ? ' winner' : ''}">
+            <span class="sports-game-team-logo">
+                ${competitor.logo
+                    ? `<img src="${escapeHtml(competitor.logo)}" alt="" loading="lazy">`
+                    : `<span>${escapeHtml(fallback)}</span>`}
+            </span>
+            <span class="sports-game-team-copy">
+                <strong>${escapeHtml(competitor.shortName || competitor.name)}</strong>
+                <small>${escapeHtml(competitor.homeAway === 'home' ? 'Home' : competitor.homeAway === 'away' ? 'Away' : '')}</small>
+            </span>
+            ${showScore ? `<b>${escapeHtml(competitor.score || '-')}</b>` : ''}
+        </div>
+    `;
+}
+
+function renderGameActions(game) {
+    const channel = game.viewing?.channels?.[0];
+    const provider = game.viewing?.providers?.[0];
+    const isLive = game.status?.state === 'live';
+    const actions = [];
+
+    if (channel) {
+        actions.push(`
+            <button type="button" class="sports-game-action primary" data-channel-id="${escapeHtml(channel.id)}">
+                <i class="fa-solid fa-play" aria-hidden="true"></i>
+                ${isLive ? 'Watch now' : `Open ${escapeHtml(channel.name)}`}
+            </button>
+        `);
+    } else if (provider) {
+        actions.push(`
+            <a class="sports-game-action primary" href="${escapeHtml(provider.url)}" target="_blank" rel="noopener noreferrer">
+                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                ${isLive ? `Watch on ${escapeHtml(provider.name)}` : `Open ${escapeHtml(provider.name)}`}
+            </a>
+        `);
+    }
+
+    if (channel && provider) {
+        actions.push(`
+            <a class="sports-game-action secondary" href="${escapeHtml(provider.url)}" target="_blank" rel="noopener noreferrer"
+                aria-label="Open ${escapeHtml(provider.name)}">
+                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+            </a>
+        `);
+    } else if (game.detailsUrl) {
+        actions.push(`
+            <a class="sports-game-action secondary" href="${escapeHtml(game.detailsUrl)}" target="_blank" rel="noopener noreferrer"
+                aria-label="Open game details">
+                <i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
+            </a>
+        `);
+    }
+
+    if (!actions.length) {
+        return '<span class="sports-game-coverage-pending"><i class="fa-regular fa-clock"></i> Coverage pending</span>';
+    }
+    return actions.join('');
+}
+
+function renderGameCard(game) {
+    const competitors = game.competitors || [];
+    const showScore = game.status?.state === 'live' || game.status?.state === 'final';
+    const networks = game.viewing?.networks || game.broadcasts || [];
+    const visibleNetworks = networks.slice(0, 3);
+    const extraNetworkCount = Math.max(0, networks.length - visibleNetworks.length);
+    const venue = [game.venue?.name, game.venue?.location].filter(Boolean).join(' / ');
+    const stateLabel = game.status?.state === 'live' ? 'Live' : game.status?.state === 'final' ? 'Final' : 'Upcoming';
+
+    return `
+        <article class="sports-game-card" data-state="${escapeHtml(game.status?.state || 'scheduled')}" data-league-group="${escapeHtml(game.league?.group || 'sports')}">
+            <div class="sports-game-card-head">
+                <span class="sports-game-league">${escapeHtml(game.league?.label || 'Sports')}</span>
+                <span class="sports-game-state"><i></i>${escapeHtml(stateLabel)}</span>
+            </div>
+            <div class="sports-game-matchup" aria-label="${escapeHtml(game.fullTitle || game.title)}">
+                ${competitors.length >= 2
+                    ? competitors.slice(0, 2).map(competitor => renderGameTeam(competitor, showScore)).join('')
+                    : `<h3>${escapeHtml(game.title)}</h3>`}
+            </div>
+            <div class="sports-game-when">
+                <strong>${escapeHtml(getGameStatusLabel(game))}</strong>
+                ${venue ? `<span><i class="fa-solid fa-location-dot" aria-hidden="true"></i>${escapeHtml(venue)}</span>` : ''}
+            </div>
+            <div class="sports-game-networks">
+                ${visibleNetworks.length
+                    ? visibleNetworks.map(network => `<span>${escapeHtml(network)}</span>`).join('')
+                    : '<span class="pending">Broadcaster pending</span>'}
+                ${extraNetworkCount ? `<span>+${extraNetworkCount}</span>` : ''}
+            </div>
+            <div class="sports-game-card-actions">${renderGameActions(game)}</div>
+        </article>
+    `;
+}
+
+function renderGames() {
+    if (!dom.gameGrid) return;
+    const games = getVisibleGames();
+    const displayedGames = games.slice(0, 96);
+    if (dom.gameCount) {
+        const suffix = games.length > displayedGames.length ? ` / showing ${displayedGames.length}` : '';
+        dom.gameCount.textContent = `${games.length} game${games.length === 1 ? '' : 's'}${suffix}`;
+    }
+
+    if (!displayedGames.length) {
+        dom.gameGrid.innerHTML = `
+            <div class="sports-game-empty">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <strong>No matching games</strong>
+                <span>Try another team, league, or date range.</span>
+            </div>
+        `;
+        return;
+    }
+
+    dom.gameGrid.innerHTML = displayedGames.map(renderGameCard).join('');
+    dom.gameGrid.querySelectorAll('[data-channel-id]').forEach(button => {
+        button.addEventListener('click', () => {
+            const channel = state.channels.find(candidate => candidate.id === button.dataset.channelId);
+            if (!channel) {
+                setGameStatus('The channel guide is still loading. Try again in a moment.', 'loading');
+                loadCatalog();
+                return;
+            }
+            tuneChannel(channel);
+            dom.playerShell?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    });
+    dom.gameGrid.querySelectorAll('.sports-game-team-logo img').forEach(image => {
+        image.addEventListener('error', event => {
+            event.currentTarget.style.display = 'none';
+        }, { once: true });
+    });
+}
+
+function renderGameLoadingState() {
+    if (!dom.gameGrid) return;
+    dom.gameGrid.innerHTML = Array.from({ length: 6 }, () => `
+        <div class="sports-game-card sports-game-skeleton" aria-hidden="true">
+            <span></span><span></span><span></span>
+        </div>
+    `).join('');
+    if (dom.gameCount) dom.gameCount.textContent = 'Loading games';
+}
+
+async function loadGameGuide({ force = false } = {}) {
+    if (state.gamesLoading || (state.gamesLoaded && !force)) {
+        renderGameWindowFilters();
+        renderGameLeagueFilters();
+        renderGames();
+        return;
+    }
+
+    state.gamesLoading = true;
+    renderGameLoadingState();
+    setGameStatus('Loading schedules across every league...', 'loading');
+
+    try {
+        const response = await fetch('/api/live-tv/games', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Sports guide returned ${response.status}`);
+        const data = await response.json();
+        if (!data.success || !Array.isArray(data.events)) throw new Error(data.error || 'Invalid sports guide');
+
+        state.games = data.events;
+        state.gameLeagues = Array.isArray(data.leagues) ? data.leagues : [];
+        state.gamesLoaded = true;
+        if (state.activeGameLeague !== 'all' && !state.gameLeagues.some(league => league.id === state.activeGameLeague)) {
+            state.activeGameLeague = 'all';
+        }
+        if (data.window && dom.gameWindowLabel) {
+            dom.gameWindowLabel.textContent = `${data.window.from} through ${data.window.to}`;
+        }
+        if (state.gameWindow === 'today' && !getVisibleGames().length && state.games.length) state.gameWindow = 'week';
+
+        renderGameWindowFilters();
+        renderGameLeagueFilters();
+        renderGames();
+        const liveCount = state.games.filter(game => game.status?.state === 'live').length;
+        const warning = data.warning ? ` ${data.warning}` : '';
+        setGameStatus(`${liveCount} live / ${state.games.length} indexed.${warning}`, data.stale || data.partial ? 'warning' : 'ready');
+    } catch (error) {
+        console.error('[LiveTV] Unable to load sports guide:', error);
+        setGameStatus('Game schedules are unavailable. Try again shortly.', 'error');
+        dom.gameGrid.innerHTML = `
+            <button id="sports-game-retry" class="sports-game-empty sports-game-retry" type="button">
+                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                <strong>Schedule unavailable</strong>
+                <span>Choose this card to retry.</span>
+            </button>
+        `;
+        document.getElementById('sports-game-retry')?.addEventListener('click', () => loadGameGuide({ force: true }));
+    } finally {
+        state.gamesLoading = false;
+    }
+}
+
 function getVisibleChannels() {
     const query = state.query.toLowerCase();
     return state.channels.filter(channel => {
@@ -388,10 +691,32 @@ export function initLiveTv() {
     dom.networkLink = document.getElementById('live-tv-network-link');
     dom.fullscreenButton = document.getElementById('live-tv-fullscreen');
     dom.clock = document.getElementById('live-tv-clock');
+    dom.gameSearch = document.getElementById('sports-game-search');
+    dom.gameWindows = document.getElementById('sports-game-windows');
+    dom.gameLeagueFilters = document.getElementById('sports-league-filters');
+    dom.gameGrid = document.getElementById('sports-game-grid');
+    dom.gameCount = document.getElementById('sports-game-count');
+    dom.gameStatus = document.getElementById('sports-game-status');
+    dom.gameWindowLabel = document.getElementById('sports-game-window');
+    dom.liveGameCount = document.getElementById('sports-live-count');
 
     dom.search?.addEventListener('input', event => {
         state.query = event.target.value.trim();
         renderChannels();
+    });
+    dom.gameSearch?.addEventListener('input', event => {
+        const previousQuery = state.gameQuery;
+        state.gameQuery = event.target.value.trim();
+        if (state.gameQuery && !previousQuery) state.gameWindow = 'all';
+        renderGameWindowFilters();
+        renderGames();
+    });
+    dom.gameWindows?.querySelectorAll('button[data-window]').forEach(button => {
+        button.addEventListener('click', () => {
+            state.gameWindow = button.dataset.window || 'today';
+            renderGameWindowFilters();
+            renderGames();
+        });
     });
     dom.fullscreenButton?.addEventListener('click', requestFullscreen);
     dom.video?.addEventListener('playing', () => {
@@ -409,6 +734,7 @@ export function initLiveTv() {
     globalThis.addEventListener('load-live-tv', () => {
         document.getElementById('genre-filter')?.classList.add('hidden');
         loadCatalog();
+        loadGameGuide();
     });
     globalThis.addEventListener('hashchange', () => {
         if (!globalThis.location.hash.startsWith('#live-tv')) stopPlayback();
@@ -416,4 +742,10 @@ export function initLiveTv() {
 
     updateClock();
     globalThis.setInterval(updateClock, 30_000);
+    globalThis.addEventListener('keydown', event => {
+        if (event.key !== '/' || !globalThis.location.hash.startsWith('#live-tv')) return;
+        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+        event.preventDefault();
+        dom.gameSearch?.focus();
+    });
 }

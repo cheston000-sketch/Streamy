@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
 import { createIntroMarkerResolver } from './intro-markers.js';
 import { createLiveTvService } from './live-tv.js';
+import { addViewingOptions, createSportsGuideService } from './sports-guide.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,7 @@ const APP_VERSION = (() => {
 const APP_BUILD = Number.parseInt(APP_VERSION, 10) || 0;
 const introMarkerResolver = createIntroMarkerResolver();
 const liveTvService = createLiveTvService();
+const sportsGuideService = createSportsGuideService();
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[Ghost Thread] Blocked rogue unhandled rejection:', reason?.message || reason);
@@ -518,6 +520,7 @@ app.get('/api/health', (req, res) => {
         providerApi: true,
         introMarkers: true,
         liveTv: true,
+        sportsGuide: true,
         uptimeSeconds: Math.floor(process.uptime())
     });
 });
@@ -551,6 +554,26 @@ app.get('/api/live-tv/channels', async (req, res) => {
         res.status(error.name === 'AbortError' ? 504 : 502).json({
             success: false,
             error: 'The Live TV guide is temporarily unavailable.'
+        });
+    }
+});
+
+app.get('/api/live-tv/games', async (req, res) => {
+    try {
+        const [guide, catalog] = await Promise.all([
+            sportsGuideService.getGuide(),
+            liveTvService.getCatalog().catch(() => ({ channels: [] }))
+        ]);
+        res.json({
+            success: true,
+            ...guide,
+            events: guide.events.map(event => addViewingOptions(event, catalog.channels))
+        });
+    } catch (error) {
+        console.error('[LiveTV] Sports guide unavailable:', error.message);
+        res.status(error.name === 'AbortError' ? 504 : 502).json({
+            success: false,
+            error: 'The sports schedule is temporarily unavailable.'
         });
     }
 });

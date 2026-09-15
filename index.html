@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=119-live1">
+    <link rel="stylesheet" href="styles.css?v=119-live2">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -141,6 +141,37 @@
                     <strong id="live-tv-clock">--:--</strong>
                     <span><i></i> Guide online</span>
                 </div>
+            </section>
+
+            <section class="sports-game-finder" aria-labelledby="sports-game-finder-title">
+                <div class="sports-game-finder-header">
+                    <div>
+                        <span class="live-tv-section-kicker">Game finder</span>
+                        <h2 id="sports-game-finder-title">Find the game. Find the signal.</h2>
+                        <p>Search any team or matchup across major leagues. StreamOS will show where it is playing and the fastest available way to watch.</p>
+                    </div>
+                    <label class="sports-game-search" for="sports-game-search">
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        <input id="sports-game-search" type="search" placeholder="Try Chiefs, Yankees, Arsenal..." autocomplete="off" spellcheck="false">
+                        <kbd>/</kbd>
+                    </label>
+                </div>
+                <div class="sports-game-toolbar">
+                    <div id="sports-game-windows" class="sports-game-windows" aria-label="Filter games by time">
+                        <button type="button" data-window="live"><i></i> Live now <small id="sports-live-count">0</small></button>
+                        <button type="button" data-window="today" class="active">Today</button>
+                        <button type="button" data-window="week">Next 7 days</button>
+                        <button type="button" data-window="all">All dates</button>
+                    </div>
+                    <span id="sports-game-status" role="status" data-state="loading">Loading schedules...</span>
+                </div>
+                <div id="sports-league-filters" class="sports-league-filters" aria-label="Filter games by league"></div>
+                <div class="sports-game-summary">
+                    <span id="sports-game-count">Loading games</span>
+                    <span id="sports-game-window">Yesterday through the next two weeks</span>
+                </div>
+                <div id="sports-game-grid" class="sports-game-grid" aria-live="polite"></div>
+                <p class="sports-game-attribution">Schedules and listed broadcasters are refreshed from ESPN public scoreboard data. Viewing availability can vary by market and subscription.</p>
             </section>
 
             <section class="live-tv-on-air" aria-label="Live channel player">
@@ -393,7 +424,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=119-live1"></script>
+    <script type="module" src="js/app.js?v=119-live2"></script>
 </body>
 
 </html>
