@@ -2,6 +2,7 @@ const ESPN_API_ROOTS = [
     'https://site.web.api.espn.com/apis/site/v2/sports',
     'https://site.api.espn.com/apis/site/v2/sports'
 ];
+const ESPN_CORE_API_ROOT = 'https://sports.core.api.espn.com/v3/sports';
 const DEFAULT_CACHE_TTL_MS = 90_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 25_000;
 const DEFAULT_BATCH_SIZE = 5;
@@ -10,24 +11,24 @@ const DEFAULT_DAYS_BACK = 1;
 const DEFAULT_DAYS_FORWARD = 14;
 
 export const SPORTS_LEAGUES = Object.freeze([
-    { id: 'nfl', label: 'NFL', sport: 'football', league: 'nfl', group: 'football' },
-    { id: 'college-football', label: 'College Football', sport: 'football', league: 'college-football', group: 'football' },
-    { id: 'nba', label: 'NBA', sport: 'basketball', league: 'nba', group: 'basketball' },
-    { id: 'wnba', label: 'WNBA', sport: 'basketball', league: 'wnba', group: 'basketball' },
-    { id: 'ncaam', label: "NCAA Men's Basketball", sport: 'basketball', league: 'mens-college-basketball', group: 'basketball' },
-    { id: 'ncaaw', label: "NCAA Women's Basketball", sport: 'basketball', league: 'womens-college-basketball', group: 'basketball' },
-    { id: 'mlb', label: 'MLB', sport: 'baseball', league: 'mlb', group: 'baseball' },
-    { id: 'nhl', label: 'NHL', sport: 'hockey', league: 'nhl', group: 'hockey' },
-    { id: 'mls', label: 'MLS', sport: 'soccer', league: 'usa.1', group: 'soccer' },
-    { id: 'nwsl', label: 'NWSL', sport: 'soccer', league: 'usa.nwsl', group: 'soccer' },
-    { id: 'premier-league', label: 'Premier League', sport: 'soccer', league: 'eng.1', group: 'soccer' },
-    { id: 'champions-league', label: 'Champions League', sport: 'soccer', league: 'uefa.champions', group: 'soccer' },
-    { id: 'europa-league', label: 'Europa League', sport: 'soccer', league: 'uefa.europa', group: 'soccer' },
-    { id: 'liga-mx', label: 'Liga MX', sport: 'soccer', league: 'mex.1', group: 'soccer' },
-    { id: 'la-liga', label: 'La Liga', sport: 'soccer', league: 'esp.1', group: 'soccer' },
-    { id: 'bundesliga', label: 'Bundesliga', sport: 'soccer', league: 'ger.1', group: 'soccer' },
-    { id: 'serie-a', label: 'Serie A', sport: 'soccer', league: 'ita.1', group: 'soccer' },
-    { id: 'ligue-1', label: 'Ligue 1', sport: 'soccer', league: 'fra.1', group: 'soccer' },
+    { id: 'nfl', label: 'NFL', sport: 'football', league: 'nfl', group: 'football', watch: { name: 'NFL', url: 'https://www.nfl.com/ways-to-watch/' } },
+    { id: 'college-football', label: 'College Football', sport: 'football', league: 'college-football', group: 'football', watch: { name: 'ESPN', url: 'https://www.espn.com/watch/' } },
+    { id: 'nba', label: 'NBA', sport: 'basketball', league: 'nba', group: 'basketball', watch: { name: 'NBA Watch', url: 'https://www.nba.com/watch/' } },
+    { id: 'wnba', label: 'WNBA', sport: 'basketball', league: 'wnba', group: 'basketball', watch: { name: 'WNBA League Pass', url: 'https://www.wnba.com/leaguepass' } },
+    { id: 'ncaam', label: "NCAA Men's Basketball", sport: 'basketball', league: 'mens-college-basketball', group: 'basketball', watch: { name: 'ESPN', url: 'https://www.espn.com/watch/' } },
+    { id: 'ncaaw', label: "NCAA Women's Basketball", sport: 'basketball', league: 'womens-college-basketball', group: 'basketball', watch: { name: 'ESPN', url: 'https://www.espn.com/watch/' } },
+    { id: 'mlb', label: 'MLB', sport: 'baseball', league: 'mlb', group: 'baseball', watch: { name: 'MLB.TV', url: 'https://www.mlb.com/live-stream-games/' } },
+    { id: 'nhl', label: 'NHL', sport: 'hockey', league: 'nhl', group: 'hockey', watch: { name: 'NHL', url: 'https://www.nhl.com/where-to-stream' } },
+    { id: 'mls', label: 'MLS', sport: 'soccer', league: 'usa.1', group: 'soccer', watch: { name: 'MLS Season Pass', url: 'https://tv.apple.com/us/channel/mls-season-pass/tvs.sbd.7000' } },
+    { id: 'nwsl', label: 'NWSL', sport: 'soccer', league: 'usa.nwsl', group: 'soccer', watch: { name: 'NWSL+', url: 'https://plus.nwslsoccer.com/' } },
+    { id: 'premier-league', label: 'Premier League', sport: 'soccer', league: 'eng.1', group: 'soccer', watch: { name: 'Peacock', url: 'https://www.peacocktv.com/sports' } },
+    { id: 'champions-league', label: 'Champions League', sport: 'soccer', league: 'uefa.champions', group: 'soccer', watch: { name: 'Paramount+', url: 'https://www.paramountplus.com/sports/' } },
+    { id: 'europa-league', label: 'Europa League', sport: 'soccer', league: 'uefa.europa', group: 'soccer', watch: { name: 'Paramount+', url: 'https://www.paramountplus.com/sports/' } },
+    { id: 'liga-mx', label: 'Liga MX', sport: 'soccer', league: 'mex.1', group: 'soccer', watch: { name: 'FOX Sports', url: 'https://www.foxsports.com/live' } },
+    { id: 'la-liga', label: 'La Liga', sport: 'soccer', league: 'esp.1', group: 'soccer', watch: { name: 'ESPN', url: 'https://www.espn.com/watch/' } },
+    { id: 'bundesliga', label: 'Bundesliga', sport: 'soccer', league: 'ger.1', group: 'soccer', watch: { name: 'ESPN', url: 'https://www.espn.com/watch/' } },
+    { id: 'serie-a', label: 'Serie A', sport: 'soccer', league: 'ita.1', group: 'soccer', watch: { name: 'Paramount+', url: 'https://www.paramountplus.com/sports/' } },
+    { id: 'ligue-1', label: 'Ligue 1', sport: 'soccer', league: 'fra.1', group: 'soccer', watch: { name: 'beIN Sports', url: 'https://www.beinsports.com/en-us' } },
     { id: 'ufc', label: 'UFC', sport: 'mma', league: 'ufc', group: 'combat' },
     { id: 'pga', label: 'PGA Tour', sport: 'golf', league: 'pga', group: 'golf' },
     { id: 'lpga', label: 'LPGA Tour', sport: 'golf', league: 'lpga', group: 'golf' },
@@ -191,6 +192,71 @@ export function normalizeSportsEvent(event = {}, league = {}) {
     };
 }
 
+function getFallbackEventStatus(startTime, league, nowMs) {
+    const start = Date.parse(startTime);
+    const durationByGroup = {
+        baseball: 5,
+        basketball: 3,
+        football: 4.5,
+        hockey: 3,
+        soccer: 3
+    };
+    const estimatedEnd = start + ((durationByGroup[league.group] || 4) * 60 * 60 * 1000);
+    if (nowMs < start) return { state: 'scheduled', detail: 'Scheduled', clock: '', period: 0, completed: false };
+    if (nowMs <= estimatedEnd) return { state: 'live', detail: 'In progress', clock: '', period: 0, completed: false };
+    return { state: 'final', detail: 'Final', clock: '', period: 0, completed: true };
+}
+
+function getFallbackDetailsUrl(league, eventId) {
+    if (!eventId) return '';
+    if (league.sport === 'soccer') return `https://www.espn.com/soccer/match/_/gameId/${eventId}`;
+    return `https://www.espn.com/${league.league}/game/_/gameId/${eventId}`;
+}
+
+function getFallbackCompetitors(event = {}) {
+    const names = String(event.name || '').split(/\s+(?:at|vs\.?|versus)\s+/i);
+    if (names.length !== 2) return [];
+    const abbreviations = String(event.shortName || '').split(/\s+(?:@|at|vs\.?)\s+/i);
+    return names.map((name, index) => ({
+        id: '',
+        name,
+        shortName: name,
+        abbreviation: abbreviations[index] || '',
+        logo: '',
+        homeAway: index === 0 ? 'away' : 'home',
+        score: '',
+        winner: false
+    }));
+}
+
+export function normalizeCoreSportsEvent(event = {}, league = {}, nowMs = Date.now()) {
+    const parsedStartTime = new Date(event.date || '');
+    const startTime = Number.isFinite(parsedStartTime.getTime()) ? parsedStartTime.toISOString() : '';
+    const fallbackProvider = league.watch && isHttpsUrl(league.watch.url)
+        ? { name: league.watch.name, url: league.watch.url }
+        : null;
+
+    return {
+        id: `${league.id || league.league || 'sports'}:${event.id}`,
+        sourceId: String(event.id || ''),
+        title: event.shortName || event.name || league.label || 'Sports event',
+        fullTitle: event.name || event.shortName || league.label || 'Sports event',
+        startTime,
+        league: {
+            id: league.id || league.league || '',
+            label: league.label || league.id || league.league || 'Sports',
+            group: league.group || league.sport || 'sports'
+        },
+        status: getFallbackEventStatus(startTime, league, nowMs),
+        competitors: getFallbackCompetitors(event),
+        broadcasts: [],
+        venue: { name: '', location: '' },
+        detailsUrl: getFallbackDetailsUrl(league, event.id),
+        fallbackProvider,
+        compact: true
+    };
+}
+
 export function addViewingOptions(event, channels = []) {
     const channelById = new Map(channels.map(channel => [channel.id, channel]));
     const matchedChannels = [];
@@ -215,12 +281,22 @@ export function addViewingOptions(event, channels = []) {
         }
     }
 
+    if (!providers.length && event.fallbackProvider && isHttpsUrl(event.fallbackProvider.url)) {
+        providers.push({
+            name: event.fallbackProvider.name,
+            url: event.fallbackProvider.url,
+            network: `${event.league?.label || 'League'} coverage`
+        });
+    }
+
     return {
         ...event,
         viewing: {
             channels: matchedChannels,
             providers,
-            networks: [...(event.broadcasts || [])]
+            networks: event.broadcasts?.length
+                ? [...event.broadcasts]
+                : event.fallbackProvider ? [`${event.fallbackProvider.name} coverage`] : []
         }
     };
 }
@@ -246,7 +322,7 @@ function createDateWindow(nowMs, daysBack, daysForward) {
     };
 }
 
-async function fetchLeagueEvents(fetchImpl, league, window, timeoutMs) {
+async function fetchLeagueEvents(fetchImpl, league, window, timeoutMs, nowMs) {
     const query = league.currentOnly ? '' : `?dates=${window.from}-${window.to}&limit=300`;
     let lastError = null;
 
@@ -273,6 +349,29 @@ async function fetchLeagueEvents(fetchImpl, league, window, timeoutMs) {
         } finally {
             clearTimeout(timeoutId);
         }
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const coreUrl = `${ESPN_CORE_API_ROOT}/${league.sport}/${league.league}/events?dates=${window.from}-${window.to}&limit=300`;
+
+    try {
+        const response = await fetchImpl(coreUrl, {
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'User-Agent': 'Mozilla/5.0 StreamOS-SportsGuide/1.0'
+            }
+        });
+        if (response.status === 404) return [];
+        if (!response.ok) throw new Error(`${league.label} compact schedule returned ${response.status}`);
+        const payload = await response.json();
+        if (!Array.isArray(payload.items)) throw new Error(`${league.label} returned an invalid compact schedule`);
+        return payload.items.map(event => normalizeCoreSportsEvent(event, league, nowMs));
+    } catch (error) {
+        lastError = error;
+    } finally {
+        clearTimeout(timeoutId);
     }
 
     throw lastError || new Error(`${league.label} schedule is unavailable`);
@@ -306,7 +405,8 @@ export function createSportsGuideService({
     let refreshPromise = null;
 
     async function refreshGuide() {
-        const window = createDateWindow(now(), daysBack, daysForward);
+        const refreshTime = now();
+        const window = createDateWindow(refreshTime, daysBack, daysForward);
         const events = [];
         const warnings = [];
         const unavailableLeagues = [];
@@ -315,7 +415,7 @@ export function createSportsGuideService({
         const results = await Promise.allSettled(leagues.map(async (league, index) => {
             const startDelay = Math.floor(index / batchSize) * batchDelayMs;
             if (startDelay > 0) await sleep(startDelay);
-            return fetchLeagueEvents(fetchImpl, league, window, requestTimeoutMs);
+            return fetchLeagueEvents(fetchImpl, league, window, requestTimeoutMs, refreshTime);
         }));
 
         results.forEach((result, index) => {

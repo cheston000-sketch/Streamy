@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
     addViewingOptions,
     createSportsGuideService,
+    normalizeCoreSportsEvent,
     normalizeNetworkName,
     normalizeSportsEvent,
     resolveOfficialProvider
@@ -76,6 +77,20 @@ assert.deepEqual(viewingEvent.viewing.channels, [{
 }]);
 assert.equal(viewingEvent.viewing.providers[0].name, 'Paramount+');
 
+const compactEvent = normalizeCoreSportsEvent({
+    id: '401999002',
+    name: 'Kansas City Chiefs at Miami Dolphins',
+    shortName: 'KC @ MIA',
+    date: '2026-09-27T17:00:00Z'
+}, {
+    ...nflLeague,
+    watch: { name: 'NFL', url: 'https://www.nfl.com/ways-to-watch/' }
+}, Date.parse('2026-09-15T12:00:00Z'));
+assert.equal(compactEvent.status.state, 'scheduled');
+assert.deepEqual(compactEvent.competitors.map(competitor => competitor.abbreviation), ['KC', 'MIA']);
+assert.equal(compactEvent.compact, true);
+assert.equal(addViewingOptions(compactEvent).viewing.providers[0].name, 'NFL');
+
 let fetchCount = 0;
 const service = createSportsGuideService({
     leagues: [
@@ -105,6 +120,37 @@ assert.match(firstGuide.warning, /1 league schedule/);
 assert.deepEqual(firstGuide.unavailableLeagues.map(league => league.id), ['nba']);
 assert.match(firstGuide.unavailableLeagues[0].reason, /503/);
 assert.deepEqual(firstGuide.window, { from: '2026-09-14', to: '2026-09-29' });
-assert.equal(fetchCount, 3);
+assert.equal(fetchCount, 4);
+
+let fallbackFetchCount = 0;
+const fallbackService = createSportsGuideService({
+    leagues: [{
+        ...nflLeague,
+        watch: { name: 'NFL', url: 'https://www.nfl.com/ways-to-watch/' }
+    }],
+    fetchImpl: async url => {
+        fallbackFetchCount += 1;
+        if (url.includes('site.')) return { ok: false, status: 400, json: async () => ({}) };
+        return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+                items: [{
+                    id: '401999002',
+                    name: 'Kansas City Chiefs at Miami Dolphins',
+                    shortName: 'KC @ MIA',
+                    date: '2026-09-27T17:00:00Z'
+                }]
+            })
+        };
+    },
+    now: () => Date.parse('2026-09-15T12:00:00Z'),
+    batchDelayMs: 0
+});
+const fallbackGuide = await fallbackService.getGuide();
+assert.equal(fallbackGuide.events.length, 1);
+assert.equal(fallbackGuide.events[0].compact, true);
+assert.equal(fallbackGuide.partial, false);
+assert.equal(fallbackFetchCount, 3);
 
 console.log('Sports guide tests passed.');
