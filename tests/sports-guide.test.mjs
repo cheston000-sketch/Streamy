@@ -102,6 +102,8 @@ assert.equal(firstGuide.events.length, 1);
 assert.equal(firstGuide.leagues[0].id, 'nfl');
 assert.equal(firstGuide.partial, true);
 assert.match(firstGuide.warning, /1 league schedule/);
+assert.deepEqual(firstGuide.unavailableLeagues.map(league => league.id), ['nba']);
+assert.match(firstGuide.unavailableLeagues[0].reason, /503/);
 assert.deepEqual(firstGuide.window, { from: '2026-09-14', to: '2026-09-29' });
 assert.equal(fetchCount, 3);
 

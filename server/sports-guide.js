@@ -309,6 +309,7 @@ export function createSportsGuideService({
         const window = createDateWindow(now(), daysBack, daysForward);
         const events = [];
         const warnings = [];
+        const unavailableLeagues = [];
         let successfulLeagues = 0;
 
         const results = await Promise.allSettled(leagues.map(async (league, index) => {
@@ -324,6 +325,11 @@ export function createSportsGuideService({
                 events.push(...result.value);
             } else {
                 warnings.push(`${league.label} is temporarily unavailable.`);
+                unavailableLeagues.push({
+                    id: league.id,
+                    label: league.label,
+                    reason: String(result.reason?.message || 'Schedule request failed').slice(0, 160)
+                });
             }
         });
 
@@ -350,6 +356,7 @@ export function createSportsGuideService({
             window: { from: window.fromDate, to: window.toDate },
             source: 'ESPN public scoreboard data',
             warning: warnings.length ? `${warnings.length} league schedule${warnings.length === 1 ? '' : 's'} could not refresh.` : '',
+            unavailableLeagues,
             partial: warnings.length > 0,
             refreshedAt: new Date(now()).toISOString(),
             stale: false
