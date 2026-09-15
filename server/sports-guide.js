@@ -179,7 +179,9 @@ export function normalizeSportsEvent(event = {}, league = {}) {
         league: {
             id: league.id || league.league || '',
             label: league.label || league.id || league.league || 'Sports',
-            group: league.group || league.sport || 'sports'
+            group: league.group || league.sport || 'sports',
+            sport: league.sport || '',
+            slug: league.league || ''
         },
         status: normalizeStatus(event.status || competition.status),
         competitors,
@@ -245,7 +247,9 @@ export function normalizeCoreSportsEvent(event = {}, league = {}, nowMs = Date.n
         league: {
             id: league.id || league.league || '',
             label: league.label || league.id || league.league || 'Sports',
-            group: league.group || league.sport || 'sports'
+            group: league.group || league.sport || 'sports',
+            sport: league.sport || '',
+            slug: league.league || ''
         },
         status: getFallbackEventStatus(startTime, league, nowMs),
         competitors: getFallbackCompetitors(event),

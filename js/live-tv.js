@@ -15,6 +15,11 @@ const state = {
     activeGameLeague: 'all',
     gamesLoading: false,
     gamesLoaded: false,
+    gameDateWindow: null,
+    enrichingGames: new Set(),
+    enrichedGames: new Set(),
+    failedGames: new Set(),
+    gameEnrichmentRenderTimer: null,
     hls: null,
     tuneTimer: null,
     tuneToken: 0,
@@ -22,6 +27,24 @@ const state = {
 };
 
 const dom = {};
+
+const GAME_CHANNEL_IDS_BY_NETWORK = new Map([
+    ['cbs sports golazo network', 'CBSSportsGolazoNetwork.us'],
+    ['cbs sports hq', 'CBSSportsHQ.us'],
+    ['nbc sports now', 'NBCSportsNOW.us'],
+    ['nhl network', 'NHLNetwork.us'],
+    ['tennis channel', 'TennisChannel.us'],
+    ['fifa plus', 'FIFAPlus.uk'],
+    ['fifa plus women', 'FIFAPlusWomen.uk'],
+    ['bein sports xtra', 'beINSPORTSXTRA.us'],
+    ['pga tour', 'PGATour.us'],
+    ['womens sports network', 'WomensSportsNetwork.us'],
+    ['fight network', 'FightNetwork.ca'],
+    ['fite 24 7', 'FITE247.us'],
+    ['draftkings network', 'DraftKingsNetwork.us'],
+    ['sportsgrid', 'SportsGrid.us'],
+    ['lacrosse tv', 'LacrosseTV.us']
+]);
 
 function escapeHtml(value = '') {
     return String(value)
@@ -422,6 +445,137 @@ function renderGameCard(game) {
     `;
 }
 
+function normalizeGameNetwork(value = '') {
+    return String(value)
+        .toLowerCase()
+        .replaceAll('&', ' and ')
+        .replaceAll('+', ' plus ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+function getBrowserGameProvider(network = '') {
+    const value = normalizeGameNetwork(network);
+    const original = String(network).trim();
+    if (!value) return null;
+    if (/\.tv$/i.test(original) && !/^(?:apple|nba|f1)\s/i.test(original)) {
+        return { name: 'MLB.TV', url: 'https://www.mlb.com/live-stream-games/' };
+    }
+    if (value.startsWith('espn')) return { name: 'ESPN', url: 'https://www.espn.com/watch/' };
+    if (value === 'abc') return { name: 'ABC', url: 'https://abc.com/watch-live' };
+    if (value === 'cbs') return { name: 'CBS', url: 'https://www.cbs.com/live-tv/' };
+    if (/^(?:cbssn|cbs sports network|paramount plus)$/.test(value)) return { name: 'Paramount+', url: 'https://www.paramountplus.com/sports/' };
+    if (/^(?:fox|fs1|fs2|fox deportes|btn)$/.test(value)) return { name: 'FOX Sports', url: 'https://www.foxsports.com/live' };
+    if (/^(?:nbc|nbcsn|usa net|usa network|peacock|golf chnl|golf channel)/.test(value)) return { name: 'Peacock', url: 'https://www.peacocktv.com/sports' };
+    if (value === 'prime video') return { name: 'Prime Video', url: 'https://www.amazon.com/gp/video/sports' };
+    if (value === 'apple tv') return { name: 'Apple TV', url: 'https://tv.apple.com/us/channel/mls-season-pass/tvs.sbd.7000' };
+    if (/^(?:tnt|tbs|trutv|tru tv|max)$/.test(value)) return { name: 'Max Sports', url: 'https://play.max.com/sports' };
+    if (/^(?:nba tv|nba league pass)$/.test(value)) return { name: 'NBA League Pass', url: 'https://www.nba.com/watch/league-pass-stream' };
+    if (value === 'wnba league pass') return { name: 'WNBA League Pass', url: 'https://www.wnba.com/leaguepass' };
+    if (value === 'nhl network') return { name: 'NHL', url: 'https://www.nhl.com/where-to-stream' };
+    if (value === 'tennis channel') return { name: 'Tennis Channel', url: 'https://www.tennischannel.com/watch' };
+    if (value.startsWith('bein sports')) return { name: 'beIN Sports', url: 'https://www.beinsports.com/en-us' };
+    if (value.startsWith('fifa plus')) return { name: 'FIFA+', url: 'https://www.plus.fifa.com/' };
+    return null;
+}
+
+function buildBrowserViewing(game, broadcasts) {
+    const channels = [];
+    const providers = [];
+    broadcasts.forEach(network => {
+        const channelId = GAME_CHANNEL_IDS_BY_NETWORK.get(normalizeGameNetwork(network));
+        const channel = state.channels.find(candidate => candidate.id === channelId);
+        if (channel && !channels.some(candidate => candidate.id === channel.id)) {
+            channels.push({
+                id: channel.id,
+                name: channel.name,
+                logo: channel.logo || '',
+                quality: channel.streams?.[0]?.quality || 'Auto'
+            });
+        }
+        const provider = getBrowserGameProvider(network);
+        if (provider && !providers.some(candidate => candidate.url === provider.url)) {
+            providers.push({ ...provider, network });
+        }
+    });
+
+    return {
+        channels,
+        providers: providers.length ? providers : [...(game.viewing?.providers || [])],
+        networks: [...broadcasts]
+    };
+}
+
+function scheduleEnrichmentRender() {
+    if (state.gameEnrichmentRenderTimer) globalThis.clearTimeout(state.gameEnrichmentRenderTimer);
+    state.gameEnrichmentRenderTimer = globalThis.setTimeout(() => {
+        state.gameEnrichmentRenderTimer = null;
+        renderGames();
+    }, 120);
+}
+
+async function enrichGameBroadcasts(game) {
+    const league = game.league;
+    if (!game.sourceId || !league?.sport || !league.slug) {
+        state.enrichingGames.delete(game.id);
+        state.failedGames.add(game.id);
+        return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = globalThis.setTimeout(() => controller.abort(), 15_000);
+    const sport = encodeURIComponent(league.sport);
+    const slug = encodeURIComponent(league.slug);
+    const eventId = encodeURIComponent(game.sourceId);
+    const url = `https://sports.core.api.espn.com/v2/sports/${sport}/leagues/${slug}/events/${eventId}/competitions/${eventId}/broadcasts?lang=en&region=us`;
+
+    try {
+        const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) throw new Error(`Broadcast guide returned ${response.status}`);
+        const payload = await response.json();
+        if (!Array.isArray(payload.items)) throw new Error('Broadcast guide returned invalid data');
+        const broadcasts = [...new Set(payload.items
+            .map(item => item.station || item.media?.shortName || item.media?.name || '')
+            .map(value => String(value).trim())
+            .filter(Boolean))];
+
+        state.games = state.games.map(candidate => candidate.id === game.id ? {
+            ...candidate,
+            broadcasts: broadcasts.length ? broadcasts : candidate.broadcasts,
+            viewing: broadcasts.length ? buildBrowserViewing(candidate, broadcasts) : candidate.viewing,
+            broadcastsEnriched: true
+        } : candidate);
+        state.enrichedGames.add(game.id);
+        scheduleEnrichmentRender();
+    } catch (error) {
+        state.failedGames.add(game.id);
+    } finally {
+        globalThis.clearTimeout(timeoutId);
+        state.enrichingGames.delete(game.id);
+    }
+}
+
+function enrichVisibleCompactGames() {
+    const games = getVisibleGames().slice(0, 96).filter(game => (
+        game.compact
+        && game.sourceId
+        && game.league?.sport
+        && game.league?.slug
+        && !game.broadcastsEnriched
+        && !state.enrichingGames.has(game.id)
+        && !state.enrichedGames.has(game.id)
+        && !state.failedGames.has(game.id)
+    ));
+
+    games.forEach((game, index) => {
+        state.enrichingGames.add(game.id);
+        const delay = Math.floor(index / 5) * 1_000;
+        globalThis.setTimeout(() => {
+            void enrichGameBroadcasts(game);
+        }, delay);
+    });
+}
+
 function renderGames() {
     if (!dom.gameGrid) return;
     const games = getVisibleGames();
@@ -460,6 +614,7 @@ function renderGames() {
             event.currentTarget.style.display = 'none';
         }, { once: true });
     });
+    Promise.resolve().then(enrichVisibleCompactGames);
 }
 
 function renderGameLoadingState() {
@@ -481,6 +636,15 @@ async function loadGameGuide({ force = false } = {}) {
     }
 
     state.gamesLoading = true;
+    if (force) {
+        state.enrichingGames.clear();
+        state.enrichedGames.clear();
+        state.failedGames.clear();
+        if (state.gameEnrichmentRenderTimer) {
+            globalThis.clearTimeout(state.gameEnrichmentRenderTimer);
+            state.gameEnrichmentRenderTimer = null;
+        }
+    }
     renderGameLoadingState();
     setGameStatus('Loading schedules across every league...', 'loading');
 
@@ -492,6 +656,7 @@ async function loadGameGuide({ force = false } = {}) {
 
         state.games = data.events;
         state.gameLeagues = Array.isArray(data.leagues) ? data.leagues : [];
+        state.gameDateWindow = data.window || null;
         state.gamesLoaded = true;
         if (state.activeGameLeague !== 'all' && !state.gameLeagues.some(league => league.id === state.activeGameLeague)) {
             state.activeGameLeague = 'all';

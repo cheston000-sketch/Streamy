@@ -47,6 +47,8 @@ assert.deepEqual(normalized.competitors.map(competitor => competitor.shortName),
 assert.deepEqual(normalized.broadcasts, ['ESPN', 'ABC']);
 assert.equal(normalized.venue.location, 'Kansas City, MO, USA');
 assert.equal(normalized.detailsUrl, 'https://www.espn.com/nfl/game/_/gameId/401999001');
+assert.equal(normalized.league.sport, 'football');
+assert.equal(normalized.league.slug, 'nfl');
 
 assert.equal(normalizeNetworkName('FIFA+ Women'), 'fifa plus women');
 assert.deepEqual(resolveOfficialProvider('ESPN2'), {
@@ -89,6 +91,8 @@ const compactEvent = normalizeCoreSportsEvent({
 assert.equal(compactEvent.status.state, 'scheduled');
 assert.deepEqual(compactEvent.competitors.map(competitor => competitor.abbreviation), ['KC', 'MIA']);
 assert.equal(compactEvent.compact, true);
+assert.equal(compactEvent.league.sport, 'football');
+assert.equal(compactEvent.league.slug, 'nfl');
 assert.equal(addViewingOptions(compactEvent).viewing.providers[0].name, 'NFL');
 
 let fetchCount = 0;
