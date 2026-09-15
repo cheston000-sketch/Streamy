@@ -1,6 +1,6 @@
 const ESPN_API_ROOT = 'https://site.api.espn.com/apis/site/v2/sports';
 const DEFAULT_CACHE_TTL_MS = 90_000;
-const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 25_000;
 const DEFAULT_BATCH_SIZE = 5;
 const DEFAULT_BATCH_DELAY_MS = 1_000;
 const DEFAULT_DAYS_BACK = 1;
@@ -300,26 +300,21 @@ export function createSportsGuideService({
         const warnings = [];
         let successfulLeagues = 0;
 
-        for (let index = 0; index < leagues.length; index += batchSize) {
-            const batch = leagues.slice(index, index + batchSize);
-            const results = await Promise.allSettled(batch.map(league => (
-                fetchLeagueEvents(fetchImpl, league, window, requestTimeoutMs)
-            )));
+        const results = await Promise.allSettled(leagues.map(async (league, index) => {
+            const startDelay = Math.floor(index / batchSize) * batchDelayMs;
+            if (startDelay > 0) await sleep(startDelay);
+            return fetchLeagueEvents(fetchImpl, league, window, requestTimeoutMs);
+        }));
 
-            results.forEach((result, resultIndex) => {
-                const league = batch[resultIndex];
-                if (result.status === 'fulfilled') {
-                    successfulLeagues += 1;
-                    events.push(...result.value);
-                } else {
-                    warnings.push(`${league.label} is temporarily unavailable.`);
-                }
-            });
-
-            if (index + batchSize < leagues.length && batchDelayMs > 0) {
-                await sleep(batchDelayMs);
+        results.forEach((result, index) => {
+            const league = leagues[index];
+            if (result.status === 'fulfilled') {
+                successfulLeagues += 1;
+                events.push(...result.value);
+            } else {
+                warnings.push(`${league.label} is temporarily unavailable.`);
             }
-        }
+        });
 
         if (!successfulLeagues) throw new Error('All sports schedules are currently unavailable');
 
