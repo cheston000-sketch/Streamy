@@ -1,4 +1,7 @@
-const ESPN_API_ROOT = 'https://site.api.espn.com/apis/site/v2/sports';
+const ESPN_API_ROOTS = [
+    'https://site.web.api.espn.com/apis/site/v2/sports',
+    'https://site.api.espn.com/apis/site/v2/sports'
+];
 const DEFAULT_CACHE_TTL_MS = 90_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 25_000;
 const DEFAULT_BATCH_SIZE = 5;
@@ -244,27 +247,35 @@ function createDateWindow(nowMs, daysBack, daysForward) {
 }
 
 async function fetchLeagueEvents(fetchImpl, league, window, timeoutMs) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const query = league.currentOnly ? '' : `?dates=${window.from}-${window.to}&limit=300`;
-    const url = `${ESPN_API_ROOT}/${league.sport}/${league.league}/scoreboard${query}`;
+    let lastError = null;
 
-    try {
-        const response = await fetchImpl(url, {
-            signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'User-Agent': 'Mozilla/5.0 StreamOS-SportsGuide/1.0'
-            }
-        });
-        if (response.status === 404) return [];
-        if (!response.ok) throw new Error(`${league.label} schedule returned ${response.status}`);
-        const payload = await response.json();
-        if (!Array.isArray(payload.events)) throw new Error(`${league.label} returned an invalid schedule`);
-        return payload.events.map(event => normalizeSportsEvent(event, league));
-    } finally {
-        clearTimeout(timeoutId);
+    for (const apiRoot of ESPN_API_ROOTS) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        const url = `${apiRoot}/${league.sport}/${league.league}/scoreboard${query}`;
+
+        try {
+            const response = await fetchImpl(url, {
+                signal: controller.signal,
+                headers: {
+                    Accept: 'application/json',
+                    'User-Agent': 'Mozilla/5.0 StreamOS-SportsGuide/1.0'
+                }
+            });
+            if (response.status === 404) return [];
+            if (!response.ok) throw new Error(`${league.label} schedule returned ${response.status}`);
+            const payload = await response.json();
+            if (!Array.isArray(payload.events)) throw new Error(`${league.label} returned an invalid schedule`);
+            return payload.events.map(event => normalizeSportsEvent(event, league));
+        } catch (error) {
+            lastError = error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
     }
+
+    throw lastError || new Error(`${league.label} schedule is unavailable`);
 }
 
 function sortEvents(events) {

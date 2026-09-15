@@ -103,6 +103,6 @@ assert.equal(firstGuide.leagues[0].id, 'nfl');
 assert.equal(firstGuide.partial, true);
 assert.match(firstGuide.warning, /1 league schedule/);
 assert.deepEqual(firstGuide.window, { from: '2026-09-14', to: '2026-09-29' });
-assert.equal(fetchCount, 2);
+assert.equal(fetchCount, 3);
 
 console.log('Sports guide tests passed.');
