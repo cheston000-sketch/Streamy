@@ -13,13 +13,43 @@ export const CURATED_CHANNEL_IDS = [
     'AccuWeatherNOW.us',
     'CourtTV.us',
     'CBSSportsHQ.us',
+    'CBSSportsGolazoNetwork.us',
+    'ACCDigitalNetwork.us',
+    'NBCSportsNOW.us',
     'NFLChannel.us',
+    'NHLNetwork.us',
     'MLB.us',
     'PGATour.us',
     'FuboSportsNetwork.us',
     'beINSPORTSXTRA.us',
     'Stadium.us',
     'WorldPokerTour.us',
+    'FIFAPlus.uk',
+    'FIFAPlusWomen.uk',
+    'RedBullTV.at',
+    'WomensSportsNetwork.us',
+    'DraftKingsNetwork.us',
+    'SportsGrid.us',
+    'TennisChannel.us',
+    'FloHockey.us',
+    'FloRacing.us',
+    'CricketGold.au',
+    'FightNetwork.ca',
+    'FITE247.us',
+    'GloryKickboxing.us',
+    'PFLMMA.us',
+    'SwerveCombat.us',
+    'SwerveSports.us',
+    'MonsterJam.us',
+    'NHRATV.us',
+    'RacerNetwork.us',
+    'RacerSelect.us',
+    'FUELTV.pt',
+    'SlopesTV.us',
+    'Overtime.us',
+    'LacrosseTV.us',
+    'Strongman.us',
+    'BEKSports.us',
     'StoriesbyAMC.us',
     'HallmarkMoviesMore.us',
     'FilmRiseClassicTV.us',
@@ -48,7 +78,12 @@ const FEATURED_CHANNEL_IDS = new Set([
     'BloombergTV.us',
     'AccuWeatherNOW.us',
     'CBSSportsHQ.us',
+    'CBSSportsGolazoNetwork.us',
+    'NBCSportsNOW.us',
     'NFLChannel.us',
+    'FIFAPlus.uk',
+    'RedBullTV.at',
+    'WomensSportsNetwork.us',
     'StoriesbyAMC.us',
     'PBSNature.us',
     'PBSKids.us',
@@ -78,6 +113,10 @@ const CATEGORY_LABELS = {
     lifestyle: 'Lifestyle',
     music: 'Music'
 };
+
+const CATEGORY_OVERRIDES = new Map([
+    ['WomensSportsNetwork.us', 'sports']
+]);
 
 function isHttpsUrl(value) {
     try {
@@ -141,7 +180,8 @@ function chooseLogo(logos = []) {
         .sort((a, b) => b.score - a.score)[0]?.url || '';
 }
 
-function getCategoryGroup(categories = []) {
+function getCategoryGroup(categories = [], channelId = '') {
+    if (CATEGORY_OVERRIDES.has(channelId)) return CATEGORY_OVERRIDES.get(channelId);
     const values = new Set(Array.isArray(categories) ? categories : []);
     if (values.has('news') || values.has('weather') || values.has('business') || values.has('legislative')) return 'news';
     if (values.has('sports')) return 'sports';
@@ -181,7 +221,6 @@ export function buildLiveTvCatalog({ channels = [], streams = [], logos = [], bl
     const normalizedChannels = channels
         .filter(channel => (
             allowedIds.has(channel?.id)
-            && channel.country === 'US'
             && !channel.is_nsfw
             && !channel.closed
             && !blockedIds.has(channel.id)
@@ -193,7 +232,7 @@ export function buildLiveTvCatalog({ channels = [], streams = [], logos = [], bl
                 .filter((stream, index, all) => all.findIndex(candidate => candidate.url === stream.url) === index)
                 .slice(0, 4)
                 .map(({ score, ...stream }) => stream);
-            const category = getCategoryGroup(channel.categories);
+            const category = getCategoryGroup(channel.categories, channel.id);
             return {
                 id: channel.id,
                 name: channel.name,
