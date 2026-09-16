@@ -3,7 +3,9 @@ const ESPN_API_ROOTS = [
     'https://site.api.espn.com/apis/site/v2/sports'
 ];
 const ESPN_CORE_API_ROOT = 'https://sports.core.api.espn.com/v3/sports';
+const ESPN_CORE_BROADCAST_API_ROOT = 'https://sports.core.api.espn.com/v2/sports';
 const DEFAULT_CACHE_TTL_MS = 90_000;
+const DEFAULT_BROADCAST_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 25_000;
 const DEFAULT_BATCH_SIZE = 5;
 const DEFAULT_BATCH_DELAY_MS = 1_000;
@@ -44,11 +46,18 @@ const CHANNEL_IDS_BY_BROADCAST = new Map([
     ['cbs sports golazo network', ['CBSSportsGolazoNetwork.us']],
     ['cbs sports hq', ['CBSSportsHQ.us']],
     ['nbc sports now', ['NBCSportsNOW.us']],
+    ['nba tv', ['NBATV.us']],
+    ['nbatv', ['NBATV.us']],
+    ['espn8', ['ESPN8TheOcho.us']],
+    ['espn8 the ocho', ['ESPN8TheOcho.us']],
+    ['espn 8 the ocho', ['ESPN8TheOcho.us']],
     ['nhl network', ['NHLNetwork.us']],
     ['tennis channel', ['TennisChannel.us']],
     ['fifa plus', ['FIFAPlus.uk']],
     ['fifa plus women', ['FIFAPlusWomen.uk']],
     ['bein sports xtra', ['beINSPORTSXTRA.us']],
+    ['bein sports xtra en espanol', ['beINSPORTSXTRAenEspanol.us']],
+    ['bein sports xtra en espa ol', ['beINSPORTSXTRAenEspanol.us']],
     ['pga tour', ['PGATour.us']],
     ['womens sports network', ['WomensSportsNetwork.us']],
     ['fight network', ['FightNetwork.ca']],
@@ -261,24 +270,38 @@ export function normalizeCoreSportsEvent(event = {}, league = {}, nowMs = Date.n
     };
 }
 
-export function addViewingOptions(event, channels = []) {
+export function resolvePlayableChannels(broadcasts = [], channels = []) {
     const channelById = new Map(channels.map(channel => [channel.id, channel]));
+    const channelIdsByName = new Map();
+    channels.forEach(channel => {
+        const normalizedName = normalizeNetworkName(channel.name);
+        if (!normalizedName) return;
+        if (!channelIdsByName.has(normalizedName)) channelIdsByName.set(normalizedName, []);
+        channelIdsByName.get(normalizedName).push(channel.id);
+    });
     const matchedChannels = [];
+
+    for (const network of broadcasts) {
+        const normalized = normalizeNetworkName(network);
+        const candidateIds = new Set([
+            ...(CHANNEL_IDS_BY_BROADCAST.get(normalized) || []),
+            ...(channelIdsByName.get(normalized) || [])
+        ]);
+        for (const channelId of candidateIds) {
+            const channel = channelById.get(channelId);
+            if (!channel || !channel.streams?.length || matchedChannels.some(candidate => candidate.id === channel.id)) continue;
+            matchedChannels.push(channel);
+        }
+    }
+
+    return matchedChannels;
+}
+
+export function addViewingOptions(event, channels = []) {
+    const matchedChannels = resolvePlayableChannels(event.broadcasts || [], channels);
     const providers = [];
 
     for (const network of event.broadcasts || []) {
-        const normalized = normalizeNetworkName(network);
-        for (const channelId of CHANNEL_IDS_BY_BROADCAST.get(normalized) || []) {
-            const channel = channelById.get(channelId);
-            if (!channel || matchedChannels.some(candidate => candidate.id === channel.id)) continue;
-            matchedChannels.push({
-                id: channel.id,
-                name: channel.name,
-                logo: channel.logo || '',
-                quality: channel.streams?.[0]?.quality || 'Auto'
-            });
-        }
-
         const provider = resolveOfficialProvider(network);
         if (provider && !providers.some(candidate => candidate.url === provider.url)) {
             providers.push({ ...provider, network });
@@ -296,7 +319,13 @@ export function addViewingOptions(event, channels = []) {
     return {
         ...event,
         viewing: {
-            channels: matchedChannels,
+            channels: matchedChannels.map(channel => ({
+                id: channel.id,
+                name: channel.name,
+                logo: channel.logo || '',
+                quality: channel.streams?.[0]?.quality || 'Auto',
+                streamCount: channel.streams.length
+            })),
             providers,
             networks: event.broadcasts?.length
                 ? [...event.broadcasts]
@@ -407,6 +436,60 @@ export function createSportsGuideService({
     let cachedGuide = null;
     let cacheExpiresAt = 0;
     let refreshPromise = null;
+    const broadcastCache = new Map();
+    const broadcastRefreshes = new Map();
+
+    async function refreshEventBroadcasts(league, eventId) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
+        const encodedEventId = encodeURIComponent(eventId);
+        const url = `${ESPN_CORE_BROADCAST_API_ROOT}/${encodeURIComponent(league.sport)}/leagues/${encodeURIComponent(league.league)}/events/${encodedEventId}/competitions/${encodedEventId}/broadcasts?lang=en&region=us`;
+
+        try {
+            const response = await fetchImpl(url, {
+                signal: controller.signal,
+                headers: {
+                    Accept: 'application/json',
+                    'User-Agent': 'Mozilla/5.0 StreamOS-SportsGuide/1.0'
+                }
+            });
+            if (response.status === 400 || response.status === 404) return [];
+            if (!response.ok) throw new Error(`${league.label} broadcasts returned ${response.status}`);
+            const payload = await response.json();
+            if (!Array.isArray(payload.items)) throw new Error(`${league.label} returned invalid broadcast data`);
+            return uniqueStrings(payload.items.map(item => (
+                item?.station || item?.media?.shortName || item?.media?.name || ''
+            )));
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    async function getEventBroadcasts(leagueId, eventId) {
+        const normalizedLeagueId = String(leagueId || '').trim();
+        const normalizedEventId = String(eventId || '').trim();
+        const league = leagues.find(candidate => candidate.id === normalizedLeagueId);
+        if (!league || !/^[a-z0-9_-]{1,48}$/i.test(normalizedEventId)) {
+            throw new RangeError('Invalid sports event identifier');
+        }
+
+        const key = `${league.id}:${normalizedEventId}`;
+        const cached = broadcastCache.get(key);
+        if (cached && now() < cached.expiresAt) return cached.networks;
+        if (broadcastRefreshes.has(key)) return broadcastRefreshes.get(key);
+
+        const refresh = refreshEventBroadcasts(league, normalizedEventId)
+            .then(networks => {
+                broadcastCache.set(key, {
+                    networks,
+                    expiresAt: now() + Math.max(cacheTtlMs, DEFAULT_BROADCAST_CACHE_TTL_MS)
+                });
+                return networks;
+            })
+            .finally(() => broadcastRefreshes.delete(key));
+        broadcastRefreshes.set(key, refresh);
+        return refresh;
+    }
 
     async function refreshGuide() {
         const refreshTime = now();
@@ -488,5 +571,5 @@ export function createSportsGuideService({
         return refreshPromise;
     }
 
-    return { getGuide };
+    return { getGuide, getEventBroadcasts };
 }

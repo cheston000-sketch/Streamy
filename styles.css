@@ -2251,6 +2251,16 @@ a:focus-visible {
     color: rgba(255, 255, 255, 0.27);
 }
 
+.sports-game-networks span.native {
+    border-color: rgba(83, 232, 166, 0.38);
+    color: #8ff5c6;
+    background: rgba(31, 177, 111, 0.12);
+}
+
+.sports-game-networks span.native i {
+    margin-right: 4px;
+}
+
 .sports-game-card-actions {
     display: flex;
     gap: 7px;
@@ -2277,6 +2287,13 @@ a:focus-visible {
     color: #1d1206;
     background: linear-gradient(135deg, #fff7e2, #ffb347);
     box-shadow: 0 8px 22px rgba(255, 153, 43, 0.13);
+}
+
+.sports-game-action.primary.native {
+    border-color: rgba(89, 241, 171, 0.62);
+    color: #061d14;
+    background: linear-gradient(135deg, #d8ffe9, #45dfa0 58%, #2fc98a);
+    box-shadow: 0 8px 24px rgba(40, 205, 139, 0.2);
 }
 
 .sports-game-action.secondary {

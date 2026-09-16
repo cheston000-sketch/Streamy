@@ -12,6 +12,7 @@ const expectedSportsExpansion = [
     'GloryKickboxing.us',
     'LacrosseTV.us',
     'MonsterJam.us',
+    'NBATV.us',
     'NBCSportsNOW.us',
     'NHLNetwork.us',
     'NHRATV.us',
@@ -26,6 +27,8 @@ const expectedSportsExpansion = [
     'SwerveSports.us',
     'TennisChannel.us',
     'WomensSportsNetwork.us',
+    'ESPN8TheOcho.us',
+    'beINSPORTSXTRAenEspanol.us',
     'CricketGold.au',
     'FIFAPlus.uk',
     'FIFAPlusWomen.uk',
@@ -87,6 +90,14 @@ const fixtures = {
             closed: null
         },
         {
+            id: 'NBATV.us',
+            name: 'NBA TV',
+            country: 'US',
+            categories: ['sports'],
+            is_nsfw: false,
+            closed: null
+        },
+        {
             id: 'NFLChannel.us',
             name: 'Closed Sports Feed',
             country: 'US',
@@ -113,6 +124,8 @@ const fixtures = {
         { channel: 'CBSNews247.us', url: 'https://news.example.com/live.m3u8' },
         { channel: 'FIFAPlus.uk', url: 'https://sports.example.com/fifa.m3u8', quality: '720p' },
         { channel: 'WomensSportsNetwork.us', url: 'https://sports.example.com/women.m3u8', quality: '1080p' },
+        { channel: 'NBATV.us', url: 'https://mirror.example.com/nba.m3u8', quality: '2160p' },
+        { channel: 'NBATV.us', url: 'https://nba.playouts.now.amagi.tv/playlist.m3u8', quality: '1080p' },
         { channel: 'NFLChannel.us', url: 'https://sports.example.com/live.m3u8' },
         { channel: 'MLB.us', url: 'https://sports.example.com/adult.m3u8' }
     ],
@@ -127,6 +140,7 @@ const fixtures = {
 const catalog = buildLiveTvCatalog(fixtures);
 assert.deepEqual(catalog.channels.map(channel => channel.id), [
     'ABCNewsLive.us',
+    'NBATV.us',
     'FIFAPlus.uk',
     'WomensSportsNetwork.us',
     'PBSKids.us'
@@ -139,10 +153,15 @@ assert.equal(catalog.channels[0].category, 'news');
 assert.equal(catalog.channels.find(channel => channel.id === 'PBSKids.us')?.category, 'kids');
 assert.equal(catalog.channels.find(channel => channel.id === 'FIFAPlus.uk')?.category, 'sports');
 assert.equal(catalog.channels.find(channel => channel.id === 'WomensSportsNetwork.us')?.category, 'sports');
-assert.equal(catalog.categories.find(category => category.id === 'featured')?.count, 4);
+assert.deepEqual(catalog.channels.find(channel => channel.id === 'NBATV.us')?.streams, [{
+    url: 'https://nba.playouts.now.amagi.tv/playlist.m3u8',
+    quality: '1080p',
+    title: ''
+}]);
+assert.equal(catalog.categories.find(category => category.id === 'featured')?.count, 5);
 assert.equal(catalog.categories.find(category => category.id === 'news')?.count, 1);
 assert.equal(catalog.categories.find(category => category.id === 'kids')?.count, 1);
-assert.equal(catalog.categories.find(category => category.id === 'sports')?.count, 2);
+assert.equal(catalog.categories.find(category => category.id === 'sports')?.count, 3);
 
 const payloads = [fixtures.channels, fixtures.streams, fixtures.logos, fixtures.blocklist];
 let fetchCount = 0;
@@ -157,7 +176,7 @@ const service = createLiveTvService({
 
 const firstResult = await service.getCatalog();
 const secondResult = await service.getCatalog();
-assert.equal(firstResult.channels.length, 4);
+assert.equal(firstResult.channels.length, 5);
 assert.strictEqual(secondResult, firstResult);
 assert.equal(fetchCount, 4);
 

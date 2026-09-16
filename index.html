@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=119-live3">
+    <link rel="stylesheet" href="styles.css?v=119-live4">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -148,7 +148,7 @@
                     <div>
                         <span class="live-tv-section-kicker">Game finder</span>
                         <h2 id="sports-game-finder-title">Find the game. Find the signal.</h2>
-                        <p>Search any team or matchup across major leagues. StreamOS will show where it is playing and the fastest available way to watch.</p>
+                        <p>Search any team or matchup across major leagues. When an exact public HLS feed is available, StreamOS plays it here in the native player.</p>
                     </div>
                     <label class="sports-game-search" for="sports-game-search">
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
@@ -171,7 +171,7 @@
                     <span id="sports-game-window">Yesterday through the next two weeks</span>
                 </div>
                 <div id="sports-game-grid" class="sports-game-grid" aria-live="polite"></div>
-                <p class="sports-game-attribution">Schedules and listed broadcasters are refreshed from ESPN public scoreboard data. Viewing availability can vary by market and subscription.</p>
+                <p class="sports-game-attribution">Schedules and broadcasters are refreshed from ESPN public scoreboard data. Native playback uses exact-match public HLS feeds from the StreamOS channel directory.</p>
             </section>
 
             <section class="live-tv-on-air" aria-label="Live channel player">
@@ -424,7 +424,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=119-live3"></script>
+    <script type="module" src="js/app.js?v=119-live4"></script>
 </body>
 
 </html>

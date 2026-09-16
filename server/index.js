@@ -578,6 +578,34 @@ app.get('/api/live-tv/games', async (req, res) => {
     }
 });
 
+app.get('/api/live-tv/games/:leagueId/:eventId/playback', async (req, res) => {
+    try {
+        const [networks, catalog] = await Promise.all([
+            sportsGuideService.getEventBroadcasts(req.params.leagueId, req.params.eventId),
+            liveTvService.getCatalog()
+        ]);
+        const viewing = addViewingOptions({ broadcasts: networks }, catalog.channels).viewing;
+        const playableIds = new Set(viewing.channels.map(channel => channel.id));
+
+        res.json({
+            success: true,
+            eventId: req.params.eventId,
+            networks,
+            channels: catalog.channels.filter(channel => playableIds.has(channel.id)),
+            providers: viewing.providers
+        });
+    } catch (error) {
+        const status = error instanceof RangeError ? 400 : error.name === 'AbortError' ? 504 : 502;
+        console.error('[LiveTV] Game playback resolver unavailable:', error.message);
+        res.status(status).json({
+            success: false,
+            error: status === 400
+                ? 'The requested sports event is invalid.'
+                : 'The game playback resolver is temporarily unavailable.'
+        });
+    }
+});
+
 app.get('/api/segments', async (req, res) => {
     const result = await introMarkerResolver.resolve({
         imdbId: req.query.imdb || req.query.imdb_id,

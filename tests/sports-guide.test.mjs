@@ -75,9 +75,21 @@ assert.deepEqual(viewingEvent.viewing.channels, [{
     id: 'CBSSportsGolazoNetwork.us',
     name: 'CBS Sports Golazo Network',
     logo: 'https://img.example.com/golazo.png',
-    quality: '720p'
+    quality: '720p',
+    streamCount: 1
 }]);
 assert.equal(viewingEvent.viewing.providers[0].name, 'Paramount+');
+
+const nativeNbaEvent = addViewingOptions({
+    ...normalized,
+    broadcasts: ['NBA TV']
+}, [{
+    id: 'NBATV.us',
+    name: 'NBA TV',
+    streams: [{ url: 'https://nba.playouts.now.amagi.tv/playlist.m3u8', quality: '1080p' }]
+}]);
+assert.equal(nativeNbaEvent.viewing.channels[0].id, 'NBATV.us');
+assert.equal(nativeNbaEvent.viewing.channels[0].streamCount, 1);
 
 const compactEvent = normalizeCoreSportsEvent({
     id: '401999002',
@@ -156,5 +168,35 @@ assert.equal(fallbackGuide.events.length, 1);
 assert.equal(fallbackGuide.events[0].compact, true);
 assert.equal(fallbackGuide.partial, false);
 assert.equal(fallbackFetchCount, 3);
+
+let broadcastFetchCount = 0;
+const broadcastService = createSportsGuideService({
+    leagues: [nflLeague],
+    fetchImpl: async url => {
+        broadcastFetchCount += 1;
+        assert.match(url, /\/events\/(?:401999001|1019-2026)\/competitions\/(?:401999001|1019-2026)\/broadcasts/);
+        if (url.includes('/1019-2026/')) {
+            return { ok: false, status: 400, json: async () => ({}) };
+        }
+        return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+                items: [
+                    { station: 'NBC' },
+                    { media: { shortName: 'Peacock' } },
+                    { station: 'NBC' }
+                ]
+            })
+        };
+    },
+    now: () => Date.parse('2026-09-15T12:00:00Z')
+});
+assert.deepEqual(await broadcastService.getEventBroadcasts('nfl', '401999001'), ['NBC', 'Peacock']);
+assert.deepEqual(await broadcastService.getEventBroadcasts('nfl', '401999001'), ['NBC', 'Peacock']);
+assert.deepEqual(await broadcastService.getEventBroadcasts('nfl', '1019-2026'), []);
+assert.deepEqual(await broadcastService.getEventBroadcasts('nfl', '1019-2026'), []);
+assert.equal(broadcastFetchCount, 2);
+await assert.rejects(() => broadcastService.getEventBroadcasts('nfl', '../bad'), /Invalid sports event identifier/);
 
 console.log('Sports guide tests passed.');

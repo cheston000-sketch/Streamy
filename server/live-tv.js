@@ -16,12 +16,15 @@ export const CURATED_CHANNEL_IDS = [
     'CBSSportsGolazoNetwork.us',
     'ACCDigitalNetwork.us',
     'NBCSportsNOW.us',
+    'NBATV.us',
+    'ESPN8TheOcho.us',
     'NFLChannel.us',
     'NHLNetwork.us',
     'MLB.us',
     'PGATour.us',
     'FuboSportsNetwork.us',
     'beINSPORTSXTRA.us',
+    'beINSPORTSXTRAenEspanol.us',
     'Stadium.us',
     'WorldPokerTour.us',
     'FIFAPlus.uk',
@@ -80,6 +83,8 @@ const FEATURED_CHANNEL_IDS = new Set([
     'CBSSportsHQ.us',
     'CBSSportsGolazoNetwork.us',
     'NBCSportsNOW.us',
+    'NBATV.us',
+    'ESPN8TheOcho.us',
     'NFLChannel.us',
     'FIFAPlus.uk',
     'RedBullTV.at',
@@ -118,6 +123,12 @@ const CATEGORY_OVERRIDES = new Map([
     ['WomensSportsNetwork.us', 'sports']
 ]);
 
+const RESTRICTED_STREAM_HOSTS = new Map([
+    ['NBATV.us', ['amagi.tv']],
+    ['ESPN8TheOcho.us', ['cloudfront.net']],
+    ['beINSPORTSXTRAenEspanol.us', ['amagi.tv', 'cloudfront.net', 'tubi.video']]
+]);
+
 function isHttpsUrl(value) {
     try {
         return new URL(String(value || '')).protocol === 'https:';
@@ -151,9 +162,17 @@ function streamScore(stream) {
     return score;
 }
 
-function normalizeStream(stream) {
+function isAllowedStreamHost(channelId, hostname) {
+    const allowedHosts = RESTRICTED_STREAM_HOSTS.get(channelId);
+    if (!allowedHosts) return true;
+    return allowedHosts.some(host => hostname === host || hostname.endsWith(`.${host}`));
+}
+
+function normalizeStream(stream, channelId = '') {
     if (!stream || !isHttpsUrl(stream.url)) return null;
     if (stream.label || stream.referrer || stream.user_agent) return null;
+    const hostname = new URL(stream.url).hostname.toLowerCase();
+    if (!isAllowedStreamHost(channelId, hostname)) return null;
     const score = streamScore(stream);
     if (!Number.isFinite(score)) return null;
 
@@ -205,7 +224,7 @@ export function buildLiveTvCatalog({ channels = [], streams = [], logos = [], bl
 
     for (const rawStream of streams) {
         if (!allowedIds.has(rawStream?.channel) || blockedIds.has(rawStream.channel)) continue;
-        const stream = normalizeStream(rawStream);
+        const stream = normalizeStream(rawStream, rawStream.channel);
         if (!stream) continue;
         if (!streamsByChannel.has(rawStream.channel)) streamsByChannel.set(rawStream.channel, []);
         streamsByChannel.get(rawStream.channel).push(stream);
