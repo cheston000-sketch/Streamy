@@ -11,6 +11,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.ConsoleMessage;
+import android.webkit.WebResourceError;
+import android.webkit.SslErrorHandler;
+import android.net.http.SslError;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -21,6 +25,9 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+import java.util.Collections;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
@@ -62,6 +69,7 @@ public class WebPlayerActivity extends AppCompatActivity {
     private String playbackMetadataJson;
     private int sourceIndex;
     private String playbackTitle;
+    private boolean embeddedSource;
     private final Runnable noMediaFailoverRunnable = new Runnable() {
         @Override
         public void run() {
@@ -121,6 +129,9 @@ public class WebPlayerActivity extends AppCompatActivity {
         webView.setLayerType(WebView.LAYER_TYPE_HARDWARE, null);
         webView.setKeepScreenOn(true);
         webView.addJavascriptInterface(new StreamOSWebBridge(), "StreamOSWebBridge");
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(webView, mediaObserverScript(), Collections.singleton("*"));
+        }
         enterImmersiveMode();
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -129,6 +140,14 @@ public class WebPlayerActivity extends AppCompatActivity {
             }
         });
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage message) {
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    Log.w(TAG, "Player page: " + message.message() + " at " + message.sourceId());
+                }
+                return true;
+            }
+
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
                 if (customView != null) {
@@ -166,6 +185,18 @@ public class WebPlayerActivity extends AppCompatActivity {
             }
         });
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                Log.w(TAG, "Resource failed host=" + request.getUrl().getHost() + " code=" + error.getErrorCode());
+                super.onReceivedError(view, request, error);
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                Log.w(TAG, "TLS validation failed host=" + Uri.parse(error.getUrl()).getHost() + " code=" + error.getPrimaryError());
+                handler.cancel();
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
@@ -225,13 +256,13 @@ public class WebPlayerActivity extends AppCompatActivity {
 
             @Override
             public void onPageStarted(WebView view, String startedUrl, android.graphics.Bitmap favicon) {
-                currentPageUrl = startedUrl == null ? currentPageUrl : startedUrl;
+                if (!embeddedSource && startedUrl != null) currentPageUrl = startedUrl;
                 super.onPageStarted(view, startedUrl, favicon);
             }
 
             @Override
             public void onPageFinished(WebView view, String finishedUrl) {
-                currentPageUrl = finishedUrl == null ? currentPageUrl : finishedUrl;
+                if (!embeddedSource && finishedUrl != null) currentPageUrl = finishedUrl;
                 Log.i(TAG, "onPageFinished url=" + finishedUrl);
                 injectPlayerHardening(view);
                 super.onPageFinished(view, finishedUrl);
@@ -239,8 +270,7 @@ public class WebPlayerActivity extends AppCompatActivity {
         });
 
         if (url != null && !url.isEmpty()) {
-            currentPageUrl = url;
-            webView.loadUrl(url);
+            loadSourcePage(url);
             scheduleNoMediaFailover();
         } else {
             finish();
@@ -263,6 +293,51 @@ public class WebPlayerActivity extends AppCompatActivity {
             return true;
         }
         return false;
+    }
+
+    private void loadSourcePage(String url) {
+        currentPageUrl = url;
+        embeddedSource = MediaDiscoveryPolicy.requiresEmbed(url);
+        if (embeddedSource) {
+            String escaped = url.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;");
+            // This provider requires an iframe and redirects top-level loads to about:blank.
+            String html = "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+                + "<style>html,body,iframe{margin:0;width:100%;height:100%;border:0;background:#000}iframe{position:fixed;inset:0}</style>"
+                + "</head><body><iframe allow='autoplay; fullscreen; encrypted-media' allowfullscreen src=\""
+                + escaped + "\"></iframe></body></html>";
+            webView.loadDataWithBaseURL("https://streamy-vez5.onrender.com/", html, "text/html", "UTF-8", null);
+        } else {
+            webView.loadUrl(url);
+        }
+    }
+
+    private String mediaObserverScript() {
+        return "(function(){if(window.__velaMediaObserver)return;window.__velaMediaObserver=true;"
+            + "function report(url,type){try{url=new URL(url,location.href).href;"
+            + "if(!/^https?:/.test(url))return;"
+            + "if(/\\.(m3u8|mpd|mp4|mkv)(?:[?#]|$)/i.test(url)||/mpegurl|dash\\+xml|video\\/mp4/i.test(type||''))"
+            + "StreamOSWebBridge.reportMediaWithContext(url,type||'',location.href);}catch(e){}}"
+            + "var f=window.fetch;if(f)window.fetch=function(){return f.apply(this,arguments).then(function(r){"
+            + "if(r.ok)report(r.url,r.headers.get('content-type'));return r;});};"
+            + "var o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){"
+            + "this.addEventListener('load',function(){if(this.status>=200&&this.status<300)"
+            + "report(this.responseURL,this.getResponseHeader('content-type'));});return o.apply(this,arguments);};"
+            + "document.addEventListener('loadedmetadata',function(e){var v=e.target;"
+            + "if(v&&v.currentSrc)report(v.currentSrc,'');},true);"
+            + "if(/(^|\\.)videasy\\.(net|to)$/.test(location.hostname)){"
+            + "window.open=function(){return null;};var attempts=0;var started=false;"
+            + "var timer=setInterval(function(){if(++attempts>35){clearInterval(timer);return;}"
+            + "var video=document.querySelector('video');if(video){video.muted=false;video.volume=1;"
+            + "if(video.paused){var p=video.play();if(p&&p.catch)p.catch(function(){});}"
+            + "if(video.currentSrc){report(video.currentSrc,'');}if(!video.paused){clearInterval(timer);return;}}"
+            + "if(started)return;var buttons=document.querySelectorAll('button,[role=button]');"
+            + "for(var i=0;i<buttons.length;i++){var b=buttons[i],r=b.getBoundingClientRect();"
+            + "var label=((b.getAttribute('aria-label')||'')+' '+(b.getAttribute('title')||'')+' '+b.textContent).trim();"
+            + "if(r.width<24||r.height<24)continue;"
+            + "var central=Math.abs(r.left+r.width/2-innerWidth/2)<innerWidth*.15&&"
+            + "r.top>innerHeight*.2&&r.top<innerHeight*.6&&r.width<innerWidth*.25;"
+            + "if(/^play(?:\\s|$)/i.test(label)||(central&&label==='')){b.click();started=true;break;}"
+            + "}},1000);} })();";
     }
 
     private boolean isBlockedAdUrl(String lowerUrl) {
@@ -300,7 +375,7 @@ public class WebPlayerActivity extends AppCompatActivity {
         );
     }
 
-    private void launchDetectedMediaFromRequest(String mediaUrl, String mimeType, String referer, String origin) {
+    private synchronized void launchDetectedMediaFromRequest(String mediaUrl, String mimeType, String referer, String origin) {
         if (launchedNativePlayer || mediaUrl == null || mediaUrl.isEmpty()) {
             return;
         }
@@ -533,54 +608,13 @@ public class WebPlayerActivity extends AppCompatActivity {
     }
 
     private String sniffPlayableMimeType(String url) {
-        if (url == null) {
-            return null;
-        }
-
-        String lower = url.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("blob:") || lower.startsWith("data:")) {
-            return null;
-        }
-        if (isBlockedAdUrl(lower)) {
-            return null;
-        }
-        if (lower.contains(".m3u8") || lower.contains("m3u8")) {
-            return "application/vnd.apple.mpegurl";
-        }
-        if (lower.contains(".mpd")) {
-            return "application/dash+xml";
-        }
-        if (lower.contains(".mp4") || lower.contains("video/mp4")) {
-            return "video/mp4";
-        }
-        if (lower.contains(".mkv") || lower.contains("matroska")) {
-            return "video/x-matroska";
-        }
-        return null;
+        if (url == null || isBlockedAdUrl(url.toLowerCase(Locale.ROOT))) return null;
+        return MediaDiscoveryPolicy.mimeType(url, null);
     }
 
     private String normalizeReportedMimeType(String mimeType, String url) {
-        String inferredFromUrl = sniffPlayableMimeType(url);
-        if ("application/vnd.apple.mpegurl".equals(inferredFromUrl)
-            || "application/dash+xml".equals(inferredFromUrl)) {
-            return inferredFromUrl;
-        }
-        if (mimeType != null && !mimeType.isEmpty()) {
-            String lower = mimeType.toLowerCase(Locale.ROOT);
-            if (lower.contains("mpegurl") || lower.contains("m3u8")) {
-                return "application/vnd.apple.mpegurl";
-            }
-            if (lower.contains("dash") || lower.contains("mpd")) {
-                return "application/dash+xml";
-            }
-            if (lower.contains("mp4")) {
-                return "video/mp4";
-            }
-            if (lower.contains("matroska") || lower.contains("mkv")) {
-                return "video/x-matroska";
-            }
-        }
-        return inferredFromUrl;
+        if (url == null || isBlockedAdUrl(url.toLowerCase(Locale.ROOT))) return null;
+        return MediaDiscoveryPolicy.mimeType(url, mimeType);
     }
 
     private void reportDetectedMedia(String mediaUrl, String mimeType) {
@@ -593,12 +627,10 @@ public class WebPlayerActivity extends AppCompatActivity {
             return;
         }
 
-        launchedNativePlayer = true;
-        webView.removeCallbacks(noMediaFailoverRunnable);
         String referer = currentPageUrl;
         String origin = getOrigin(referer);
         Log.i(TAG, "reportDetectedMedia url=" + mediaUrl + " mimeType=" + playableMimeType + " referer=" + referer);
-        launchNativePlayer(mediaUrl, playableMimeType, referer, origin);
+        launchDetectedMediaFromRequest(mediaUrl, playableMimeType, referer, origin);
     }
 
     private String getOrigin(String rawUrl) {
@@ -650,6 +682,7 @@ public class WebPlayerActivity extends AppCompatActivity {
     }
 
     private void promoteIframe(String iframeUrl) {
+        if (embeddedSource) return;
         if (iframeUrl == null || iframeUrl.isEmpty() || launchedNativePlayer) {
             return;
         }
@@ -662,7 +695,7 @@ public class WebPlayerActivity extends AppCompatActivity {
         promotedIframeUrl = iframeUrl;
         Log.i(TAG, "Promoting iframe to main frame: " + iframeUrl);
         if (webView != null) {
-            webView.loadUrl(iframeUrl);
+            loadSourcePage(iframeUrl);
             scheduleNoMediaFailover();
         }
     }
@@ -672,7 +705,7 @@ public class WebPlayerActivity extends AppCompatActivity {
             return;
         }
         webView.removeCallbacks(noMediaFailoverRunnable);
-        webView.postDelayed(noMediaFailoverRunnable, 15000L);
+        webView.postDelayed(noMediaFailoverRunnable, embeddedSource ? 45000L : 15000L);
     }
 
     private JSONObject getSourceAt(int index) {
@@ -734,7 +767,7 @@ public class WebPlayerActivity extends AppCompatActivity {
                 setTitle(playbackTitle + " | " + server);
             }
             if (webView != null) {
-                webView.loadUrl(url);
+                loadSourcePage(url);
                 scheduleNoMediaFailover();
             }
         } catch (Exception error) {
@@ -1079,6 +1112,10 @@ public class WebPlayerActivity extends AppCompatActivity {
     }
 
     private final class StreamOSWebBridge {
+        @JavascriptInterface
+        public void reportMediaWithContext(String mediaUrl, String mimeType, String frameUrl) {
+            runOnUiThread(() -> launchDetectedMediaFromRequest(mediaUrl, mimeType, frameUrl, getOrigin(frameUrl)));
+        }
         @JavascriptInterface
         public void reportIframe(String iframeUrl) {
             runOnUiThread(() -> promoteIframe(iframeUrl));

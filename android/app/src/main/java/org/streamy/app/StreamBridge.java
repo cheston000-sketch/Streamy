@@ -31,6 +31,16 @@ public class StreamBridge {
         return true;
     }
 
+    @JavascriptInterface
+    public boolean canInstallUpdates() {
+        return context instanceof MainActivity && ((MainActivity) context).canInstallUpdates();
+    }
+
+    @JavascriptInterface
+    public void openInstallPermissionSettings() {
+        if (context instanceof MainActivity) ((MainActivity) context).openInstallPermissionSettings();
+    }
+
     /** Returns the version installed by Android rather than a web-bundle constant. */
     @JavascriptInterface
     public long getInstalledVersionCode() {

@@ -1,8 +1,8 @@
 {
 	"appId": "org.streamy.app",
-	"appName": "StreamOS",
+	"appName": "Vela",
 	"webDir": "app-dist",
-	"backgroundColor": "#080b0f",
+	"backgroundColor": "#070d14",
 	"android": {
 		"allowMixedContent": true
 	}

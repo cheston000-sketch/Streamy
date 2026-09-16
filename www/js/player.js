@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=119';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=119';
-import { navigateTo } from './router.js?v=119';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=120';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=120';
+import { navigateTo } from './router.js?v=120';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -1755,7 +1755,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             if (typeof globalThis.NativeBridge.openWebPlayerWithMetadata === 'function') {
                 globalThis.NativeBridge.openWebPlayerWithMetadata(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'StreamOS'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1769,7 +1769,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             } else if (typeof globalThis.NativeBridge.openWebPlayerWithContext === 'function') {
                 globalThis.NativeBridge.openWebPlayerWithContext(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'StreamOS'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1782,7 +1782,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             } else {
                 globalThis.NativeBridge.openWebPlayer(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'StreamOS'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1796,7 +1796,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             console.warn('[Autoplay] Full browser playback context failed; using compatibility bridge:', error);
             globalThis.NativeBridge.openWebPlayer(
                 iframeUrl,
-                `${currentMovieContext?.title || 'StreamOS'} | Browser Player`,
+                `${currentMovieContext?.title || 'Vela'} | Browser Player`,
                 String(currentMovieContext?.id || ''),
                 mediaKey,
                 String(savedPositionMs),
@@ -1963,7 +1963,7 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
         globalThis.StreamyPlayer.playStream(
             streamUrl,
             mimeType,
-            currentMovieContext?.title || "StreamOS Video",
+            currentMovieContext?.title || "Vela Video",
             getPlaybackMediaKey(currentMovieContext),
             savedPositionMs
         );

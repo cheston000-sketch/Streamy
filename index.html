@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StreamOS</title>
+    <title>Vela</title>
     <!-- Serverless OTA Distribution Metadata arrays -->
-    <meta name="apk-version" content="115">
+    <meta name="apk-version" content="120">
     <meta name="apk-download-url" content="/api/ota/download">
     <!-- PWA / Web App Manifest Data -->
     <link rel="manifest" href="/manifest.json">
@@ -16,14 +16,16 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=119-live4">
+    <link rel="stylesheet" href="styles.css?v=120-live4">
     <script src="vendor/hls.min.js"></script>
+    <link rel="stylesheet" href="css/vela.css?v=120">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
 </head>
 
 <body>
     <!-- TOP NAVIGATION BAR -->
     <header id="top-bar" class="hidden">
-        <div class="brand">StreamOS</div>
+        <div class="brand" aria-label="Vela"><img src="icon.svg" alt="" width="36" height="36"><span>vela</span></div>
         <nav class="nav-tabs">
             <a href="#movies" class="nav-tab active" data-view="movies" tabindex="0">Movies</a>
             <a href="#tv" class="nav-tab" data-view="tv" tabindex="0">TV Shows</a>
@@ -53,14 +55,15 @@
     </header>
 
     <!-- PROFILES OVERLAY -->
-    <div id="profile-selection-screen" class="view"
-        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #141414; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-        <h1 style="font-size: 3rem; margin-bottom: 50px; text-shadow: 2px 2px 10px black;">Who's watching?</h1>
-        <div id="profiles-grid"
-            style="display: flex; gap: 40px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 60px;">
+    <div id="profile-selection-screen" class="view" data-selection-required="true">
+        <div class="profile-brand" aria-label="Vela"><img src="icon.svg" alt="" width="48" height="48"><span>vela</span></div>
+        <p class="profile-eyebrow">YOUR NIGHT. YOUR NEXT FAVORITE.</p>
+        <h1>Who's watching?</h1>
+        <p class="profile-subtitle">A little more you. A lot more to discover.</p>
+        <div id="profiles-grid">
             <!-- Profiles dynamically appended here -->
         </div>
-        <div id="profile-actions" style="display: flex; gap: 20px;">
+        <div id="profile-actions">
             <button id="add-profile-btn" class="nav-tab" tabindex="0"
                 style="padding: 15px 30px; font-size: 1.2rem; border: 2px solid #555; background: transparent;"><i
                     class="fa-solid fa-plus"></i> Add Profile</button>
@@ -108,7 +111,7 @@
     </div>
 
     <!-- MAIN VIEW PANELS -->
-    <main id="main-content">
+    <main id="main-content" class="hidden">
         <!-- HOME (NETFLIX ROWS) VIEW -->
         <div id="view-home" class="view active">
 
@@ -116,7 +119,7 @@
             <div id="hero-banner">
                 <div class="hero-vignette"></div>
                 <div class="hero-content">
-                    <h1 id="hero-title">Streamy Origins</h1>
+                    <h1 id="hero-title">Find your next favorite.</h1>
                     <div id="hero-meta" class="meta">Loading Database Metadata...</div>
                     <p id="hero-desc">Navigate vertically and horizontally across the categories below to instantly
                         preview stunning high-definition backdrops natively in your theater.</p>
@@ -132,9 +135,9 @@
         <div id="view-live-tv" class="view hidden live-tv-view">
             <section class="live-tv-hero" aria-labelledby="live-tv-title">
                 <div class="live-tv-heading">
-                    <div class="live-tv-eyebrow"><span></span> StreamOS Broadcast Desk</div>
+                    <div class="live-tv-eyebrow"><span></span> Vela Broadcast Desk</div>
                     <h1 id="live-tv-title">Live TV</h1>
-                    <p>Free live channels, tuned in one place. Pick a station below and StreamOS will automatically try its strongest available signal.</p>
+                    <p>Free live channels, tuned in one place. Pick a station below and Vela will automatically try its strongest available signal.</p>
                 </div>
                 <div class="live-tv-clock-card" aria-label="Current local time">
                     <small>Local time</small>
@@ -148,7 +151,7 @@
                     <div>
                         <span class="live-tv-section-kicker">Game finder</span>
                         <h2 id="sports-game-finder-title">Find the game. Find the signal.</h2>
-                        <p>Search any team or matchup across major leagues. When an exact public HLS feed is available, StreamOS plays it here in the native player.</p>
+                        <p>Search any team or matchup across major leagues. When an exact public HLS feed is available, Vela plays it here in the native player.</p>
                     </div>
                     <label class="sports-game-search" for="sports-game-search">
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
@@ -171,7 +174,7 @@
                     <span id="sports-game-window">Yesterday through the next two weeks</span>
                 </div>
                 <div id="sports-game-grid" class="sports-game-grid" aria-live="polite"></div>
-                <p class="sports-game-attribution">Schedules and broadcasters are refreshed from ESPN public scoreboard data. Native playback uses exact-match public HLS feeds from the StreamOS channel directory.</p>
+                <p class="sports-game-attribution">Schedules and broadcasters are refreshed from ESPN public scoreboard data. Native playback uses exact-match public HLS feeds from the Vela channel directory.</p>
             </section>
 
             <section class="live-tv-on-air" aria-label="Live channel player">
@@ -262,6 +265,10 @@
                             class="fa-solid fa-download"></i> Check for Updates</button>
                 </div>
 
+                <div id="install-permission-row" class="install-permission-row hidden">
+                    <p id="install-permission-status" role="status"></p>
+                    <button id="setting-install-permission" class="setting-btn" tabindex="0">Enable update installation</button>
+                </div>
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
                     <h2 style="font-size: 1.8rem; margin-bottom: 20px; color: #fff;">Playback Behavior</h2>
                     <div class="settings-panel">
@@ -302,8 +309,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Streamy WebOS Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v2.0
-                        (Streamy Netflix Update)</span>
+                    Vela version: <span id="setting-build-version">120.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -374,9 +380,9 @@
 
         <!-- LINKS FULL-SCREEN VIEW -->
         <div id="view-links" class="view hidden">
-            <div class="source-screen-kicker">StreamOS Source Finder</div>
+            <div class="source-screen-kicker">Vela Source Finder</div>
             <h2 id="links-title">Available Data Streams</h2>
-            <p class="source-screen-copy">Pick the fastest working source, or let StreamOS auto-play the best match.</p>
+            <p class="source-screen-copy">Pick the fastest working source, or let Vela auto-play the best match.</p>
             <div id="source-filter-controls" class="source-filter-controls hidden"></div>
             <div id="scraper-status" class="scraper-status" role="status" aria-live="polite">
                 <i class="fa-solid fa-spinner fa-spin"></i> Preparing background extractors...
@@ -424,7 +430,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=119-live4"></script>
+    <script type="module" src="js/app.js?v=120-live4"></script>
 </body>
 
 </html>

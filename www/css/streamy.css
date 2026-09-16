@@ -23,7 +23,7 @@ body {
 #side-bar {
     display: flex; flex-direction: column; align-items: flex-start; gap: 30px;
     background: linear-gradient(to right, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0) 100%);
-    padding: 5vh 2vw 5vh 5vw; 
+    padding: 5vh 2vw 5vh 5vw;
     z-index: 500;
     position: fixed; top: 0; bottom: 0; left: 0; width: 320px;
 }
@@ -100,7 +100,7 @@ body {
 }
 
 .row-posters {
-    display: flex; gap: 15px; 
+    display: flex; gap: 15px;
     padding: 30px 40px; /* Ample padding to prevent scaling clip */
     overflow-x: auto; overflow-y: hidden;
     scrollbar-width: none;

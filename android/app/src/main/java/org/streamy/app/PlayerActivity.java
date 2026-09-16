@@ -648,7 +648,7 @@ public class PlayerActivity extends AppCompatActivity {
         button.setMinHeight(dpToPx(58));
         button.setPadding(dpToPx(20), dpToPx(12), dpToPx(20), dpToPx(12));
 
-        int normalBg = Color.parseColor(selected ? "#E50914" : "#25282D");
+        int normalBg = Color.parseColor(selected ? "#186F70" : "#142735");
         int focusedBg = Color.WHITE;
         applyAudioTrackOptionStyle(button, false, selected, normalBg, focusedBg);
         button.setOnFocusChangeListener((view, hasFocus) ->
@@ -1066,10 +1066,10 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
 
-        final int normalBg = Color.parseColor(primary ? "#2A2A2A" : "#1A1A1A");
-        final int focusedBg = Color.parseColor(primary ? "#E50914" : "#FFFFFF");
+        final int normalBg = Color.parseColor(primary ? "#1B3A41" : "#10202B");
+        final int focusedBg = Color.parseColor(primary ? "#58F4D5" : "#FFFFFF");
         final int normalText = Color.WHITE;
-        final int focusedText = Color.parseColor(primary ? "#FFFFFF" : "#000000");
+        final int focusedText = Color.parseColor("#05222A");
 
         button.setAllCaps(true);
         button.setTextSize(18f);

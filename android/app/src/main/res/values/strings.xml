@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">StreamOS</string>
-    <string name="title_activity_main">StreamOS</string>
+    <string name="app_name">Vela</string>
+    <string name="title_activity_main">Vela</string>
     <string name="package_name">org.streamy.app</string>
     <string name="custom_url_scheme">org.streamy.app</string>
     <string name="up_next">Up next</string>

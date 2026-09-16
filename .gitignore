@@ -3,6 +3,7 @@ node_modules
 .DS_Store
 *.log
 app-dist/
+.gradle-v120/
 android/.gradle/
 android/**/build/
 android/local.properties

@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=119';
+import { NavigationManager } from './navigation.js?v=120';
 
 let currentRouteKey = null;
 
@@ -16,6 +16,7 @@ function handleNativeBack() {
 
     const profileScreen = document.querySelector('#profile-selection-screen:not(.hidden)');
     if (profileScreen) {
+        if (profileScreen.dataset.selectionRequired === 'true') return 'exit';
         const activeProfileId = globalThis.localStorage.getItem('streamy_active_profile');
         if (!activeProfileId) return 'exit';
 
@@ -93,6 +94,8 @@ function updateNavUI(activeHash) {
 }
 
 export function handleRoute() {
+    const profileScreen = document.getElementById('profile-selection-screen');
+    if (profileScreen && !profileScreen.classList.contains('hidden')) return;
     const hash = globalThis.location.hash || '#home';
 
     if (hash !== '#player') stopVideoPlayback();

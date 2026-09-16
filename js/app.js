@@ -1,10 +1,10 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=119';
-import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=119';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=119';
-import { setupRouter, navigateTo } from './router.js?v=119-live1';
-import { NavigationManager } from './navigation.js?v=119';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=119';
-import { initLiveTv } from './live-tv.js?v=119-live4';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=120';
+import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=120';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=120';
+import { setupRouter, navigateTo } from './router.js?v=120-live1';
+import { NavigationManager } from './navigation.js?v=120';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=120';
+import { initLiveTv } from './live-tv.js?v=120-live4';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -16,7 +16,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 119;
+const PACKAGED_APP_VERSION = 120;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
@@ -111,6 +111,21 @@ async function checkForUpdatesBackground({ force = false } = {}) {
     return updateCheckInFlight;
 }
 
+function refreshInstallPermission() {
+    const row = document.getElementById('install-permission-row');
+    if (!row) return;
+    row.classList.toggle('hidden', !isNativeAppRuntime());
+    if (!isNativeAppRuntime()) return;
+    const allowed = globalThis.NativeBridge?.canInstallUpdates?.() === true;
+    const status = document.getElementById('install-permission-status');
+    const button = document.getElementById('setting-install-permission');
+    status.textContent = allowed
+        ? 'Updates are enabled. Vela downloads updates and opens the Fire TV installer for confirmation.'
+        : 'Allow Vela to install updates, then confirm each installation in the Fire TV prompt.';
+    button.textContent = allowed ? 'Updates enabled' : 'Enable update installation';
+    button.disabled = allowed;
+}
+
 function setUpdateStatus(message, state = 'ready') {
     const status = document.getElementById('required-update-status');
     const updateButton = document.getElementById('required-update-install');
@@ -127,7 +142,7 @@ function setUpdateStatus(message, state = 'ready') {
 
 function startRequiredUpdate() {
     if (!requiredUpdate) return;
-    setUpdateStatus('Downloading the verified update. Please keep StreamOS open.', 'downloading');
+    setUpdateStatus('Downloading the update. Please keep Vela open.', 'downloading');
 
     if (globalThis.NativeBridge?.downloadRequiredUpdate) {
         globalThis.NativeBridge.downloadRequiredUpdate(requiredUpdate.url, String(requiredUpdate.version));
@@ -135,7 +150,7 @@ function startRequiredUpdate() {
         globalThis.NativeBridge.downloadUpdate(requiredUpdate.url);
     } else {
         globalThis.open(requiredUpdate.url, '_blank');
-        setUpdateStatus('Install the update, then reopen StreamOS.', 'installing');
+        setUpdateStatus('Install the update, then reopen Vela.', 'installing');
     }
 }
 
@@ -173,7 +188,7 @@ function showRequiredUpdate(newVersionKey, downloadUrl) {
             <div class="required-update-card">
                 <div class="required-update-mark"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
                 <p class="required-update-kicker">Required update</p>
-                <h1 id="required-update-title">A newer StreamOS is ready</h1>
+                <h1 id="required-update-title">A new Vela is ready</h1>
                 <p class="required-update-copy">Update to continue using movies, TV shows, profiles, and playback.</p>
                 <p id="required-update-version" class="required-update-version"></p>
                 <p id="required-update-status" class="required-update-status" aria-live="polite">Choose Update now to begin.</p>
@@ -203,6 +218,7 @@ function showRequiredUpdate(newVersionKey, downloadUrl) {
 
 globalThis.StreamOSUpdate = {
     isRequired: () => isNativeAppRuntime() && !!requiredUpdate,
+    onInstallPermissionChanged: refreshInstallPermission,
     onDownloadState(state, message) {
         const normalizedState = String(state || 'ready');
         setUpdateStatus(message || 'Update status changed.', normalizedState);
@@ -392,6 +408,14 @@ function showProfilesScreen({ editing = false, focusFirst = true } = {}) {
     }
 }
 
+globalThis.StreamOSProfiles = {
+    showStartup() {
+        activeProfile = null;
+        DOM.profileSelectionScreen.dataset.selectionRequired = 'true';
+        showProfilesScreen();
+    }
+};
+
 function initProfiles() {
     let profiles = getProfiles();
     
@@ -423,13 +447,9 @@ function initProfiles() {
     // Always render for the switcher even if we don't show the screen yet
     renderProfilesScreen(profiles, activeIndex);
 
-    // If we have an active profile, stay in the main app
-    if (activeProfile) {
-        selectProfile(activeProfile, true); // true = silent init
-        return true; 
-    } 
-    
-    // Otherwise, show the selection screen
+    // Remember the profile's data, but require a choice on each new launch.
+    activeProfile = null;
+    DOM.profileSelectionScreen.dataset.selectionRequired = 'true';
     showProfilesScreen({ editing: false, focusFirst: true });
     return false;
 }
@@ -448,7 +468,7 @@ function initProfileBindings() {
     const versionEl = document.getElementById('setting-build-version');
     if (versionEl) {
         versionEl.innerText = isNativeAppRuntime()
-            ? `${getInstalledAppVersion()}.0 (GLOBAL SYNC SUCCESS)`
+            ? `${getInstalledAppVersion()}.0`
             : 'Web app';
     }
     
@@ -464,12 +484,14 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         card.tabIndex = 0;
         card.style.background = 'transparent'; card.style.border = 'none'; card.style.color = 'white';
         
-        const svgContent = `<i class="fa-solid fa-user"></i>`;
+        const avatarIcons = { '1': 'fa-user-astronaut', '2': 'fa-ghost', '3': 'fa-robot' };
+        const svgContent = `<i class="fa-solid ${avatarIcons[p.avatar] || 'fa-user-astronaut'}" aria-hidden="true"></i>`;
         
         card.innerHTML = `
             <div class="profile-avatar">${svgContent}${p.isKid ? '<span class="kid-badge">KIDS</span>' : ''}</div>
-            <div style="font-size: 1.5rem; font-weight: bold; text-shadow: 1px 1px 3px black;">${p.name}</div>
+            <div class="profile-name"></div>
         `;
+        card.querySelector('.profile-name').textContent = p.name;
         
         card.onclick = () => {
             if (isEditing) openProfileModal(p);
@@ -561,6 +583,7 @@ function openProfileModal(profile) {
 
 function selectProfile(profile, silent = false) {
     activeProfile = profile;
+    DOM.profileSelectionScreen.dataset.selectionRequired = 'false';
     globalThis.localStorage.setItem('streamy_active_profile', profile.id);
     DOM.currentProfileName.textContent = profile.name;
     
@@ -999,6 +1022,11 @@ function initApp() {
     }
     
     const settingCheckUpdate = document.getElementById('setting-check-update');
+    const permissionButton = document.getElementById('setting-install-permission');
+    if (permissionButton) {
+        permissionButton.onclick = () => globalThis.NativeBridge?.openInstallPermissionSettings?.();
+        refreshInstallPermission();
+    }
     if (settingCheckUpdate) {
         if (!isNativeAppRuntime()) {
             settingCheckUpdate.classList.add('hidden');

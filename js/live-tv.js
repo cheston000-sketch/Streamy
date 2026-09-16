@@ -165,7 +165,7 @@ function showPlaybackFailure(channel) {
     setPlayerMessage(
         'fa-tower-broadcast',
         'Signal unavailable',
-        `${channel.name} is not responding right now. StreamOS tried every available signal.`
+        `${channel.name} is not responding right now. Vela tried every available signal.`
     );
     setGuideStatus(`Could not tune ${channel.name}.`, 'error');
 }
@@ -391,9 +391,9 @@ function renderGameActions(game) {
     if (channel) {
         actions.push(`
             <button type="button" class="sports-game-action primary native" data-channel-id="${escapeHtml(channel.id)}"
-                data-game-id="${escapeHtml(game.id)}" aria-label="Play ${escapeHtml(game.fullTitle || game.title)} in StreamOS">
+                data-game-id="${escapeHtml(game.id)}" aria-label="Play ${escapeHtml(game.fullTitle || game.title)} in Vela">
                 <i class="fa-solid fa-circle-play" aria-hidden="true"></i>
-                Play in StreamOS
+                Play in Vela
             </button>
         `);
     } else if (provider) {

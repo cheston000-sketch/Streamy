@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="110" fill="#E50914"/>
-  <path d="M190 140 L380 256 L190 372 Z" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="Vela">
+  <defs><linearGradient id="b" x2="1" y2="1"><stop stop-color="#184653"/><stop offset="1" stop-color="#0d2631"/></linearGradient></defs>
+  <rect width="108" height="108" rx="24" fill="url(#b)"/>
+  <path d="M21 30H36L55 66L73 30H89L60 82H49Z" fill="#58f4d5"/>
+  <path d="M62 30L80 20L72 40Z" fill="#f0fffb"/>
 </svg>

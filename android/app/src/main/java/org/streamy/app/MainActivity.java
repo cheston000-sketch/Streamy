@@ -2,6 +2,9 @@ package org.streamy.app;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.ClipData;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.content.pm.PackageInfo;
@@ -25,6 +28,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Arrays;
 import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
@@ -34,6 +39,8 @@ public class MainActivity extends BridgeActivity {
     private File pendingUpdateApk;
     private boolean awaitingInstallPermission;
     private boolean installerLaunched;
+    private final AtomicBoolean updateDownloadInProgress = new AtomicBoolean(false);
+    private long pendingUpdateVersion;
     private boolean nativeActionDispatchPending;
     private int nativeActionDispatchAttempts;
     private static final int MAX_NATIVE_ACTION_DISPATCH_ATTEMPTS = 60;
@@ -43,6 +50,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            String pendingPath = savedInstanceState.getString("pendingUpdatePath");
+            if (pendingPath != null) pendingUpdateApk = new File(pendingPath);
+            pendingUpdateVersion = savedInstanceState.getLong("pendingUpdateVersion");
+            awaitingInstallPermission = savedInstanceState.getBoolean("awaitingInstallPermission");
+            installerLaunched = savedInstanceState.getBoolean("installerLaunched");
+        }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
 
@@ -96,6 +110,9 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         maybeHandleNativeAction(intent);
+        if (Intent.ACTION_MAIN.equals(intent.getAction()) && !intent.hasExtra("native_action")) {
+            evaluateUpdateJavascript("window.StreamOSProfiles && window.StreamOSProfiles.showStartup();");
+        }
     }
 
     @Override
@@ -104,10 +121,11 @@ public class MainActivity extends BridgeActivity {
 
         maybeHandleNativeAction(getIntent());
 
+        evaluateUpdateJavascript("window.StreamOSUpdate && window.StreamOSUpdate.onInstallPermissionChanged && window.StreamOSUpdate.onInstallPermissionChanged();");
         if (awaitingInstallPermission) {
             awaitingInstallPermission = false;
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getPackageManager().canRequestPackageInstalls()) {
-                launchApkInstaller();
+                if (pendingUpdateApk != null) launchApkInstaller();
             } else {
                 notifyUpdateState("failed", "Installation permission is required. Select Update now to try again.");
             }
@@ -126,7 +144,9 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        notifyUpdateState("downloading", "Downloading the verified StreamOS update...");
+        if (!updateDownloadInProgress.compareAndSet(false, true)) return;
+        pendingUpdateVersion = expectedVersion;
+        notifyUpdateState("downloading", "Downloading the Vela update...");
         updateExecutor.execute(() -> {
             HttpURLConnection connection = null;
             try {
@@ -178,9 +198,10 @@ public class MainActivity extends BridgeActivity {
                 });
             } catch (Exception error) {
                 Log.e(TAG, "Update download failed", error);
-                notifyUpdateState("failed", "Update download failed. Check your connection and try again.");
+                notifyUpdateState("failed", "Update could not be installed: " + error.getMessage());
             } finally {
                 if (connection != null) connection.disconnect();
+                updateDownloadInProgress.set(false);
             }
         });
     }
@@ -199,9 +220,12 @@ public class MainActivity extends BridgeActivity {
 
     @SuppressWarnings("deprecation")
     private void validateUpdatePackage(File apkFile, long expectedVersion) {
-        PackageInfo packageInfo = getPackageManager().getPackageArchiveInfo(apkFile.getAbsolutePath(), 0);
+        // Fire OS 7 can report API 28 while leaving SigningInfo null.
+        int flags = PackageManager.GET_SIGNATURES;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) flags |= PackageManager.GET_SIGNING_CERTIFICATES;
+        PackageInfo packageInfo = getPackageManager().getPackageArchiveInfo(apkFile.getAbsolutePath(), flags);
         if (packageInfo == null || !getPackageName().equals(packageInfo.packageName)) {
-            throw new IllegalStateException("Downloaded APK is not a StreamOS package");
+            throw new IllegalStateException("Downloaded APK is not a Vela package");
         }
 
         long downloadedVersion = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
@@ -212,6 +236,46 @@ public class MainActivity extends BridgeActivity {
                 "Downloaded APK version " + downloadedVersion + " is older than required version " + expectedVersion
             );
         }
+        try {
+            PackageInfo installed = getPackageManager().getPackageInfo(getPackageName(), flags);
+            long installedVersion = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                ? installed.getLongVersionCode() : installed.versionCode;
+            if (downloadedVersion < installedVersion) throw new IllegalStateException("Update would downgrade the app");
+            Signature[] current = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && installed.signingInfo != null
+                ? installed.signingInfo.getApkContentsSigners() : installed.signatures;
+            Signature[] incoming = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && packageInfo.signingInfo != null
+                ? packageInfo.signingInfo.getApkContentsSigners() : packageInfo.signatures;
+            if (current == null || incoming == null || current.length == 0 || !Arrays.equals(current, incoming)) {
+                throw new IllegalStateException("Update signing certificate does not match the installed app");
+            }
+        } catch (PackageManager.NameNotFoundException error) {
+            throw new IllegalStateException("Unable to verify the installed app", error);
+        }
+    }
+
+    boolean canInstallUpdates() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getPackageManager().canRequestPackageInstalls();
+    }
+
+    void openInstallPermissionSettings() {
+        runOnUiThread(() -> {
+            if (canInstallUpdates()) {
+                evaluateUpdateJavascript("window.StreamOSUpdate && window.StreamOSUpdate.onInstallPermissionChanged();");
+                return;
+            }
+            awaitingInstallPermission = true;
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName())));
+            } catch (Exception error) {
+                try {
+                    startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS));
+                } catch (Exception unavailable) {
+                    awaitingInstallPermission = false;
+                    notifyUpdateState("failed", "Open Fire TV Settings > My Fire TV > Developer options > Install unknown apps and enable Vela.");
+                }
+            }
+        });
     }
 
     private void requestInstallPermissionOrLaunch() {
@@ -220,19 +284,9 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
-            awaitingInstallPermission = true;
-            Intent permissionIntent = new Intent(
-                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                Uri.parse("package:" + getPackageName())
-            );
-            try {
-                startActivity(permissionIntent);
-            } catch (Exception error) {
-                awaitingInstallPermission = false;
-                Log.e(TAG, "Could not open install permission settings", error);
-                notifyUpdateState("failed", "Open Fire OS Settings and allow StreamOS to install unknown apps, then try again.");
-            }
+        if (!canInstallUpdates()) {
+            notifyUpdateState("permission", "Allow Vela to install updates in Fire TV Settings, then return here.");
+            openInstallPermissionSettings();
             return;
         }
         launchApkInstaller();
@@ -244,6 +298,13 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
+        try {
+            validateUpdatePackage(pendingUpdateApk, pendingUpdateVersion);
+        } catch (Exception error) {
+            Log.e(TAG, "Update validation failed", error);
+            notifyUpdateState("failed", "This update cannot replace the installed app. Please download a matching update.");
+            return;
+        }
         Uri apkUri = FileProvider.getUriForFile(
             this,
             getPackageName() + ".fileprovider",
@@ -251,6 +312,7 @@ public class MainActivity extends BridgeActivity {
         );
         Intent installIntent = new Intent(Intent.ACTION_VIEW);
         installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+        installIntent.setClipData(ClipData.newRawUri("Vela update", apkUri));
         installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             installerLaunched = true;
@@ -344,6 +406,15 @@ public class MainActivity extends BridgeActivity {
                 }
             }
         );
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        if (pendingUpdateApk != null) state.putString("pendingUpdatePath", pendingUpdateApk.getAbsolutePath());
+        state.putLong("pendingUpdateVersion", pendingUpdateVersion);
+        state.putBoolean("awaitingInstallPermission", awaitingInstallPermission);
+        state.putBoolean("installerLaunched", installerLaunched);
     }
 
     @Override
