@@ -65,4 +65,14 @@ Verified on the authorized Fire TV (Fire OS 7 / API 28):
 - Build and all 30 local Android policy tests pass with JDK 21.
 - Website layout checked at desktop and 390px width; Live TV remains web-only.
 
-v120 is a local test release. OTA remains unchanged until explicitly published.
+## OTA release
+
+The tested APK is staged at repository root as `StreamOS_v120.apk`, which is
+the directory read by `server/index.js`. Keep the legacy filename for OTA
+compatibility; the installed application label is Vela.
+
+- Version code: `120`; version name: `120.0`.
+- Package ID: `org.streamy.app`.
+- APK SHA-256: `be6690adfa8497db0d970f003acc2cc5a57c24c763347628fd670ce82d81e1b3`.
+- Verify `/api/ota` reports 120 after deployment, then verify that the bytes from
+  `/api/ota/download` match this digest before announcing the release.
