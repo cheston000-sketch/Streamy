@@ -32,4 +32,18 @@ assert.equal(findGridTarget(cells, cells[5], 'down').target, cells[7]);
 assert.equal(findGridTarget(cells, cells[7], 'down').boundary, 'bottom');
 assert.equal(findGridTarget(cells, cells[1], 'up').boundary, 'top');
 
-console.log('Grid navigation tests passed.');
+const profiles = [
+    cell('default', 280, 235, 112, 160),
+    cell('kids', 424, 240, 112, 160),
+    cell('adult', 568, 240, 112, 160),
+    cell('add', 322, 426, 132, 42),
+    cell('manage', 471, 426, 167, 42)
+];
+assert.deepEqual(buildVisualGridRows(profiles).map(row => row.map(item => item.id)),
+    [['default', 'kids', 'adult'], ['add', 'manage']]);
+assert.equal(findGridTarget(profiles, profiles[0], 'down').target, profiles[3]);
+assert.equal(findGridTarget(profiles, profiles[3], 'right').target, profiles[4]);
+assert.equal(findGridTarget(profiles, profiles[4], 'up').target, profiles[2]);
+assert.equal(findGridTarget(profiles, profiles[4], 'down').boundary, 'bottom');
+
+console.log('Grid and profile navigation tests passed.');

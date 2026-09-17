@@ -1,3 +1,31 @@
+# Vela v121
+
+## Profile controls
+
+- Remote Select explicitly activates profile buttons and checkboxes once.
+- Profile navigation groups the lifted cards into one row, with Add Profile and
+  Manage Profiles below it. Focus stays within the chooser or edit dialog.
+- Recover focus when Fire OS selects the scroll panel rather than a control.
+- Avatar selection is functional and preserved when creating or editing profiles.
+- Saving and deleting keep the editing state and Done Editing label consistent.
+- Root website and packaged Android frontend share these fixes.
+
+## Launcher and validation
+
+- Replace every legacy Capacitor launcher PNG and vector with Vela artwork.
+- Use bitmap application artwork and a stable VelaLauncher activity alias.
+  Keep MainActivity, package identity, signing key, and profile storage compatible.
+- Regenerate bitmap assets with `scripts/generate-launcher-assets.ps1`.
+- On `192.168.4.26:5555`, all three instrumentation checks pass: remote profile
+  create/edit/avatar controls, cold/reload/launcher chooser, and native Vela
+  launcher label/bitmap resolution. All 30 Android unit tests also pass.
+- The Fire TV app library still retained its old StreamOS metadata during QA.
+  Checking Amazon Appstore's cache settings requires the device owner's PIN.
+  Do not clear app data, uninstall Vela, or reset launcher preferences to fix it.
+- OTA artifact: `StreamOS_v121.apk` at repository root, version code 121,
+  version name 121.0, SHA-256
+  `5281a674c26734bd6e2dd28bee882b64fd2aaf4defca4381812872c616d03fa0`.
+
 # Vela v120
 
 Vela keeps application ID `org.streamy.app`, the existing signing key, and all

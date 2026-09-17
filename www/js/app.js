@@ -1,8 +1,8 @@
 import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=120';
 import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=120';
 import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=120';
-import { setupRouter, navigateTo } from './router.js?v=120';
-import { NavigationManager } from './navigation.js?v=120';
+import { setupRouter, navigateTo } from './router.js?v=121';
+import { NavigationManager } from './navigation.js?v=121';
 import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=120';
 
 let activeProfile = null;
@@ -15,7 +15,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 120;
+const PACKAGED_APP_VERSION = 121;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
@@ -454,6 +454,31 @@ function initProfiles() {
 }
     
 function initProfileBindings() {
+    // Fire TV can emit Enter without the browser's synthetic button click.
+    // Capture it once so profile cards and action buttons behave identically.
+    [DOM.profileSelectionScreen, DOM.profileEditModal].forEach(root => {
+        let lastFocusedControl = null;
+        root.addEventListener('focusin', event => {
+            if (event.target.matches('button, input')) {
+                lastFocusedControl = event.target;
+            } else if (event.target === root) {
+                // Fire OS may focus the scroll panel when the WebView gains focus.
+                const target = lastFocusedControl?.isConnected && !lastFocusedControl.disabled
+                    && lastFocusedControl.offsetParent !== null
+                    ? lastFocusedControl : root.querySelector('button:not(:disabled), input:not(:disabled)');
+                target?.focus();
+            }
+        });
+        root.addEventListener('keydown', event => {
+            if (!['Enter', ' ', 'Spacebar', 'Accept'].includes(event.key)) return;
+            const control = event.target.closest?.('button, input[type="checkbox"]');
+            if (!control || control.disabled) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (!event.repeat) control.click();
+        }, true);
+    });
+
     DOM.editProfilesBtn.onclick = () => setProfilesEditing(!DOM.profilesGrid.classList.contains('edit-mode'));
 
     DOM.addProfileBtn.onclick = () => openProfileModal(null);
@@ -522,12 +547,26 @@ function openProfileModal(profile) {
     // Ensure "Manage Profiles" from settings is visible
     DOM.settingManageProfiles.style.display = 'flex';
     
-    // Simulate Avatar Selection Grid
+    let selectedAvatar = ['1', '2', '3'].includes(String(profile?.avatar)) ? String(profile.avatar) : '1';
     DOM.avatarSelectionGrid.innerHTML = `
-        <button class="nav-tab active" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-user"></i></button>
-        <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-ghost"></i></button>
-        <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-robot"></i></button>
+        <button class="nav-tab" data-avatar="1" aria-label="Astronaut avatar" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-user-astronaut"></i></button>
+        <button class="nav-tab" data-avatar="2" aria-label="Ghost avatar" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-ghost"></i></button>
+        <button class="nav-tab" data-avatar="3" aria-label="Robot avatar" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-robot"></i></button>
     `;
+    const updateAvatarSelection = () => {
+        DOM.avatarSelectionGrid.querySelectorAll('button').forEach(button => {
+            const selected = button.dataset.avatar === selectedAvatar;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-pressed', String(selected));
+        });
+    };
+    DOM.avatarSelectionGrid.querySelectorAll('button').forEach(button => {
+        button.onclick = () => {
+            selectedAvatar = button.dataset.avatar;
+            updateAvatarSelection();
+        };
+    });
+    updateAvatarSelection();
 
     DOM.saveProfileBtn.onclick = () => {
         if (!DOM.profileNameInput.value.trim()) return;
@@ -537,13 +576,14 @@ function openProfileModal(profile) {
             if (index > -1) {
                 profiles[index].name = DOM.profileNameInput.value.trim();
                 profiles[index].isKid = DOM.profileKidCheckbox.checked;
+                profiles[index].avatar = selectedAvatar;
             }
         } else {
-            profiles.push({ id: Date.now().toString(), name: DOM.profileNameInput.value.trim(), avatar: '1', isKid: DOM.profileKidCheckbox.checked });
+            profiles.push({ id: Date.now().toString(), name: DOM.profileNameInput.value.trim(), avatar: selectedAvatar, isKid: DOM.profileKidCheckbox.checked });
         }
         saveProfiles(profiles);
         DOM.profileEditModal.classList.add('hidden');
-        renderProfilesScreen(profiles, -1, true);
+        setProfilesEditing(true);
         NavigationManager.lockFocus('#profile-selection-screen');
         setTimeout(() => DOM.profilesGrid.lastElementChild?.focus(), 120);
     };
@@ -563,7 +603,7 @@ function openProfileModal(profile) {
         }
         saveProfiles(profiles);
         DOM.profileEditModal.classList.add('hidden');
-        renderProfilesScreen(profiles, -1, true);
+        setProfilesEditing(true);
         NavigationManager.lockFocus('#profile-selection-screen');
         setTimeout(() => DOM.profilesGrid.firstElementChild?.focus(), 120);
     };

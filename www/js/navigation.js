@@ -71,6 +71,15 @@ function isOwnedNavigationScope(active) {
     return !!active?.closest?.('[data-nav-scope="tv-details"]');
 }
 
+function handleProfileNavigation(active, direction) {
+    const screen = active.closest('#profile-selection-screen, #profile-edit-modal');
+    if (!screen) return false;
+    // Treat the lifted profile cards as one row, not as vertically staggered targets.
+    const result = findGridTarget(getFocusableItems(screen), active, direction);
+    if (result.target) result.target.focus();
+    return true;
+}
+
 function focusNearestInContainer(active, container) {
     if (!container) return false;
     const candidates = getFocusableItems(container);
@@ -305,6 +314,11 @@ export const NavigationManager = {
         }
 
         if (isOwnedNavigationScope(active)) {
+            return;
+        }
+
+        if (handleProfileNavigation(active, direction)) {
+            e.preventDefault();
             return;
         }
 

@@ -5,6 +5,9 @@ import static org.junit.Assert.*;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.drawable.BitmapDrawable;
+import org.json.JSONObject;
 import android.graphics.Bitmap;
 import android.os.SystemClock;
 import android.util.Log;
@@ -49,7 +52,18 @@ public class VelaDeviceTest {
             if ("true".equals(evaluate(scenario, script))) return;
             SystemClock.sleep(250);
         }
-        fail("Web condition did not become true: " + script);
+        screenshot("vela-condition-failure");
+        fail("Web condition did not become true: " + script + " active="
+            + evaluate(scenario, "JSON.stringify({active: document.activeElement.id || document.activeElement.className, focused: document.hasFocus(), keys: window.qaKeys})"));
+    }
+
+    private void hideTestKeyboard(ActivityScenario<MainActivity> scenario) {
+        scenario.onActivity(activity -> {
+            android.view.inputmethod.InputMethodManager ime = (android.view.inputmethod.InputMethodManager)
+                activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+            ime.hideSoftInputFromWindow(activity.getWindow().getDecorView().getWindowToken(), 0);
+        });
+        SystemClock.sleep(500);
     }
 
     private void screenshot(String name) throws Exception {
@@ -63,10 +77,14 @@ public class VelaDeviceTest {
     }
 
     @Test public void profilesAppearOnColdAndLauncherStarts() throws Exception {
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
+        Intent initialLaunch = context().getPackageManager().getLaunchIntentForPackage(context().getPackageName());
+        assertNotNull(initialLaunch);
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(initialLaunch)) {
             waitFor(scenario, "document.querySelectorAll('.profile-card').length >= 2 && !document.getElementById('profile-selection-screen').classList.contains('hidden')");
             assertEquals("true", evaluate(scenario, "document.getElementById('main-content').classList.contains('hidden')"));
             assertEquals("\"Vela\"", evaluate(scenario, "document.title"));
+            hideTestKeyboard(scenario);
             SystemClock.sleep(800);
             screenshot("vela-profiles");
             InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT);
@@ -82,10 +100,73 @@ public class VelaDeviceTest {
             waitFor(scenario, "document.querySelectorAll('.profile-card').length >= 2 && !document.getElementById('profile-selection-screen').classList.contains('hidden')");
             assertEquals("true", evaluate(scenario, "!!localStorage.getItem('streamy_active_profile')"));
             evaluate(scenario, "document.querySelector('.profile-card').click()");
-            Intent launcher = new Intent(context(), MainActivity.class).setAction(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_LAUNCHER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            Intent launcher = context().getPackageManager().getLaunchIntentForPackage(context().getPackageName());
+            assertNotNull(launcher);
             context().startActivity(launcher);
             waitFor(scenario, "document.getElementById('profile-selection-screen').dataset.selectionRequired === 'true' && !document.getElementById('profile-selection-screen').classList.contains('hidden')");
+        }
+    }
+
+    @Test public void launcherResolvesVelaBitmapArtwork() throws Exception {
+        PackageManager pm = context().getPackageManager();
+        Intent launch = pm.getLaunchIntentForPackage(context().getPackageName());
+        assertNotNull(launch);
+        assertEquals("org.streamy.app.VelaLauncher", launch.getComponent().getClassName());
+        android.content.pm.ActivityInfo info = pm.getActivityInfo(launch.getComponent(), 0);
+        assertEquals("Vela", info.loadLabel(pm).toString());
+        assertTrue(info.loadIcon(pm) instanceof BitmapDrawable);
+        assertNotNull(info.loadBanner(pm));
+        assertEquals("Vela", pm.getApplicationLabel(context().getApplicationInfo()).toString());
+    }
+
+    private void remote(int key) {
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(key);
+        SystemClock.sleep(200);
+    }
+
+    @Test public void profileActionsWorkWithRemote() throws Exception {
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
+        String name = "Vela QA " + SystemClock.uptimeMillis();
+        String edited = name + " edited";
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            waitFor(scenario, "document.querySelectorAll('.profile-card').length >= 2");
+            SystemClock.sleep(1000);
+            waitFor(scenario, "document.hasFocus() && document.activeElement === document.querySelector('.profile-card')");
+            evaluate(scenario, "window.qaKeys=[]; document.addEventListener('keydown', e => window.qaKeys.push({key:e.key,repeat:e.repeat,target:e.target.id||e.target.className}),true)");
+            try {
+                remote(KeyEvent.KEYCODE_DPAD_DOWN);
+                waitFor(scenario, "document.activeElement.id === 'add-profile-btn'");
+                remote(KeyEvent.KEYCODE_DPAD_RIGHT);
+                waitFor(scenario, "document.activeElement.id === 'edit-profiles-btn'");
+                remote(KeyEvent.KEYCODE_DPAD_CENTER);
+                waitFor(scenario, "document.getElementById('profiles-grid').classList.contains('edit-mode') && document.getElementById('edit-profiles-btn').textContent.includes('Done Editing')");
+                waitFor(scenario, "document.activeElement === document.querySelector('.profile-card')");
+                remote(KeyEvent.KEYCODE_DPAD_DOWN);
+                remote(KeyEvent.KEYCODE_DPAD_LEFT);
+                waitFor(scenario, "document.activeElement.id === 'add-profile-btn'");
+                remote(KeyEvent.KEYCODE_DPAD_CENTER);
+                waitFor(scenario, "!document.getElementById('profile-edit-modal').classList.contains('hidden')");
+                evaluate(scenario, "document.getElementById('profile-name-input').value = " + JSONObject.quote(name));
+                hideTestKeyboard(scenario);
+                evaluate(scenario, "document.querySelector('[data-avatar=\"3\"]').focus()");
+                remote(KeyEvent.KEYCODE_DPAD_CENTER);
+                waitFor(scenario, "document.querySelector('[data-avatar=\"3\"]').getAttribute('aria-pressed') === 'true'");
+                evaluate(scenario, "document.getElementById('save-profile-btn').focus()");
+                remote(KeyEvent.KEYCODE_DPAD_CENTER);
+                waitFor(scenario, "JSON.parse(localStorage.getItem('streamy_profiles')).filter(p => p.name === " + JSONObject.quote(name) + " && p.avatar === '3').length === 1");
+                waitFor(scenario, "document.getElementById('profile-edit-modal').classList.contains('hidden')");
+                evaluate(scenario, "Array.from(document.querySelectorAll('.profile-card')).find(p => p.textContent.trim() === " + JSONObject.quote(name) + ").focus()");
+                remote(KeyEvent.KEYCODE_DPAD_CENTER);
+                waitFor(scenario, "!document.getElementById('profile-edit-modal').classList.contains('hidden') && document.getElementById('modal-profile-title').textContent === 'Edit Profile'");
+                evaluate(scenario, "document.getElementById('profile-name-input').value = " + JSONObject.quote(edited));
+                hideTestKeyboard(scenario);
+                evaluate(scenario, "document.getElementById('save-profile-btn').focus()");
+                remote(KeyEvent.KEYCODE_DPAD_CENTER);
+                waitFor(scenario, "JSON.parse(localStorage.getItem('streamy_profiles')).some(p => p.name === " + JSONObject.quote(edited) + ")");
+            } finally {
+                hideTestKeyboard(scenario);
+                evaluate(scenario, "localStorage.setItem('streamy_profiles', JSON.stringify(JSON.parse(localStorage.getItem('streamy_profiles')).filter(p => p.name !== " + JSONObject.quote(name) + " && p.name !== " + JSONObject.quote(edited) + "))); document.getElementById('profile-edit-modal').classList.add('hidden'); window.StreamOSProfiles.showStartup()");
+            }
         }
     }
 
@@ -126,11 +207,12 @@ public class VelaDeviceTest {
     @Test public void nativeUpdaterOpensInstallPrompt() throws Exception {
         String url = InstrumentationRegistry.getArguments().getString("updateUrl");
         assertNotNull("Provide a same-version test APK URL", url);
+        int installedVersion = context().getPackageManager().getPackageInfo(context().getPackageName(), 0).versionCode;
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             waitFor(scenario, "!!window.StreamOSUpdate");
             scenario.onActivity(activity -> {
                 assertTrue("Vela must be allowed to install updates", activity.canInstallUpdates());
-                activity.downloadAndInstallUpdate(url, 120);
+                activity.downloadAndInstallUpdate(url, installedVersion);
             });
             for (int n = 0; n < 100; n++) {
                 AccessibilityNodeInfo root = InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow();
