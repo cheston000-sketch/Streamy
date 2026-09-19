@@ -1,3 +1,14 @@
+# Vela v122
+
+- Declare the Fire TV banner directly on the `VelaLauncher` activity alias.
+  Fire OS reads launcher artwork from the Leanback entry itself and displayed a
+  missing-artwork placeholder when the alias only inherited the application banner.
+- Preserve package identity, signing key, profiles, watch history, and OTA behavior.
+- Verified on `192.168.4.21:5555`: Fire TV displays the teal Vela tile and Vela
+  label, and the launcher/profile instrumentation tests pass.
+- OTA artifact: `StreamOS_v122.apk`, version code 122, version name 122.0,
+  SHA-256 `6661e39b927f4698418ae7afcdcd4dc616c1453c166b16abd85efb96e19f5527`.
+
 # Vela v121
 
 ## Profile controls

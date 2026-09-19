@@ -33,6 +33,7 @@
             android:targetActivity=".MainActivity"
             android:label="@string/app_name"
             android:icon="@drawable/vela_launcher"
+            android:banner="@drawable/vela_tv_banner"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

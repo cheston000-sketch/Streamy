@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=121';
+import { NavigationManager } from './navigation.js?v=122';
 
 let currentRouteKey = null;
 
