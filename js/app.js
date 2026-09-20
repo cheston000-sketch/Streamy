@@ -1,8 +1,8 @@
 import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=120';
 import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=120';
 import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=120';
-import { setupRouter, navigateTo } from './router.js?v=122-live1';
-import { NavigationManager } from './navigation.js?v=122';
+import { setupRouter, navigateTo } from './router.js?v=123';
+import { NavigationManager } from './navigation.js?v=123';
 import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=120';
 import { initLiveTv } from './live-tv.js?v=120-live4';
 
@@ -16,7 +16,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 122;
+const PACKAGED_APP_VERSION = 123;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;

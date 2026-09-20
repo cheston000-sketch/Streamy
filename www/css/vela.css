@@ -1,25 +1,29 @@
-/* Vela: a luminous, remote-first cinema identity. */
+/* Vela: a midnight-blue, remote-first cinema identity. */
 :root {
-    --bg-dark: #070d14;
-    --bg-surface: #101d29;
-    --bg-elevated: #1a2c3c;
-    --primary: #58f4d5;
-    --primary-hot: #27bbdb;
-    --accent-cool: #85e9ff;
-    --text-primary: #f3f8fb;
-    --text-secondary: #9aaebb;
+    --bg-dark: #05070a;
+    --bg-surface: #0d131c;
+    --bg-elevated: #17202c;
+    --primary: #3282ff;
+    --primary-hot: #1261d8;
+    --accent-cool: #8fc5ff;
+    --text-primary: #f4f7fb;
+    --text-secondary: #9ba8b8;
     --focus-ring: #ffffff;
-    --panel-border: rgba(152, 220, 226, .16);
+    --panel-border: rgba(148, 171, 199, .18);
+    --blue-glow: rgba(50, 130, 255, .32);
 }
 body {
-    background: radial-gradient(ellipse at 88% 4%, #12303a 0, transparent 42%), #070d14;
+    background:
+        radial-gradient(ellipse at 84% 2%, rgba(29, 84, 164, .34) 0, transparent 42%),
+        radial-gradient(ellipse at 8% 92%, rgba(23, 45, 78, .34) 0, transparent 48%),
+        #05070a;
 }
 body::before { background: none; }
 button, input, select { font-family: inherit; }
 #top-bar {
     gap: 26px;
     padding: 18px 36px 36px;
-    background: linear-gradient(#070d1afa 10%, #070d1ae6 65%, transparent);
+    background: linear-gradient(#05070afa 10%, #05070ae8 65%, transparent);
 }
 .brand, .profile-brand {
     display: flex;
@@ -30,7 +34,7 @@ button, input, select { font-family: inherit; }
     letter-spacing: -1.8px;
     font-size: 2rem;
     line-height: 1;
-    color: #f3f8fb;
+    color: var(--text-primary);
     text-transform: lowercase;
     text-shadow: none;
 }
@@ -38,7 +42,7 @@ button, input, select { font-family: inherit; }
 .brand::after { content: none; }
 .nav-tabs {
     border-radius: 12px;
-    background: rgba(13, 26, 37, .88);
+    background: rgba(10, 15, 23, .9);
     backdrop-filter: none;
     border-color: var(--panel-border);
     gap: 5px;
@@ -52,19 +56,19 @@ button, input, select { font-family: inherit; }
     transition: background .16s, color .16s;
 }
 .nav-tab.active {
-    background: #1b3a41;
-    color: #8dfbe2;
+    background: #172b49;
+    color: #a8d2ff;
     box-shadow: inset 0 -3px var(--primary);
     transform: none;
 }
 .nav-tab:focus, .nav-tab:hover,
 .setting-btn:focus, .setting-btn:hover,
 .btn-play:focus, .btn-play:hover {
-    background: var(--primary) !important;
-    color: #051b23 !important;
+    background: linear-gradient(135deg, #5b9cff, var(--primary)) !important;
+    color: #02060d !important;
     outline: 3px solid white;
     outline-offset: 3px;
-    box-shadow: 0 8px 28px #0005;
+    box-shadow: 0 8px 28px #0008, 0 0 28px var(--blue-glow);
     transform: none;
 }
 #switch-profile-tab { border: 1px solid var(--panel-border) !important; }
@@ -77,17 +81,17 @@ button, input, select { font-family: inherit; }
 }
 #hero-title { font-size: clamp(2rem, 4.4vw, 4.2rem); line-height: 1.12; }
 .hero-content { top: 116px; bottom: auto; }
-#hero-meta, .meta { color: #96d6d6; letter-spacing: 1px; }
+#hero-meta, .meta, #details-meta { color: #8fc5ff; letter-spacing: 1px; }
 #hero-banner::before {
-    background: linear-gradient(90deg, #070d14f5, #070d1488 48%, #070d1400 78%),
+    background: linear-gradient(90deg, #05070af5, #05070a8c 48%, #05070a00 78%),
         linear-gradient(0deg, var(--bg-dark), transparent 55%);
 }
 .poster-card { border-radius: 10px; }
 .poster-card:focus, .poster-card:hover {
-    box-shadow: 0 0 0 3px #fff, 0 0 0 6px #58f4d5, 0 12px 28px #0008;
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--primary), 0 12px 28px #0008, 0 0 32px var(--blue-glow);
     transform: scale(1.06);
 }
-.btn-play, .server-btn.preferred { background: var(--primary); color: #05222a; }
+.btn-play, .server-btn.preferred { background: linear-gradient(135deg, #69a7ff, var(--primary)); color: #02060d; }
 .server-btn, .settings-panel { border-color: var(--panel-border); }
 #profile-selection-screen {
     position: fixed;
@@ -102,9 +106,9 @@ button, input, select { font-family: inherit; }
     padding: 84px 30px 38px;
     text-align: center;
     background:
-        radial-gradient(ellipse at 16% 96%, #0a59544d 0, transparent 48%),
-        radial-gradient(ellipse at 88% 4%, #1d5b794d 0, transparent 45%),
-        #070d14;
+        radial-gradient(ellipse at 16% 96%, rgba(22, 52, 92, .48) 0, transparent 48%),
+        radial-gradient(ellipse at 88% 4%, rgba(31, 91, 181, .38) 0, transparent 45%),
+        #05070a;
 }
 #profile-selection-screen::before {
     content: '';
@@ -115,9 +119,9 @@ button, input, select { font-family: inherit; }
     max-width: 720px;
     right: -28vw;
     top: -30vw;
-    border: 1px solid #75f7dd25;
+    border: 1px solid rgba(104, 164, 255, .18);
     border-radius: 50%;
-    box-shadow: 0 0 0 70px #75f7dd05, 0 0 0 140px #75f7dd03;
+    box-shadow: 0 0 0 70px rgba(50, 130, 255, .035), 0 0 0 140px rgba(50, 130, 255, .02);
     pointer-events: none;
 }
 .profile-brand { position: absolute; top: 28px; left: 40px; font-size: 2.1rem; }
@@ -152,42 +156,109 @@ button, input, select { font-family: inherit; }
     height: 132px;
     font-size: 3.6rem;
     border-radius: 30px;
-    border: 2px solid #78efde35;
-    color: #99f8e1;
-    background: linear-gradient(145deg, #234954, #102536);
+    border: 2px solid rgba(95, 157, 255, .28);
+    color: #b6d8ff;
+    background: linear-gradient(145deg, #1c3455, #0d1725);
 }
 .profile-card:nth-child(3n+2) .profile-avatar {
-    background: linear-gradient(145deg, #3c3d67, #20213c);
-    border-color: #b3b6fa35;
-    color: #c9caff;
+    background: linear-gradient(145deg, #273341, #111821);
+    border-color: rgba(169, 184, 202, .26);
+    color: #d2d9e3;
 }
 .profile-card:nth-child(3n+3) .profile-avatar {
-    background: linear-gradient(145deg, #644139, #2d2022);
-    color: #ffc4a3;
+    background: linear-gradient(145deg, #183f69, #0d1e32);
+    color: #93c8ff;
 }
 .profile-card:focus .profile-avatar, .profile-card:hover .profile-avatar {
     border-color: #fff;
-    box-shadow: 0 0 0 4px #58f4d5, 0 14px 36px #0008;
+    box-shadow: 0 0 0 4px var(--primary), 0 14px 36px #0008, 0 0 34px var(--blue-glow);
 }
 .profile-name { font-size: 1.2rem; font-weight: 700; max-width: 150px; overflow-wrap: anywhere; }
-.kid-badge { background: #d4e8b0; color: #142712; font-size: .55rem; border-radius: 5px; letter-spacing: 1px; }
+.kid-badge { background: #8fc5ff; color: #06101d; font-size: .55rem; border-radius: 5px; letter-spacing: 1px; }
 #profile-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; }
 #profile-actions .nav-tab {
     padding: 11px 20px !important;
     font-size: .85rem !important;
     border: 1px solid var(--panel-border) !important;
-    background: #10202b;
-    color: #c1d4df;
+    background: #101720;
+    color: #c3ceda;
     border-radius: 8px;
 }
 #profile-edit-modal > div { border: 1px solid var(--panel-border); border-radius: 20px !important; }
-#required-update-overlay { background: radial-gradient(ellipse at 80% 10%, #174954, transparent 65%), #070d14; }
-.required-update-card { background: #10202b; border: 1px solid var(--panel-border); }
-.required-update-mark, .required-update-primary { background: var(--primary); color: #05222a; }
-.required-update-kicker, .required-update-version { color: #8dfbe2; }
+#required-update-overlay { background: radial-gradient(ellipse at 80% 10%, #153b72, transparent 65%), #05070a; }
+.required-update-card { background: #0e1620; border: 1px solid var(--panel-border); }
+.required-update-mark, .required-update-primary { background: linear-gradient(135deg, #69a7ff, var(--primary)); color: #02060d; }
+.required-update-kicker, .required-update-version { color: #9bcaff; }
 #required-update-title { font-family: 'Manrope', sans-serif; text-transform: none; letter-spacing: -1px; }
 .install-permission-row { margin: 20px 0; padding: 20px; border: 1px solid var(--panel-border); border-radius: 12px; }
 .install-permission-row p { margin: 0 0 14px; color: var(--text-secondary); font-size: .9rem; }
+
+/* Blue, gray, and black component system. These overrides replace legacy warm accents. */
+#view-details,
+#view-links,
+#view-search,
+#view-settings,
+#view-category {
+    background-color: var(--bg-dark);
+    background-image: radial-gradient(circle at 86% 10%, rgba(33, 91, 178, .2), transparent 34%);
+}
+.row-header,
+.source-screen-kicker,
+.poster-subline,
+.source-rank,
+.required-update-version {
+    color: var(--accent-cool);
+}
+.poster-card,
+.server-btn,
+.settings-panel,
+.theater-browser {
+    background-color: rgba(13, 19, 28, .92);
+    border-color: var(--panel-border);
+}
+.poster-progress-fill,
+.poster-watched-badge,
+.btn-play,
+.source-filter-btn.active,
+.btn-load-more:focus,
+.btn-load-more:hover {
+    background: linear-gradient(135deg, #69a7ff, var(--primary)) !important;
+}
+.btn-secondary.active,
+.season-item-v2:focus,
+.episode-card-v2:focus,
+.source-filter-btn:focus,
+.source-filter-btn:hover {
+    background: linear-gradient(135deg, #8fc5ff, #438fff) !important;
+    color: #030914 !important;
+}
+.episode-card-v2:focus .ep-title-v2,
+.episode-card-v2:focus .ep-meta-v2,
+.episode-card-v2:focus .ep-overview-v2 {
+    color: #030914 !important;
+}
+.server-btn:focus,
+.server-btn:hover,
+.server-btn.preferred:focus {
+    background: linear-gradient(135deg, rgba(50, 130, 255, .25), rgba(142, 168, 198, .1)), #111a26;
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--primary), 0 18px 42px #0009;
+}
+.server-btn.preferred { border-color: rgba(82, 150, 255, .85); }
+.source-badge-recommended,
+.source-badge-auto {
+    background: linear-gradient(135deg, #8fc5ff, #438fff);
+    color: #030914;
+}
+.source-badge-unstable { background: #556273; color: #fff; }
+#search-input:focus,
+.settings-input:focus,
+.settings-select:focus {
+    box-shadow: 0 0 0 4px rgba(255,255,255,.14), 0 0 34px var(--blue-glow) !important;
+}
+#autoplay-overlay {
+    background: rgba(5, 9, 15, .94) !important;
+    box-shadow: 0 22px 60px #000a, 0 0 36px var(--blue-glow) !important;
+}
 @media (max-width: 1100px) {
     #top-bar { padding: 14px 28px 30px; gap: 22px; }
     .brand { font-size: 1.7rem; }
@@ -217,13 +288,6 @@ button, input, select { font-family: inherit; }
     #profiles-grid { gap: 26px; }
     .profile-avatar { width: 98px; height: 98px; }
     .profile-name { font-size: 1rem; max-width: 120px; }
-}
-@media (prefers-reduced-motion: no-preference) {
-    .profile-eyebrow, #profile-selection-screen h1, .profile-subtitle, #profiles-grid {
-        animation: vela-arrive .45s ease-out both;
-    }
-    #profiles-grid { animation-delay: .08s; }
-    @keyframes vela-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

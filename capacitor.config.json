@@ -2,7 +2,7 @@
   "appId": "org.streamy.app",
   "appName": "Vela",
   "webDir": "app-dist",
-  "backgroundColor": "#070d14",
+  "backgroundColor": "#05070a",
   "android": {
     "allowMixedContent": true
   }

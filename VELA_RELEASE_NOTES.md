@@ -1,3 +1,13 @@
+# Vela v123
+
+- Reworked the full interface into a modern blue, graphite-gray, and black visual system.
+- Replaced warm and teal accents across profiles, navigation, content cards, details, source selection, settings, update prompts, and player overlays.
+- Preserved a bright white plus electric-blue remote focus treatment for couch-distance clarity.
+- Updated the web icon, Android adaptive icon, standard launcher icon, and Fire TV banner to match the new palette.
+- Removed the profile-screen entrance animation that could leave headings transparent on Fire OS.
+- Tested on `192.168.4.21`: v123 installed, all profiles rendered, remote profile navigation passed, and launcher artwork resolved.
+- OTA-ready artifact: `StreamOS_v123.apk` (`SHA-256 31D43F89CBCF8002E7F7A103EEC430095C3F8A99EC0876CBA03C90BDBF362651`).
+
 # Vela v122
 
 - Declare the Fire TV banner directly on the `VelaLauncher` activity alias.
