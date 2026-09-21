@@ -1,4 +1,4 @@
-import { IMAGE_URL, BACKDROP_URL } from './api.js?v=120';
+import { IMAGE_URL, BACKDROP_URL } from './api.js?v=133';
 
 export const DOM = {
     topBar: document.getElementById('top-bar'),
@@ -129,6 +129,7 @@ export function normalizeItem(item, typeFallback) {
 }
 
 export function updateHeroBanner(movie) {
+    globalThis.TellyvoHeroSelection = movie;
     if (movie.backdrop && movie.backdrop !== 'none' && cachedBackdrops[movie.id] !== movie.backdrop) {
         DOM.heroBanner.style.backgroundImage = `url('${movie.backdrop}')`;
         cachedBackdrops[movie.id] = movie.backdrop;
@@ -213,6 +214,8 @@ export function buildRow({ title, items, isWatchlistDict = false, typeFallback =
         const card = document.createElement('div');
         card.className = 'poster-card';
         card.tabIndex = 0;
+        card.dataset.mediaKey = `${parsed.type || typeFallback}:${parsed.id}`;
+        card.dataset.shelfTitle = String(title || '');
         
         const progress = getPlaybackProgressInfo(parsed);
         let progressHtml = '';

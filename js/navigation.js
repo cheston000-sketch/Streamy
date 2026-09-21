@@ -1,8 +1,8 @@
-import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=120';
+import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=133';
 
 const FOCUSABLE_SELECTOR = [
     'button',
-    'a[href]',
+    'a[href]:not([tabindex="-1"])',
     'input',
     'select',
     'textarea',
@@ -21,10 +21,14 @@ const SCROLL_CONTAINER_SELECTOR = [
     '#profile-actions',
     '#avatar-selection-grid',
     '.player-header',
+    '.live-categories',
+    '.live-grid',
+    '.sports-guide',
     '.nav-tabs'
 ].join(', ');
 
 const HORIZONTAL_GROUP_SELECTOR = [
+    '.hero-actions',
     '.row-posters',
     '.content-grid',
     '#episode-list',
@@ -35,6 +39,8 @@ const HORIZONTAL_GROUP_SELECTOR = [
     '#profile-actions',
     '#avatar-selection-grid',
     '.player-header',
+    '.live-categories',
+    '.live-grid',
     '.nav-tabs'
 ].join(', ');
 
@@ -69,15 +75,6 @@ function getCandidates() {
 
 function isOwnedNavigationScope(active) {
     return !!active?.closest?.('[data-nav-scope="tv-details"]');
-}
-
-function handleProfileNavigation(active, direction) {
-    const screen = active.closest('#profile-selection-screen, #profile-edit-modal');
-    if (!screen) return false;
-    // Treat the lifted profile cards as one row, not as vertically staggered targets.
-    const result = findGridTarget(getFocusableItems(screen), active, direction);
-    if (result.target) result.target.focus();
-    return true;
 }
 
 function focusNearestInContainer(active, container) {
@@ -265,11 +262,21 @@ function maintainScroll(active) {
 
 export const NavigationManager = {
     lastFocusedPerView: {},
+    lastFocusDescriptorPerView: {},
 
     saveFocus(viewId) {
         const active = document.activeElement;
+        if (active?.closest?.('#top-bar')) return;
         if (active && active !== document.body && isVisible(active)) {
             this.lastFocusedPerView[viewId] = active;
+            if (active.dataset?.mediaKey) {
+                this.lastFocusDescriptorPerView[viewId] = {
+                    mediaKey: active.dataset.mediaKey,
+                    shelfTitle: active.dataset.shelfTitle || ''
+                };
+            } else {
+                delete this.lastFocusDescriptorPerView[viewId];
+            }
         }
     },
 
@@ -277,15 +284,30 @@ export const NavigationManager = {
         const saved = this.lastFocusedPerView[viewId];
         if (saved && isVisible(saved)) {
             saved.focus();
-            return;
+            return true;
         }
 
-        if (!fallbackSelector) return;
+        const descriptor = this.lastFocusDescriptorPerView[viewId];
+        if (descriptor?.mediaKey) {
+            const matchingCard = getFocusableItems().find(candidate =>
+                candidate.dataset?.mediaKey === descriptor.mediaKey
+                && (!descriptor.shelfTitle || candidate.dataset?.shelfTitle === descriptor.shelfTitle)
+            );
+            if (matchingCard) {
+                this.lastFocusedPerView[viewId] = matchingCard;
+                matchingCard.focus();
+                return true;
+            }
+        }
+
+        if (!fallbackSelector) return false;
 
         const fallback = document.querySelector(fallbackSelector);
         if (fallback && isVisible(fallback)) {
             fallback.focus();
+            return true;
         }
+        return false;
     },
 
     handleDpad(e) {
@@ -314,11 +336,6 @@ export const NavigationManager = {
         }
 
         if (isOwnedNavigationScope(active)) {
-            return;
-        }
-
-        if (handleProfileNavigation(active, direction)) {
-            e.preventDefault();
             return;
         }
 

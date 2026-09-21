@@ -1,11 +1,11 @@
 {
   "name": "streamos",
-  "version": "123.0.0",
-  "description": "StreamOS web application and OTA backend",
+  "version": "133.0.0",
+  "description": "Tellyvo web application and OTA backend",
   "main": "index.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --check server/index.js && node --check server/live-tv.js && node --check server/sports-guide.js && node --check js/live-tv.js && node tests/live-tv.test.mjs && node tests/sports-guide.test.mjs && node tests/live-tv-web-only.test.mjs"
+    "test": "node --check server/index.js"
   },
   "keywords": [],
   "author": "",

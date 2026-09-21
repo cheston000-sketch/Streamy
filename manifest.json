@@ -1,11 +1,11 @@
 {
-  "name": "Vela",
-  "short_name": "Vela",
+  "name": "Tellyvo",
+  "short_name": "Tellyvo",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#05070a",
-  "theme_color": "#3282ff",
-  "description": "Stream HD Movies and TV Shows",
+  "background_color": "#0A0F2E",
+  "theme_color": "#0A0F2E",
+  "description": "Movies. Shows. Live TV. Free.",
   "icons": [
     {
       "src": "/icon.svg",

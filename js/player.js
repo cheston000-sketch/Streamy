@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=120';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=120';
-import { navigateTo } from './router.js?v=120-live1';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=133';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=133';
+import { navigateTo, navigateBack } from './router.js?v=133';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -1272,9 +1272,9 @@ function playNextSource(reason = 'manual-next') {
         nativeMediaStatus: 'failed'
     });
     DOM.scraperStatus.classList.remove('hidden');
-    DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> All sources failed. Try again later or select a source manually.</div>';
+    DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error"><i class="fa-solid fa-triangle-exclamation"></i> We couldn’t start this title. Please go back and try again.</div>';
     navigateTo('#links');
-    setTimeout(() => DOM.serverList?.querySelector('.server-btn')?.focus(), 150);
+    setTimeout(() => document.getElementById('loading-back-btn')?.focus(), 150);
     return false;
 }
 
@@ -1512,9 +1512,9 @@ async function startScrapingSession(targetS = null, targetE = null) {
 
     DOM.serverList.innerHTML = '';
     DOM.sourceFilterControls?.classList.add('hidden');
-    DOM.linksTitle.textContent = `Resolving: ${sessionMovie.title}`;
+    DOM.linksTitle.textContent = `Preparing ${sessionMovie.title}`;
     DOM.scraperStatus.classList.remove('hidden');
-    DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-spinner fa-spin"></i> Proxying remote background extractors natively...</p>';
+    DOM.scraperStatus.textContent = 'Preparing your stream…';
     
     navigateTo('#links');
 
@@ -1601,7 +1601,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
     };
 
     try {
-        DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-network-wired fa-fade"></i> Finding the best source broker...</p>';
+        DOM.scraperStatus.textContent = 'Finding the best way to play this title…';
         await discoverBackendHost().catch(error => {
             if (error?.name === 'AbortError') throw error;
             console.warn('[Extraction] Backend discovery failed before extraction:', error);
@@ -1615,9 +1615,9 @@ async function startScrapingSession(targetS = null, targetE = null) {
 
         for (let index = 0; index < candidateHosts.length; index++) {
             const host = candidateHosts[index];
-            DOM.scraperStatus.innerHTML = index === 0
-                ? '<p><i class="fa-solid fa-satellite-dish fa-fade"></i> Connecting to extraction grid...</p>'
-                : '<p><i class="fa-solid fa-shield-halved fa-fade"></i> Primary unavailable. Trying backup node...</p>';
+            DOM.scraperStatus.textContent = index === 0
+                ? 'Almost ready…'
+                : 'Still loading—trying another route…';
 
             try {
                 data = await performExtraction(host);
@@ -1634,7 +1634,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
         if (!data) {
             const reason = backendErrors.join(' | ') || 'No healthy extraction node was available';
             console.warn('[Extraction] Cloud extraction unavailable. Continuing with packaged backup sources.', reason);
-            DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-life-ring fa-fade"></i> Cloud node unavailable. Loading backup sources...</p>';
+            DOM.scraperStatus.textContent = 'Still loading—trying another route…';
             data = {
                 success: false,
                 links: [],
@@ -1683,51 +1683,25 @@ async function startScrapingSession(targetS = null, targetE = null) {
             
             activeSourceFilter = 'all';
             renderSourceList(preferredBestLink);
-            const preferredButton = DOM.serverList?.querySelector('.server-btn.preferred') || DOM.serverList?.querySelector('.server-btn');
-            preferredButton?.focus();
-
-            if (preferredBestLink && getPlaybackSettings().autoplaySources) {
+            if (preferredBestLink) {
                 setTimeout(() => {
                     if (!isCurrentSession() || globalThis.location.hash !== '#links') return;
                     playSourceAt(preferredIndex, 'autoplay-best-source');
                 }, 800);
             } else {
                 DOM.scraperStatus.classList.remove('hidden');
-                DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-list-check"></i> Sources ready. Pick a link to play.</p>';
+                DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error">We couldn’t prepare this title. Please go back and try again.</div>';
             }
         } else {
             DOM.scraperStatus.classList.remove('hidden');
-            DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction failed. Node proxy returned empty payload.</div>';
+            DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error"><i class="fa-solid fa-triangle-exclamation"></i> We couldn’t prepare this title. Please go back and try again.</div>';
         }
     } catch (err) {
         if (err?.name === 'AbortError' || !isCurrentSession()) return;
         console.error("Stream extraction failed:", err);
-        const currentHost = getExtractionApi();
         DOM.scraperStatus.classList.remove('hidden');
-        DOM.scraperStatus.innerHTML = `
-            <div style="color:white; background:#e50914; padding:20px; border-radius:12px; margin-top:20px; border:4px solid #fff; box-shadow:0 0 40px rgba(229,9,20,0.5);">
-                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error</b><br>
-                <div style="background:rgba(0,0,0,0.5); padding:10px; border-radius:6px; margin-top:10px; text-align:left;">
-                    <span style="font-size:14px;color:#ccc;display:block;">Primary Host: ${currentHost}</span>
-                    <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error"}</span>
-                    <div style="display:flex;gap:10px;margin-top:15px;">
-                        <button onclick="location.reload()" style="flex:1;padding:10px;background:white;color:black;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">RETRY CONNECTION</button>
-                        <button id="copy-debug-logs-err-btn" style="flex:1;padding:10px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">COPY DEBUG LOGS</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        const copyBtn = document.getElementById('copy-debug-logs-err-btn');
-        if (copyBtn) {
-            copyBtn.onclick = () => {
-                const logs = getDiscoveryLogs();
-                navigator.clipboard.writeText(logs).then(() => {
-                    copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED';
-                    setTimeout(() => { if (copyBtn) copyBtn.innerText = 'COPY DEBUG LOGS'; }, 2000);
-                });
-            };
-        }
+        DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error"><i class="fa-solid fa-triangle-exclamation"></i> We couldn’t start this title. Check your connection and try again.</div>';
+        setTimeout(() => document.getElementById('loading-back-btn')?.focus(), 150);
     } finally {
         if (sessionId === extractionSessionId && extractionAbortController === controller) {
             extractionAbortController = null;
@@ -1755,7 +1729,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             if (typeof globalThis.NativeBridge.openWebPlayerWithMetadata === 'function') {
                 globalThis.NativeBridge.openWebPlayerWithMetadata(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Tellyvo'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1769,7 +1743,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             } else if (typeof globalThis.NativeBridge.openWebPlayerWithContext === 'function') {
                 globalThis.NativeBridge.openWebPlayerWithContext(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Tellyvo'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1782,7 +1756,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             } else {
                 globalThis.NativeBridge.openWebPlayer(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Tellyvo'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1796,7 +1770,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             console.warn('[Autoplay] Full browser playback context failed; using compatibility bridge:', error);
             globalThis.NativeBridge.openWebPlayer(
                 iframeUrl,
-                `${currentMovieContext?.title || 'Vela'} | Browser Player`,
+                `${currentMovieContext?.title || 'Tellyvo'} | Browser Player`,
                 String(currentMovieContext?.id || ''),
                 mediaKey,
                 String(savedPositionMs),
@@ -1963,7 +1937,7 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
         globalThis.StreamyPlayer.playStream(
             streamUrl,
             mimeType,
-            currentMovieContext?.title || "Vela Video",
+            currentMovieContext?.title || "Tellyvo Video",
             getPlaybackMediaKey(currentMovieContext),
             savedPositionMs
         );
@@ -2115,9 +2089,11 @@ async function playNextEpisode() {
 }
 
 if (DOM.playerServerCycleBtn) {
-    DOM.playerServerCycleBtn.innerHTML = '<i class="fa-solid fa-list"></i> Source List';
-    DOM.playerServerCycleBtn.onclick = () => navigateTo('#links');
+    DOM.playerServerCycleBtn.innerHTML = '<i class="fa-solid fa-shuffle"></i> Switch Source';
+    DOM.playerServerCycleBtn.onclick = () => playNextSource('manual-source-cycle');
 }
+
+document.getElementById('loading-back-btn')?.addEventListener('click', () => navigateBack());
 
 if (DOM.playerReloadSourceBtn) {
     DOM.playerReloadSourceBtn.onclick = () => reloadCurrentSource();
@@ -2132,7 +2108,7 @@ if (DOM.playerDetailsBtn) {
 }
 
 if (DOM.playerBackBtn) {
-    DOM.playerBackBtn.addEventListener('click', () => globalThis.history.back());
+    DOM.playerBackBtn.addEventListener('click', () => navigateBack());
 }
 
 if (DOM.playerFullscreenBtn) {

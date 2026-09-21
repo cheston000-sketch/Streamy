@@ -1,6 +1,37 @@
-import { NavigationManager } from './navigation.js?v=123';
+import { NavigationManager } from './navigation.js?v=133';
 
 let currentRouteKey = null;
+const routeStack = [];
+
+function normalizedHash(hash = globalThis.location.hash) {
+    return hash && hash !== '#' ? hash : '#home';
+}
+
+function routeKeyForHash(hash) {
+    const normalized = normalizedHash(hash);
+    return ['#search', '#live-tv', '#player', '#details', '#links', '#category', '#settings', '#watchlist', '#tv', '#movies', '#home']
+        .find(route => normalized.startsWith(route)) || '#home';
+}
+
+export function navigateBack() {
+    const current = normalizedHash();
+    let target = null;
+
+    while (routeStack.length && !target) {
+        const candidate = routeStack.pop();
+        if (candidate && candidate !== current) target = candidate;
+    }
+
+    if (!target && current !== '#home') target = '#home';
+    if (!target) return false;
+
+    if (globalThis.location.hash === target) {
+        handleRoute();
+    } else {
+        globalThis.location.hash = target;
+    }
+    return true;
+}
 
 function handleNativeBack() {
     if (globalThis.StreamOSUpdate?.isRequired?.()) {
@@ -16,7 +47,6 @@ function handleNativeBack() {
 
     const profileScreen = document.querySelector('#profile-selection-screen:not(.hidden)');
     if (profileScreen) {
-        if (profileScreen.dataset.selectionRequired === 'true') return 'exit';
         const activeProfileId = globalThis.localStorage.getItem('streamy_active_profile');
         if (!activeProfileId) return 'exit';
 
@@ -27,10 +57,7 @@ function handleNativeBack() {
         return 'handled';
     }
 
-    const hash = globalThis.location.hash || '#home';
-    if (hash === '#home' || hash === '' || hash === '#') return 'exit';
-    globalThis.history.back();
-    return 'handled';
+    return navigateBack() ? 'handled' : 'exit';
 }
 
 globalThis.StreamOSNative = globalThis.StreamOSNative || {};
@@ -57,10 +84,13 @@ export function navigateTo(hash) {
         return;
     }
 
-    if (globalThis.location.hash === hash) {
+    const current = normalizedHash();
+    const target = normalizedHash(hash);
+    if (current === target) {
         handleRoute();
     } else {
-        globalThis.location.hash = hash;
+        routeStack.push(current);
+        globalThis.location.hash = target;
     }
 }
 
@@ -94,8 +124,6 @@ function updateNavUI(activeHash) {
 }
 
 export function handleRoute() {
-    const profileScreen = document.getElementById('profile-selection-screen');
-    if (profileScreen && !profileScreen.classList.contains('hidden')) return;
     const hash = globalThis.location.hash || '#home';
 
     if (hash !== '#player') stopVideoPlayback();
@@ -112,10 +140,10 @@ export function handleRoute() {
         '#watchlist': { view: 'view-home', tab: 'watchlist', event: 'load-watchlist-rows' },
         '#tv': { view: 'view-home', tab: 'tv', event: 'load-tv-rows' },
         '#movies': { view: 'view-home', tab: 'movies', event: 'load-movie-rows' },
-        '#home': { view: 'view-home', tab: 'movies', event: 'load-movie-rows' }
+        '#home': { view: 'view-home', tab: 'home', event: 'load-home-rows' }
     };
 
-    const routeKey = Object.keys(routeMap).find(k => hash.startsWith(k)) || '#home';
+    const routeKey = routeKeyForHash(hash);
     const route = routeMap[routeKey];
     if (currentRouteKey && currentRouteKey !== routeKey) {
         NavigationManager.saveFocus(currentRouteKey);
@@ -142,18 +170,20 @@ export function handleRoute() {
         if (hash.startsWith('#search')) {
             NavigationManager.restoreFocus(routeKey, '#search-input');
         } else if (hash.startsWith('#live-tv')) {
-            NavigationManager.restoreFocus(routeKey, '.nav-tab[data-view="live-tv"]');
+             NavigationManager.restoreFocus(routeKey, '#live-search-input');
         } else if (hash.startsWith('#details')) {
              NavigationManager.restoreFocus(routeKey, '#play-btn');
         } else if (hash.startsWith('#links')) {
-             NavigationManager.restoreFocus(routeKey, '.server-btn');
+             NavigationManager.restoreFocus(routeKey, '#loading-back-btn');
         } else if (hash.startsWith('#category')) {
              NavigationManager.restoreFocus(routeKey, '#category-grid .poster-card');
         } else if (hash.startsWith('#settings')) {
              NavigationManager.restoreFocus(routeKey, '#setting-backend-input');
         } else if (hash.startsWith('#player')) {
              NavigationManager.restoreFocus(routeKey, '#player-back-btn');
-        } else if (routeKey === '#home' || routeKey === '#movies' || routeKey === '#tv' || routeKey === '#watchlist') {
+        } else if (routeKey === '#home') {
+             NavigationManager.restoreFocus(routeKey, '#hero-watch-btn');
+        } else if (routeKey === '#movies' || routeKey === '#tv' || routeKey === '#watchlist') {
              NavigationManager.restoreFocus(routeKey, '.poster-card');
         } else {
              NavigationManager.restoreFocus(routeKey);

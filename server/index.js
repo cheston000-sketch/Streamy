@@ -5,8 +5,6 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
 import { createIntroMarkerResolver } from './intro-markers.js';
-import { createLiveTvService } from './live-tv.js';
-import { addViewingOptions, createSportsGuideService } from './sports-guide.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,8 +22,11 @@ const APP_VERSION = (() => {
 })();
 const APP_BUILD = Number.parseInt(APP_VERSION, 10) || 0;
 const introMarkerResolver = createIntroMarkerResolver();
-const liveTvService = createLiveTvService();
-const sportsGuideService = createSportsGuideService();
+const EPG_GUIDES_URL = 'https://iptv-org.github.io/api/guides.json';
+const EPG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const EPG_STALE_TTL_MS = 24 * 60 * 60 * 1000;
+const epgResponseCache = new Map();
+let epgGuideCatalogCache = null;
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[Ghost Thread] Blocked rogue unhandled rejection:', reason?.message || reason);
@@ -519,8 +520,7 @@ app.get('/api/health', (req, res) => {
         build: APP_BUILD,
         providerApi: true,
         introMarkers: true,
-        liveTv: true,
-        sportsGuide: true,
+        liveTvGuide: true,
         uptimeSeconds: Math.floor(process.uptime())
     });
 });
@@ -545,64 +545,148 @@ app.get('/api/providers', (req, res) => {
     });
 });
 
-app.get('/api/live-tv/channels', async (req, res) => {
-    try {
-        const catalog = await liveTvService.getCatalog();
-        res.json({ success: true, ...catalog });
-    } catch (error) {
-        console.error('[LiveTV] Channel guide unavailable:', error.message);
-        res.status(error.name === 'AbortError' ? 504 : 502).json({
-            success: false,
-            error: 'The Live TV guide is temporarily unavailable.'
+function decodeXml(value = '') {
+    return String(value)
+        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;|&apos;/g, "'")
+        .replace(/<[^>]+>/g, '')
+        .trim();
+}
+
+function parseXmltvTime(value = '') {
+    const match = String(value).match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?\s*([+-])(\d{2})(\d{2})?/);
+    if (!match) return null;
+    const [, year, month, day, hour, minute, second = '00', sign, offsetHours, offsetMinutes = '00'] = match;
+    const offset = (Number(offsetHours) * 60 + Number(offsetMinutes)) * (sign === '+' ? 1 : -1);
+    const timestamp = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)) - offset * 60_000;
+    return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+}
+
+function readXmlTag(body, tagName) {
+    const match = body.match(new RegExp(`<${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`, 'i'));
+    return decodeXml(match?.[1] || '');
+}
+
+function parseXmltv(xml, requestedIds, fromMs, toMs) {
+    const requested = new Set(requestedIds);
+    const byChannel = new Map(requestedIds.map(id => [id, []]));
+    const pattern = /<programme\b([^>]*)>([\s\S]*?)<\/programme>/gi;
+    let match;
+    while ((match = pattern.exec(xml))) {
+        const attrs = match[1];
+        const body = match[2];
+        const channelValue = attrs.match(/\bchannel=["']([^"']+)["']/i)?.[1] || '';
+        const channelId = requested.has(channelValue)
+            ? channelValue
+            : requestedIds.find(id => channelValue === id || channelValue.startsWith(`${id}@`));
+        if (!channelId) continue;
+        const startsAt = parseXmltvTime(attrs.match(/\bstart=["']([^"']+)["']/i)?.[1]);
+        const endsAt = parseXmltvTime(attrs.match(/\bstop=["']([^"']+)["']/i)?.[1]);
+        const startMs = Date.parse(startsAt || '');
+        const endMs = Date.parse(endsAt || '');
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < fromMs || startMs > toMs) continue;
+        const title = readXmlTag(body, 'title') || 'Program information unavailable';
+        byChannel.get(channelId).push({
+            id: `${channelId}:${startMs}:${title}`,
+            channelId,
+            title,
+            synopsis: readXmlTag(body, 'desc') || undefined,
+            rating: readXmlTag(body, 'rating') || undefined,
+            startsAt,
+            endsAt
         });
     }
-});
+    byChannel.forEach(programs => programs.sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt)));
+    return byChannel;
+}
 
-app.get('/api/live-tv/games', async (req, res) => {
+async function fetchWithTimeout(url, timeoutMs = 12_000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const [guide, catalog] = await Promise.all([
-            sportsGuideService.getGuide(),
-            liveTvService.getCatalog().catch(() => ({ channels: [] }))
-        ]);
-        res.json({
-            success: true,
-            ...guide,
-            events: guide.events.map(event => addViewingOptions(event, catalog.channels))
-        });
-    } catch (error) {
-        console.error('[LiveTV] Sports guide unavailable:', error.message);
-        res.status(error.name === 'AbortError' ? 504 : 502).json({
-            success: false,
-            error: 'The sports schedule is temporarily unavailable.'
-        });
+        const response = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': `Tellyvo/${APP_BUILD} EPG resolver` } });
+        if (!response.ok) throw new Error(`${new URL(url).host} returned ${response.status}`);
+        return response;
+    } finally {
+        clearTimeout(timeout);
     }
-});
+}
 
-app.get('/api/live-tv/games/:leagueId/:eventId/playback', async (req, res) => {
+async function getEpgGuideCatalog() {
+    if (epgGuideCatalogCache && Date.now() - epgGuideCatalogCache.loadedAt < EPG_CACHE_TTL_MS) {
+        return epgGuideCatalogCache.guides;
+    }
+    const response = await fetchWithTimeout(EPG_GUIDES_URL);
+    const guides = await response.json();
+    epgGuideCatalogCache = { guides: Array.isArray(guides) ? guides : [], loadedAt: Date.now() };
+    return epgGuideCatalogCache.guides;
+}
+
+app.get('/api/live-tv/guide', async (req, res) => {
+    const channelIds = [...new Set(String(req.query.channelIds || '').split(',').map(value => value.trim()).filter(Boolean))].slice(0, 100);
+    if (!channelIds.length) return res.status(400).json({ success: false, error: 'At least one channel ID is required' });
+
+    const fromMs = Date.parse(String(req.query.from || new Date().toISOString()));
+    const toMs = Date.parse(String(req.query.to || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()));
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs || toMs - fromMs > 48 * 60 * 60 * 1000) {
+        return res.status(400).json({ success: false, error: 'Guide window must be a valid range of 48 hours or less' });
+    }
+
+    const cacheKey = `${channelIds.slice().sort().join(',')}|${new Date(fromMs).toISOString().slice(0, 13)}|${new Date(toMs).toISOString().slice(0, 13)}`;
+    const cached = epgResponseCache.get(cacheKey);
+    if (cached && Date.now() - cached.savedAt < EPG_CACHE_TTL_MS) return res.json({ ...cached.payload, cached: true });
+
     try {
-        const [networks, catalog] = await Promise.all([
-            sportsGuideService.getEventBroadcasts(req.params.leagueId, req.params.eventId),
-            liveTvService.getCatalog()
-        ]);
-        const viewing = addViewingOptions({ broadcasts: networks }, catalog.channels).viewing;
-        const playableIds = new Set(viewing.channels.map(channel => channel.id));
+        const catalog = await getEpgGuideCatalog();
+        const selected = new Map();
+        channelIds.forEach(channelId => {
+            const match = catalog.find(guide => guide.channel === channelId && guide.lang === 'en' && guide.sources?.[0]?.url)
+                || catalog.find(guide => guide.channel === channelId && guide.sources?.[0]?.url);
+            if (match) selected.set(channelId, match.sources[0].url);
+        });
 
-        res.json({
+        const sourceGroups = new Map();
+        selected.forEach((url, channelId) => {
+            if (!sourceGroups.has(url)) sourceGroups.set(url, []);
+            sourceGroups.get(url).push(channelId);
+        });
+
+        const merged = new Map(channelIds.map(id => [id, []]));
+        const warnings = [];
+        await Promise.all([...sourceGroups.entries()].slice(0, 12).map(async ([url, ids]) => {
+            try {
+                const xml = await (await fetchWithTimeout(url, 15_000)).text();
+                const parsed = parseXmltv(xml, ids, fromMs, toMs);
+                parsed.forEach((programs, id) => merged.set(id, programs));
+            } catch (error) {
+                warnings.push(error.message);
+            }
+        }));
+
+        const unmatchedChannelIds = channelIds.filter(id => !selected.has(id));
+        const limitedSourceIds = [...sourceGroups.entries()].slice(12).flatMap(([, ids]) => ids);
+        unmatchedChannelIds.push(...limitedSourceIds);
+        const payload = {
             success: true,
-            eventId: req.params.eventId,
-            networks,
-            channels: catalog.channels.filter(channel => playableIds.has(channel.id)),
-            providers: viewing.providers
-        });
+            generatedAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            stale: false,
+            partial: unmatchedChannelIds.length > 0 || warnings.length > 0,
+            channels: channelIds.map(id => ({ id, programs: merged.get(id) || [] })),
+            unmatchedChannelIds: [...new Set(unmatchedChannelIds)],
+            warning: warnings.length ? warnings.slice(0, 3).join('; ') : ''
+        };
+        epgResponseCache.set(cacheKey, { payload, savedAt: Date.now() });
+        return res.json(payload);
     } catch (error) {
-        const status = error instanceof RangeError ? 400 : error.name === 'AbortError' ? 504 : 502;
-        console.error('[LiveTV] Game playback resolver unavailable:', error.message);
-        res.status(status).json({
-            success: false,
-            error: status === 400
-                ? 'The requested sports event is invalid.'
-                : 'The game playback resolver is temporarily unavailable.'
-        });
+        if (cached && Date.now() - cached.savedAt < EPG_STALE_TTL_MS) {
+            return res.json({ ...cached.payload, stale: true, cached: true, warning: `Schedule refresh failed: ${error.message}` });
+        }
+        return res.status(502).json({ success: false, error: 'Schedule data is temporarily unavailable', detail: error.message });
     }
 });
 

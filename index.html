@@ -4,37 +4,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vela</title>
+    <title>Tellyvo</title>
     <!-- Serverless OTA Distribution Metadata arrays -->
-    <meta name="apk-version" content="123">
+    <meta name="apk-version" content="133">
     <meta name="apk-download-url" content="/api/ota/download">
     <!-- PWA / Web App Manifest Data -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#05070a">
+    <meta name="theme-color" content="#0A0F2E">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=120-live4">
+    <link rel="stylesheet" href="styles.css?v=133">
+    <link rel="stylesheet" href="tellyvo.css?v=133">
     <script src="vendor/hls.min.js"></script>
-    <link rel="stylesheet" href="css/vela.css?v=123">
-    <link rel="icon" href="icon.svg" type="image/svg+xml">
 </head>
 
 <body>
-    <!-- TOP NAVIGATION BAR -->
+    <!-- TELLYVO NAVIGATION BAR -->
     <header id="top-bar" class="hidden">
-        <div class="brand" aria-label="Vela"><img src="icon.svg" alt="" width="36" height="36"><span>vela</span></div>
-        <nav class="nav-tabs">
-            <a href="#movies" class="nav-tab active" data-view="movies" tabindex="0">Movies</a>
-            <a href="#tv" class="nav-tab" data-view="tv" tabindex="0">TV Shows</a>
-            <a href="#live-tv" class="nav-tab" data-view="live-tv" tabindex="0"><i
-                    class="fa-solid fa-tower-broadcast"></i> Live TV</a>
-            <a href="#watchlist" class="nav-tab" data-view="watchlist" tabindex="0"><i class="fa-solid fa-bookmark"></i>
-                Watchlist</a>
-            <a href="#search" class="nav-tab" data-view="search" tabindex="0"><i
-                    class="fa-solid fa-magnifying-glass"></i> Search</a>
+        <a href="#home" class="brand" aria-label="Tellyvo" tabindex="-1">Tellyvo</a>
+        <nav class="nav-tabs" aria-label="Primary navigation">
+            <a href="#home" class="nav-tab active" data-view="home" tabindex="0"><i class="fa-solid fa-house"></i><span>Home</span></a>
+            <a href="#live-tv" class="nav-tab" data-view="live-tv" tabindex="0"><i class="fa-solid fa-tower-broadcast"></i><span>Live TV</span></a>
+            <a href="#movies" class="nav-tab" data-view="movies" tabindex="0"><i class="fa-solid fa-film"></i><span>Movies</span></a>
+            <a href="#tv" class="nav-tab" data-view="tv" tabindex="0"><i class="fa-solid fa-tv"></i><span>Shows</span></a>
+            <a href="#watchlist" class="nav-tab" data-view="watchlist" tabindex="0"><i class="fa-solid fa-bookmark"></i><span>My Tellyvo</span></a>
+            <span class="nav-spacer"></span>
+            <a href="#search" class="nav-tab" data-view="search" tabindex="0" aria-label="Search"><i
+                    class="fa-solid fa-magnifying-glass"></i><span class="desktop-only">Search</span></a>
             <select id="genre-filter" class="nav-tab hidden" aria-label="Filter titles by category"
                 style="background:transparent; border:none; color:white; padding: 10px 5px; border-radius: 4px; font-weight:bold; cursor:pointer; outline:none;"
                 tabindex="0">
@@ -46,8 +45,8 @@
                 <option value="878" style="background:#141414;">Sci-Fi</option>
                 <option value="10751" style="background:#141414;">Family</option>
             </select>
-            <a href="#settings" class="nav-tab" data-view="settings" tabindex="0"><i class="fa-solid fa-gear"></i>
-                Settings</a>
+            <a href="#settings" class="nav-tab" data-view="settings" tabindex="0" aria-label="Settings"><i class="fa-solid fa-gear"></i>
+                <span class="desktop-only">Settings</span></a>
             <button class="nav-tab" id="switch-profile-tab" tabindex="0"
                 style="border: 2px solid #555; outline:none;"><i id="current-profile-icon" class="fa-solid fa-user"></i>
                 <span id="current-profile-name">User</span></button>
@@ -55,15 +54,14 @@
     </header>
 
     <!-- PROFILES OVERLAY -->
-    <div id="profile-selection-screen" class="view" data-selection-required="true">
-        <div class="profile-brand" aria-label="Vela"><img src="icon.svg" alt="" width="48" height="48"><span>vela</span></div>
-        <p class="profile-eyebrow">YOUR NIGHT. YOUR NEXT FAVORITE.</p>
-        <h1>Who's watching?</h1>
-        <p class="profile-subtitle">A little more you. A lot more to discover.</p>
-        <div id="profiles-grid">
+    <div id="profile-selection-screen" class="view"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #141414; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <h1 style="font-size: 3rem; margin-bottom: 50px; text-shadow: 2px 2px 10px black;">Who's watching?</h1>
+        <div id="profiles-grid"
+            style="display: flex; gap: 40px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 60px;">
             <!-- Profiles dynamically appended here -->
         </div>
-        <div id="profile-actions">
+        <div id="profile-actions" style="display: flex; gap: 20px;">
             <button id="add-profile-btn" class="nav-tab" tabindex="0"
                 style="padding: 15px 30px; font-size: 1.2rem; border: 2px solid #555; background: transparent;"><i
                     class="fa-solid fa-plus"></i> Add Profile</button>
@@ -111,7 +109,7 @@
     </div>
 
     <!-- MAIN VIEW PANELS -->
-    <main id="main-content" class="hidden">
+    <main id="main-content">
         <!-- HOME (NETFLIX ROWS) VIEW -->
         <div id="view-home" class="view active">
 
@@ -119,10 +117,14 @@
             <div id="hero-banner">
                 <div class="hero-vignette"></div>
                 <div class="hero-content">
-                    <h1 id="hero-title">Find your next favorite.</h1>
+                    <div class="hero-eyebrow">A TELLYVO FEATURE</div>
+                    <h1 id="hero-title">A brighter way to watch</h1>
                     <div id="hero-meta" class="meta">Loading Database Metadata...</div>
-                    <p id="hero-desc">Navigate vertically and horizontally across the categories below to instantly
-                        preview stunning high-definition backdrops natively in your theater.</p>
+                    <p id="hero-desc">Movies, shows, and live television—beautifully organized and ready when you are.</p>
+                    <div class="hero-actions">
+                        <button id="hero-watch-btn" class="btn-play" tabindex="0"><i class="fa-solid fa-play"></i> Watch Now</button>
+                        <button id="hero-info-btn" class="btn-secondary" tabindex="0"><i class="fa-solid fa-circle-info"></i> More Info</button>
+                    </div>
                 </div>
             </div>
 
@@ -131,96 +133,41 @@
 
         </div>
 
-        <!-- WEBSITE-ONLY LIVE TV VIEW -->
-        <div id="view-live-tv" class="view hidden live-tv-view">
-            <section class="live-tv-hero" aria-labelledby="live-tv-title">
-                <div class="live-tv-heading">
-                    <div class="live-tv-eyebrow"><span></span> Vela Broadcast Desk</div>
-                    <h1 id="live-tv-title">Live TV</h1>
-                    <p>Free live channels, tuned in one place. Pick a station below and Vela will automatically try its strongest available signal.</p>
+        <!-- LIVE TV VIEW -->
+        <section id="view-live-tv" class="view hidden" aria-labelledby="live-tv-title">
+            <header class="live-heading">
+                <div>
+                    <div class="live-kicker">Free channels and live sports</div>
+                    <h1 class="live-title" id="live-tv-title">Live TV</h1>
                 </div>
-                <div class="live-tv-clock-card" aria-label="Current local time">
-                    <small>Local time</small>
-                    <strong id="live-tv-clock">--:--</strong>
-                    <span><i></i> Guide online</span>
+                <div class="live-tabs" role="tablist" aria-label="Live TV views">
+                    <button id="live-channels-tab" class="btn-secondary live-tab active" role="tab" aria-selected="true" tabindex="0">Channels</button>
+                    <button id="live-guide-tab" class="btn-secondary live-tab" role="tab" aria-selected="false" tabindex="0">Guide</button>
                 </div>
-            </section>
-
-            <section class="sports-game-finder" aria-labelledby="sports-game-finder-title">
-                <div class="sports-game-finder-header">
-                    <div>
-                        <span class="live-tv-section-kicker">Game finder</span>
-                        <h2 id="sports-game-finder-title">Find the game. Find the signal.</h2>
-                        <p>Search any team or matchup across major leagues. When an exact public HLS feed is available, Vela plays it here in the native player.</p>
+            </header>
+            <div class="live-toolbar">
+                <label class="sr-only" for="live-search-input">Search live channels</label>
+                <input id="live-search-input" class="live-search" type="search" placeholder="Search channels..." autocomplete="off" tabindex="0">
+                <button id="live-refresh-btn" class="btn-secondary" tabindex="0"><i class="fa-solid fa-rotate"></i> Refresh</button>
+            </div>
+            <div id="live-categories" class="live-categories" aria-label="Channel categories"></div>
+            <div class="live-layout">
+                <aside class="live-preview" aria-label="Now playing">
+                    <div class="live-video-wrap">
+                        <video id="live-video" playsinline controls></video>
+                        <div id="live-video-empty" class="live-video-empty"><div><i class="fa-solid fa-tower-broadcast"></i><strong>Choose a channel</strong><br>Live playback will start here.</div></div>
                     </div>
-                    <label class="sports-game-search" for="sports-game-search">
-                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                        <input id="sports-game-search" type="search" placeholder="Try Chiefs, Yankees, Arsenal..." autocomplete="off" spellcheck="false">
-                        <kbd>/</kbd>
-                    </label>
-                </div>
-                <div class="sports-game-toolbar">
-                    <div id="sports-game-windows" class="sports-game-windows" aria-label="Filter games by time">
-                        <button type="button" data-window="live"><i></i> Live now <small id="sports-live-count">0</small></button>
-                        <button type="button" data-window="today" class="active">Today</button>
-                        <button type="button" data-window="week">Next 7 days</button>
-                        <button type="button" data-window="all">All dates</button>
+                    <div class="live-now">
+                        <h2 id="live-now-title">Live television</h2>
+                        <p id="live-now-meta">Select any channel to begin watching. Tellyvo will try available backup signals automatically.</p>
                     </div>
-                    <span id="sports-game-status" role="status" data-state="loading">Loading schedules...</span>
-                </div>
-                <div id="sports-league-filters" class="sports-league-filters" aria-label="Filter games by league"></div>
-                <div class="sports-game-summary">
-                    <span id="sports-game-count">Loading games</span>
-                    <span id="sports-game-window">Yesterday through the next two weeks</span>
-                </div>
-                <div id="sports-game-grid" class="sports-game-grid" aria-live="polite"></div>
-                <p class="sports-game-attribution">Schedules and broadcasters are refreshed from ESPN public scoreboard data. Native playback uses exact-match public HLS feeds from the Vela channel directory.</p>
-            </section>
-
-            <section class="live-tv-on-air" aria-label="Live channel player">
-                <div id="live-tv-player-shell" class="live-tv-player-shell">
-                    <video id="live-tv-player" controls playsinline preload="none"></video>
-                    <div id="live-tv-player-message" class="live-tv-player-message">
-                        <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i>
-                        <strong>Choose a channel</strong>
-                        <span>Select any station from the guide to start watching.</span>
-                    </div>
-                    <div class="live-tv-screen-corner"><span></span> Live signal</div>
-                </div>
-                <aside class="live-tv-now-card">
-                    <div class="live-tv-now-label"><i></i> Now tuned</div>
-                    <div id="live-tv-now-logo" class="live-tv-now-logo"><span>TV</span></div>
-                    <h2 id="live-tv-now-name">No channel selected</h2>
-                    <p id="live-tv-now-meta">Choose a station from the channel guide.</p>
-                    <div class="live-tv-now-actions">
-                        <button id="live-tv-fullscreen" type="button"><i class="fa-solid fa-expand"></i> Fullscreen</button>
-                        <a id="live-tv-network-link" class="hidden" href="#" target="_blank" rel="noopener noreferrer"><i
-                                class="fa-solid fa-arrow-up-right-from-square"></i> Network site</a>
-                    </div>
-                    <p class="live-tv-region-note"><i class="fa-solid fa-location-dot"></i> Availability can vary by region and broadcaster.</p>
                 </aside>
-            </section>
-
-            <section class="live-tv-guide" aria-labelledby="live-tv-guide-title">
-                <div class="live-tv-guide-header">
-                    <div>
-                        <span class="live-tv-section-kicker">Channel guide</span>
-                        <h2 id="live-tv-guide-title">What is on now</h2>
-                    </div>
-                    <label class="live-tv-search-wrap" for="live-tv-search">
-                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                        <input id="live-tv-search" type="search" placeholder="Find a channel" autocomplete="off">
-                    </label>
+                <div>
+                    <div id="live-channel-grid" class="live-grid" aria-live="polite"></div>
+                    <div id="sports-guide" class="sports-guide hidden" aria-live="polite"></div>
                 </div>
-                <div id="live-tv-filters" class="live-tv-filters" aria-label="Filter channels by category"></div>
-                <div class="live-tv-guide-summary">
-                    <span id="live-tv-channel-count">Loading channels</span>
-                    <span id="live-tv-guide-status" data-state="loading" role="status">Refreshing the live channel guide...</span>
-                </div>
-                <div id="live-tv-channel-grid" class="live-tv-channel-grid" aria-live="polite"></div>
-                <p class="live-tv-attribution">Channel metadata and public stream listings are refreshed from IPTV-org.</p>
-            </section>
-        </div>
+            </div>
+        </section>
 
         <!-- SEARCH VIEW -->
         <div id="view-search" class="view hidden" style="padding: 120px 40px 40px;">
@@ -265,10 +212,6 @@
                             class="fa-solid fa-download"></i> Check for Updates</button>
                 </div>
 
-                <div id="install-permission-row" class="install-permission-row hidden">
-                    <p id="install-permission-status" role="status"></p>
-                    <button id="setting-install-permission" class="setting-btn" tabindex="0">Enable update installation</button>
-                </div>
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
                     <h2 style="font-size: 1.8rem; margin-bottom: 20px; color: #fff;">Playback Behavior</h2>
                     <div class="settings-panel">
@@ -290,10 +233,6 @@
                             <small class="settings-help">Optional advanced override. The app works automatically from the backend source broker; this accepts comma-separated provider endpoints you control that return direct .m3u8/.mp4 links. Tokens: {tmdb}, {type}, {title}, {year}, {season}, {episode}.</small>
                         </label>
                         <label class="settings-toggle">
-                            <input id="setting-autoplay-sources" type="checkbox" tabindex="0">
-                            <span>Auto-play best source after links load</span>
-                        </label>
-                        <label class="settings-toggle">
                             <input id="setting-autoplay-next-episode" type="checkbox" tabindex="0">
                             <span>Auto-play next episode for TV shows</span>
                         </label>
@@ -309,7 +248,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Vela version: <span id="setting-build-version">122.0</span>
+                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v132.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -378,16 +317,26 @@
             </div>
         </div>
 
-        <!-- LINKS FULL-SCREEN VIEW -->
-        <div id="view-links" class="view hidden">
-            <div class="source-screen-kicker">Vela Source Finder</div>
-            <h2 id="links-title">Available Data Streams</h2>
-            <p class="source-screen-copy">Pick the fastest working source, or let Vela auto-play the best match.</p>
-            <div id="source-filter-controls" class="source-filter-controls hidden"></div>
-            <div id="scraper-status" class="scraper-status" role="status" aria-live="polite">
-                <i class="fa-solid fa-spinner fa-spin"></i> Preparing background extractors...
+        <!-- BRANDED PLAYBACK LOADING VIEW -->
+        <div id="view-links" class="view hidden" aria-label="Preparing playback">
+            <button id="loading-back-btn" class="loading-back-btn" tabindex="0" aria-label="Return to title details">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back
+            </button>
+            <div class="tellyvo-loading-atmosphere" aria-hidden="true"></div>
+            <div class="tellyvo-loading-shell">
+                <div class="tellyvo-loading-mark" aria-label="Tellyvo"></div>
+                <h1>Always Something<br>Worth Watching.</h1>
+                <div class="tellyvo-loading-meter" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                </div>
+                <p class="tellyvo-loading-copy">Loading your show…</p>
+                <h2 id="links-title" class="sr-only">Preparing playback</h2>
+                <div id="scraper-status" class="scraper-status tellyvo-loading-status" role="status" aria-live="polite">
+                    Preparing your stream…
+                </div>
             </div>
-            <ul id="server-list" class="server-list"></ul>
+            <div id="source-filter-controls" class="source-filter-controls hidden" aria-hidden="true"></div>
+            <ul id="server-list" class="server-list hidden" aria-hidden="true"></ul>
         </div>
 
         <!-- PLAYER FULL-SCREEN VIEW (WEB) -->
@@ -401,8 +350,8 @@
                     <button id="player-reload-source-btn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Reload Source</button>
                     <button id="player-next-source-btn" class="btn-secondary"><i class="fa-solid fa-forward"></i> Try Next Source</button>
                     <button id="player-details-btn" class="btn-secondary"><i class="fa-solid fa-circle-info"></i> Details</button>
-                    <button id="player-server-cycle-btn" class="btn-secondary"><i class="fa-solid fa-server"></i>
-                        Source List</button>
+                    <button id="player-server-cycle-btn" class="btn-secondary"><i class="fa-solid fa-shuffle"></i>
+                        Switch Source</button>
                     <button id="player-fullscreen-btn" class="btn-secondary"><i class="fa-solid fa-expand"></i>
                         Fullscreen</button>
                 </div>
@@ -430,7 +379,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=123"></script>
+    <script type="module" src="js/app.js?v=133"></script>
 </body>
 
 </html>

@@ -1,61 +1,21 @@
-const STARTUP_TIMEOUT_MS = 10_000;
+import { buildBackendFetchOptions, getProxyHost } from './api.js?v=133';
 
 const state = {
     initialized: false,
     channels: [],
-    categories: [],
-    activeCategory: 'featured',
-    query: '',
-    activeChannel: null,
-    activeGame: null,
-    activeStreamIndex: 0,
     games: [],
-    gameLeagues: [],
-    gameQuery: '',
-    gameWindow: 'today',
-    activeGameLeague: 'all',
-    gamesLoading: false,
-    gamesLoaded: false,
-    gameDateWindow: null,
-    enrichingGames: new Set(),
-    enrichedGames: new Set(),
-    failedGames: new Set(),
-    gameEnrichmentRenderTimer: null,
-    gameGuideWarning: '',
-    gameGuideStale: false,
-    hls: null,
-    tuneTimer: null,
+    guideChannels: [],
+    guideMeta: null,
+    category: 'featured',
+    query: '',
+    mode: 'channels',
+    activeChannel: null,
+    streamIndex: 0,
     tuneToken: 0,
-    loading: false,
-    catalogLoadPromise: null
+    hls: null
 };
 
 const dom = {};
-
-const GAME_CHANNEL_IDS_BY_NETWORK = new Map([
-    ['cbs sports golazo network', 'CBSSportsGolazoNetwork.us'],
-    ['cbs sports hq', 'CBSSportsHQ.us'],
-    ['nbc sports now', 'NBCSportsNOW.us'],
-    ['nba tv', 'NBATV.us'],
-    ['nbatv', 'NBATV.us'],
-    ['espn8', 'ESPN8TheOcho.us'],
-    ['espn8 the ocho', 'ESPN8TheOcho.us'],
-    ['espn 8 the ocho', 'ESPN8TheOcho.us'],
-    ['nhl network', 'NHLNetwork.us'],
-    ['tennis channel', 'TennisChannel.us'],
-    ['fifa plus', 'FIFAPlus.uk'],
-    ['fifa plus women', 'FIFAPlusWomen.uk'],
-    ['bein sports xtra', 'beINSPORTSXTRA.us'],
-    ['bein sports xtra en espanol', 'beINSPORTSXTRAenEspanol.us'],
-    ['bein sports xtra en espa ol', 'beINSPORTSXTRAenEspanol.us'],
-    ['pga tour', 'PGATour.us'],
-    ['womens sports network', 'WomensSportsNetwork.us'],
-    ['fight network', 'FightNetwork.ca'],
-    ['fite 24 7', 'FITE247.us'],
-    ['draftkings network', 'DraftKingsNetwork.us'],
-    ['sportsgrid', 'SportsGrid.us'],
-    ['lacrosse tv', 'LacrosseTV.us']
-]);
 
 function escapeHtml(value = '') {
     return String(value)
@@ -66,49 +26,16 @@ function escapeHtml(value = '') {
         .replaceAll("'", '&#039;');
 }
 
-function getInitials(name = '') {
-    return name
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(part => part[0])
-        .join('')
-        .toUpperCase() || 'TV';
+function endpoint(path) {
+    return `${getProxyHost()}${path}`;
 }
 
-function setGuideStatus(message, stateName = 'ready') {
-    if (!dom.guideStatus) return;
-    dom.guideStatus.textContent = message;
-    dom.guideStatus.dataset.state = stateName;
+function getInitials(value = '') {
+    return String(value).split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'TV';
 }
 
-function setPlayerMessage(icon, title, copy, visible = true) {
-    if (!dom.playerMessage) return;
-    dom.playerMessage.innerHTML = `
-        <i class="fa-solid ${escapeHtml(icon)}" aria-hidden="true"></i>
-        <strong>${escapeHtml(title)}</strong>
-        <span>${escapeHtml(copy)}</span>
-    `;
-    dom.playerMessage.classList.toggle('hidden', !visible);
-}
-
-function updateClock() {
-    if (!dom.clock) return;
-    dom.clock.textContent = new Intl.DateTimeFormat(undefined, {
-        hour: 'numeric',
-        minute: '2-digit'
-    }).format(new Date());
-}
-
-function clearTuneTimer() {
-    if (!state.tuneTimer) return;
-    globalThis.clearTimeout(state.tuneTimer);
-    state.tuneTimer = null;
-}
-
-function stopPlayback({ resetSelection = false } = {}) {
+function stopLivePlayback() {
     state.tuneToken += 1;
-    clearTuneTimer();
     if (state.hls) {
         state.hls.destroy();
         state.hls = null;
@@ -118,935 +45,271 @@ function stopPlayback({ resetSelection = false } = {}) {
         dom.video.removeAttribute('src');
         dom.video.load();
     }
-    dom.playerShell?.classList.remove('is-playing', 'has-error');
-    if (resetSelection) {
-        state.activeChannel = null;
-        state.activeGame = null;
-        state.activeStreamIndex = 0;
+}
+
+function showPlayerMessage(title, detail) {
+    dom.videoEmpty?.classList.remove('hidden');
+    if (dom.videoEmpty) {
+        dom.videoEmpty.innerHTML = `<div><i class="fa-solid fa-tower-broadcast"></i><strong>${escapeHtml(title)}</strong><br>${escapeHtml(detail)}</div>`;
     }
 }
 
-function updateNowPlaying(channel, streamIndex = 0) {
-    if (!channel) return;
-    const stream = channel.streams?.[streamIndex];
-    const gameTitle = state.activeGame?.fullTitle || state.activeGame?.title || '';
-    if (dom.nowName) dom.nowName.textContent = gameTitle || channel.name;
-    if (dom.nowMeta) {
-        const network = channel.network ? `${channel.network} / ` : '';
-        dom.nowMeta.textContent = gameTitle
-            ? `${channel.name} / ${stream?.quality || 'Auto'} / Native stream`
-            : `${network}${channel.categoryLabel || 'Live channel'} / ${stream?.quality || 'Auto'}`;
-    }
-    if (dom.nowLogo) {
-        dom.nowLogo.innerHTML = channel.logo
-            ? `<img src="${escapeHtml(channel.logo)}" alt="${escapeHtml(channel.name)} logo">`
-            : `<span>${escapeHtml(getInitials(channel.name))}</span>`;
-        dom.nowLogo.querySelector('img')?.addEventListener('error', () => {
-            dom.nowLogo.innerHTML = `<span>${escapeHtml(getInitials(channel.name))}</span>`;
-        }, { once: true });
-    }
-    if (dom.networkLink) {
-        dom.networkLink.classList.toggle('hidden', !channel.website);
-        if (channel.website) dom.networkLink.href = channel.website;
-    }
-}
-
-function markActiveCard() {
-    dom.channelGrid?.querySelectorAll('.live-channel-card').forEach(card => {
-        const isActive = card.dataset.channelId === state.activeChannel?.id;
-        card.classList.toggle('active', isActive);
-        card.setAttribute('aria-pressed', String(isActive));
-    });
-}
-
-function showPlaybackFailure(channel) {
-    clearTuneTimer();
-    dom.playerShell?.classList.add('has-error');
-    setPlayerMessage(
-        'fa-tower-broadcast',
-        'Signal unavailable',
-        `${channel.name} is not responding right now. Vela tried every available signal.`
-    );
-    setGuideStatus(`Could not tune ${channel.name}.`, 'error');
-}
-
-function tryNextStream(channel, failedIndex, token) {
-    if (token !== state.tuneToken || state.activeChannel?.id !== channel.id) return;
-    const nextIndex = failedIndex + 1;
-    if (nextIndex >= (channel.streams?.length || 0)) {
-        showPlaybackFailure(channel);
-        return;
-    }
-    setGuideStatus(`Primary signal missed. Trying backup ${nextIndex + 1}...`, 'loading');
-    tuneChannel(channel, nextIndex);
-}
-
-function scheduleTuneTimeout(channel, streamIndex, token) {
-    clearTuneTimer();
-    state.tuneTimer = globalThis.setTimeout(() => {
-        state.tuneTimer = null;
-        if (token !== state.tuneToken) return;
-        tryNextStream(channel, streamIndex, token);
-    }, STARTUP_TIMEOUT_MS);
-}
-
-function beginVideoPlayback(channel, streamIndex, token) {
+function tryStream(channel, streamIndex, token) {
     if (token !== state.tuneToken) return;
-    dom.video.volume = 1;
-    dom.video.muted = false;
-    const playPromise = dom.video.play();
-    if (playPromise?.catch) {
-        playPromise.catch(() => {
-            if (token !== state.tuneToken) return;
-            clearTuneTimer();
-            setGuideStatus(`${channel.name} is ready. Press play to begin.`, 'ready');
-            setPlayerMessage('fa-circle-play', 'Ready to watch', 'Press play in the video controls.');
-        });
+    const source = channel.streams?.[streamIndex];
+    if (!source) {
+        showPlayerMessage('Signal unavailable', `Tellyvo tried every available signal for ${channel.name}.`);
+        return;
     }
-    updateNowPlaying(channel, streamIndex);
+
+    state.streamIndex = streamIndex;
+    if (state.hls) {
+        state.hls.destroy();
+        state.hls = null;
+    }
+    dom.video.pause();
+    dom.video.removeAttribute('src');
+    dom.video.load();
+
+    const fail = () => {
+        if (token !== state.tuneToken) return;
+        tryStream(channel, streamIndex + 1, token);
+    };
+
+    if (dom.video.canPlayType('application/vnd.apple.mpegurl')) {
+        dom.video.src = source.url;
+        dom.video.onerror = fail;
+    } else if (globalThis.Hls?.isSupported?.()) {
+        state.hls = new globalThis.Hls({ enableWorker: true, lowLatencyMode: true });
+        state.hls.loadSource(source.url);
+        state.hls.attachMedia(dom.video);
+        state.hls.on(globalThis.Hls.Events.ERROR, (_event, data) => {
+            if (data?.fatal) fail();
+        });
+    } else {
+        dom.video.src = source.url;
+        dom.video.onerror = fail;
+    }
+
+    dom.video.play().then(() => dom.videoEmpty?.classList.add('hidden')).catch(() => {
+        showPlayerMessage('Press play to start', `${channel.name} is ready.`);
+    });
 }
 
-function tuneWithHls(channel, streamIndex, token) {
-    const stream = channel.streams[streamIndex];
-    const HlsPlayer = globalThis.Hls;
-    state.hls = new HlsPlayer({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 30,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 8,
-        manifestLoadingTimeOut: 12_000,
-        levelLoadingTimeOut: 12_000,
-        fragLoadingTimeOut: 18_000
-    });
-    state.hls.on(HlsPlayer.Events.MANIFEST_PARSED, () => beginVideoPlayback(channel, streamIndex, token));
-    state.hls.on(HlsPlayer.Events.ERROR, (_event, data) => {
-        if (!data?.fatal || token !== state.tuneToken) return;
-        tryNextStream(channel, streamIndex, token);
-    });
-    state.hls.loadSource(stream.url);
-    state.hls.attachMedia(dom.video);
-}
-
-function tuneChannel(channel, streamIndex = 0, options = null) {
-    stopPlayback();
-    if (options && Object.hasOwn(options, 'game')) state.activeGame = options.game;
+function tuneChannel(channel) {
+    if (!channel?.streams?.length) return;
     state.activeChannel = channel;
-    state.activeStreamIndex = streamIndex;
-    const token = state.tuneToken;
-    const stream = channel.streams?.[streamIndex];
-    markActiveCard();
-    updateNowPlaying(channel, streamIndex);
-    dom.playerShell?.classList.remove('has-error');
-    const playbackTitle = state.activeGame?.fullTitle || state.activeGame?.title || channel.name;
-    setPlayerMessage('fa-satellite-dish', `Tuning ${playbackTitle}`, `Locking onto ${channel.name}...`);
-    setGuideStatus(`Tuning ${channel.name}...`, 'loading');
-
-    if (!stream?.url) {
-        showPlaybackFailure(channel);
-        return;
-    }
-
-    scheduleTuneTimeout(channel, streamIndex, token);
-
-    try {
-        // Prefer Hls.js because some Chromium builds claim native HLS support
-        // but leave the media element permanently stalled at readyState 0.
-        if (globalThis.Hls?.isSupported?.()) {
-            tuneWithHls(channel, streamIndex, token);
-        } else if (dom.video.canPlayType('application/vnd.apple.mpegurl')) {
-            dom.video.src = stream.url;
-            dom.video.addEventListener('loadedmetadata', () => beginVideoPlayback(channel, streamIndex, token), { once: true });
-            dom.video.addEventListener('error', () => tryNextStream(channel, streamIndex, token), { once: true });
-        } else {
-            showPlaybackFailure(channel);
-        }
-    } catch (error) {
-        console.warn('[LiveTV] Unable to initialize stream:', error.message);
-        tryNextStream(channel, streamIndex, token);
-    }
-}
-
-function setGameStatus(message, stateName = 'ready') {
-    if (!dom.gameStatus) return;
-    dom.gameStatus.textContent = message;
-    dom.gameStatus.dataset.state = stateName;
-}
-
-function isSameLocalDay(date, comparison) {
-    return date.getFullYear() === comparison.getFullYear()
-        && date.getMonth() === comparison.getMonth()
-        && date.getDate() === comparison.getDate();
-}
-
-function formatGameStart(startTime, { compact = false } = {}) {
-    const date = new Date(startTime);
-    if (!Number.isFinite(date.getTime())) return 'Time pending';
-    return new Intl.DateTimeFormat(undefined, compact ? {
-        hour: 'numeric',
-        minute: '2-digit'
-    } : {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
-    }).format(date);
-}
-
-function getGameStatusLabel(game) {
-    if (game.status?.state === 'live') return game.status.detail || 'Live now';
-    if (game.status?.state === 'final') return game.status.detail || 'Final';
-    const start = new Date(game.startTime);
-    return Number.isFinite(start.getTime()) && isSameLocalDay(start, new Date())
-        ? `Today ${formatGameStart(game.startTime, { compact: true })}`
-        : formatGameStart(game.startTime);
-}
-
-function getVisibleGames() {
-    const queryTokens = state.gameQuery.toLowerCase().split(/\s+/).filter(Boolean);
-    const now = new Date();
-    const weekFromNow = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
-
-    return state.games.filter(game => {
-        if (state.activeGameLeague !== 'all' && game.league?.id !== state.activeGameLeague) return false;
-
-        const searchable = [
-            game.title,
-            game.fullTitle,
-            game.league?.label,
-            game.venue?.name,
-            game.venue?.location,
-            ...(game.broadcasts || []),
-            ...(game.competitors || []).flatMap(competitor => [competitor.name, competitor.shortName, competitor.abbreviation])
-        ].filter(Boolean).join(' ').toLowerCase();
-        if (queryTokens.length && !queryTokens.every(token => searchable.includes(token))) return false;
-
-        const start = new Date(game.startTime);
-        if (!Number.isFinite(start.getTime())) return state.gameWindow === 'all';
-        if (state.gameWindow === 'live') return game.status?.state === 'live';
-        if (state.gameWindow === 'today') return isSameLocalDay(start, now);
-        if (state.gameWindow === 'week') {
-            return game.status?.state !== 'final' && start <= weekFromNow && start >= new Date(now.getTime() - (6 * 60 * 60 * 1000));
-        }
-        return true;
+    state.streamIndex = 0;
+    const token = ++state.tuneToken;
+    dom.nowTitle.textContent = channel.name;
+    dom.nowMeta.textContent = `${channel.network ? `${channel.network} · ` : ''}${channel.categoryLabel || 'Live channel'} · Live now`;
+    showPlayerMessage('Tuning channel', `Connecting to ${channel.name}...`);
+    tryStream(channel, 0, token);
+    dom.channelGrid.querySelectorAll('.live-card').forEach(card => {
+        const active = card.dataset.channelId === channel.id;
+        card.classList.toggle('active', active);
+        card.setAttribute('aria-pressed', String(active));
     });
 }
 
-function renderGameWindowFilters() {
-    if (!dom.gameWindows) return;
-    const liveCount = state.games.filter(game => game.status?.state === 'live').length;
-    if (dom.liveGameCount) dom.liveGameCount.textContent = String(liveCount);
-    dom.gameWindows.querySelectorAll('button[data-window]').forEach(button => {
-        const isActive = button.dataset.window === state.gameWindow;
-        button.classList.toggle('active', isActive);
-        button.setAttribute('aria-pressed', String(isActive));
-    });
+function channelMatches(channel) {
+    const categoryMatch = state.category === 'all'
+        || (state.category === 'featured' && channel.featured)
+        || channel.category === state.category
+        || channel.categories?.includes(state.category);
+    if (!categoryMatch) return false;
+    if (!state.query) return true;
+    const haystack = `${channel.name} ${channel.network || ''} ${channel.categoryLabel || ''}`.toLowerCase();
+    return haystack.includes(state.query);
 }
 
-function renderGameLeagueFilters() {
-    if (!dom.gameLeagueFilters) return;
-    const filters = [
-        { id: 'all', label: 'All leagues', count: state.games.length },
-        ...state.gameLeagues
-    ];
-    dom.gameLeagueFilters.innerHTML = filters.map(league => `
-        <button type="button" class="sports-league-filter${league.id === state.activeGameLeague ? ' active' : ''}"
-            data-league="${escapeHtml(league.id)}" aria-pressed="${league.id === state.activeGameLeague}">
-            <span>${escapeHtml(league.label)}</span><small>${Number(league.count) || 0}</small>
-        </button>
-    `).join('');
-    dom.gameLeagueFilters.querySelectorAll('.sports-league-filter').forEach(button => {
-        button.addEventListener('click', () => {
-            state.activeGameLeague = button.dataset.league || 'all';
-            renderGameLeagueFilters();
-            renderGames();
-        });
-    });
-}
-
-function renderGameTeam(competitor, showScore) {
-    const fallback = getInitials(competitor.shortName || competitor.name);
-    return `
-        <div class="sports-game-team${competitor.winner ? ' winner' : ''}">
-            <span class="sports-game-team-logo">
-                ${competitor.logo
-                    ? `<img src="${escapeHtml(competitor.logo)}" alt="" loading="lazy">`
-                    : `<span>${escapeHtml(fallback)}</span>`}
-            </span>
-            <span class="sports-game-team-copy">
-                <strong>${escapeHtml(competitor.shortName || competitor.name)}</strong>
-                <small>${escapeHtml(competitor.homeAway === 'home' ? 'Home' : competitor.homeAway === 'away' ? 'Away' : '')}</small>
-            </span>
-            ${showScore ? `<b>${escapeHtml(competitor.score || '-')}</b>` : ''}
-        </div>
-    `;
-}
-
-function renderGameActions(game) {
-    const channel = game.viewing?.channels?.[0];
-    const provider = game.viewing?.providers?.[0];
-    const actions = [];
-
-    if (channel) {
-        actions.push(`
-            <button type="button" class="sports-game-action primary native" data-channel-id="${escapeHtml(channel.id)}"
-                data-game-id="${escapeHtml(game.id)}" aria-label="Play ${escapeHtml(game.fullTitle || game.title)} in Vela">
-                <i class="fa-solid fa-circle-play" aria-hidden="true"></i>
-                Play in Vela
-            </button>
-        `);
-    } else if (provider) {
-        actions.push(`
-            <a class="sports-game-action primary" href="${escapeHtml(provider.url)}" target="_blank" rel="noopener noreferrer">
-                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                Open ${escapeHtml(provider.name)}
-            </a>
-        `);
-    }
-
-    if (channel && provider) {
-        actions.push(`
-            <a class="sports-game-action secondary" href="${escapeHtml(provider.url)}" target="_blank" rel="noopener noreferrer"
-                aria-label="Open ${escapeHtml(provider.name)}">
-                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-            </a>
-        `);
-    } else if (game.detailsUrl) {
-        actions.push(`
-            <a class="sports-game-action secondary" href="${escapeHtml(game.detailsUrl)}" target="_blank" rel="noopener noreferrer"
-                aria-label="Open game details">
-                <i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
-            </a>
-        `);
-    }
-
-    if (!actions.length) {
-        return '<span class="sports-game-coverage-pending"><i class="fa-regular fa-clock"></i> Coverage pending</span>';
-    }
-    return actions.join('');
-}
-
-function renderGameCard(game) {
-    const competitors = game.competitors || [];
-    const showScore = game.status?.state === 'live' || game.status?.state === 'final';
-    const networks = game.viewing?.networks || game.broadcasts || [];
-    const visibleNetworks = networks.slice(0, 3);
-    const extraNetworkCount = Math.max(0, networks.length - visibleNetworks.length);
-    const venue = [game.venue?.name, game.venue?.location].filter(Boolean).join(' / ');
-    const stateLabel = game.status?.state === 'live' ? 'Live' : game.status?.state === 'final' ? 'Final' : 'Upcoming';
-
-    return `
-        <article class="sports-game-card" data-state="${escapeHtml(game.status?.state || 'scheduled')}" data-league-group="${escapeHtml(game.league?.group || 'sports')}">
-            <div class="sports-game-card-head">
-                <span class="sports-game-league">${escapeHtml(game.league?.label || 'Sports')}</span>
-                <span class="sports-game-state"><i></i>${escapeHtml(stateLabel)}</span>
-            </div>
-            <div class="sports-game-matchup" aria-label="${escapeHtml(game.fullTitle || game.title)}">
-                ${competitors.length >= 2
-                    ? competitors.slice(0, 2).map(competitor => renderGameTeam(competitor, showScore)).join('')
-                    : `<h3>${escapeHtml(game.title)}</h3>`}
-            </div>
-            <div class="sports-game-when">
-                <strong>${escapeHtml(getGameStatusLabel(game))}</strong>
-                ${venue ? `<span><i class="fa-solid fa-location-dot" aria-hidden="true"></i>${escapeHtml(venue)}</span>` : ''}
-            </div>
-            <div class="sports-game-networks">
-                ${game.viewing?.channels?.length
-                    ? '<span class="native"><i class="fa-solid fa-circle-play" aria-hidden="true"></i> Native stream</span>'
-                    : ''}
-                ${visibleNetworks.length
-                    ? visibleNetworks.map(network => `<span>${escapeHtml(network)}</span>`).join('')
-                    : '<span class="pending">Broadcaster pending</span>'}
-                ${extraNetworkCount ? `<span>+${extraNetworkCount}</span>` : ''}
-            </div>
-            <div class="sports-game-card-actions">${renderGameActions(game)}</div>
-        </article>
-    `;
-}
-
-function normalizeGameNetwork(value = '') {
-    return String(value)
-        .toLowerCase()
-        .replaceAll('&', ' and ')
-        .replaceAll('+', ' plus ')
-        .replace(/[^a-z0-9]+/g, ' ')
-        .trim();
-}
-
-function getBrowserGameProvider(network = '') {
-    const value = normalizeGameNetwork(network);
-    const original = String(network).trim();
-    if (!value) return null;
-    if (/\.tv$/i.test(original) && !/^(?:apple|nba|f1)\s/i.test(original)) {
-        return { name: 'MLB.TV', url: 'https://www.mlb.com/live-stream-games/' };
-    }
-    if (value.startsWith('espn')) return { name: 'ESPN', url: 'https://www.espn.com/watch/' };
-    if (value === 'abc') return { name: 'ABC', url: 'https://abc.com/watch-live' };
-    if (value === 'cbs') return { name: 'CBS', url: 'https://www.cbs.com/live-tv/' };
-    if (/^(?:cbssn|cbs sports network|paramount plus)$/.test(value)) return { name: 'Paramount+', url: 'https://www.paramountplus.com/sports/' };
-    if (/^(?:fox|fs1|fs2|fox deportes|btn)$/.test(value)) return { name: 'FOX Sports', url: 'https://www.foxsports.com/live' };
-    if (/^(?:nbc|nbcsn|usa net|usa network|peacock|golf chnl|golf channel)/.test(value)) return { name: 'Peacock', url: 'https://www.peacocktv.com/sports' };
-    if (value === 'prime video') return { name: 'Prime Video', url: 'https://www.amazon.com/gp/video/sports' };
-    if (value === 'apple tv') return { name: 'Apple TV', url: 'https://tv.apple.com/us/channel/mls-season-pass/tvs.sbd.7000' };
-    if (/^(?:tnt|tbs|trutv|tru tv|max)$/.test(value)) return { name: 'Max Sports', url: 'https://play.max.com/sports' };
-    if (/^(?:nba tv|nba league pass)$/.test(value)) return { name: 'NBA League Pass', url: 'https://www.nba.com/watch/league-pass-stream' };
-    if (value === 'wnba league pass') return { name: 'WNBA League Pass', url: 'https://www.wnba.com/leaguepass' };
-    if (value === 'nhl network') return { name: 'NHL', url: 'https://www.nhl.com/where-to-stream' };
-    if (value === 'tennis channel') return { name: 'Tennis Channel', url: 'https://www.tennischannel.com/watch' };
-    if (value.startsWith('bein sports')) return { name: 'beIN Sports', url: 'https://www.beinsports.com/en-us' };
-    if (value.startsWith('fifa plus')) return { name: 'FIFA+', url: 'https://www.plus.fifa.com/' };
-    return null;
-}
-
-function resolveBrowserChannels(broadcasts = []) {
-    const channelIdsByName = new Map();
+function renderCategories() {
+    const values = new Map([['featured', 'Featured'], ['all', 'All Channels']]);
     state.channels.forEach(channel => {
-        const normalizedName = normalizeGameNetwork(channel.name);
-        if (!normalizedName) return;
-        if (!channelIdsByName.has(normalizedName)) channelIdsByName.set(normalizedName, []);
-        channelIdsByName.get(normalizedName).push(channel.id);
+        if (channel.category) values.set(channel.category, channel.categoryLabel || channel.category);
     });
-
-    const channels = [];
-    broadcasts.forEach(network => {
-        const normalized = normalizeGameNetwork(network);
-        const candidateIds = new Set([
-            GAME_CHANNEL_IDS_BY_NETWORK.get(normalized),
-            ...(channelIdsByName.get(normalized) || [])
-        ]);
-        candidateIds.delete(undefined);
-        candidateIds.forEach(channelId => {
-            const channel = state.channels.find(candidate => candidate.id === channelId);
-            if (channel?.streams?.length && !channels.some(candidate => candidate.id === channel.id)) {
-                channels.push(channel);
-            }
-        });
-    });
-    return channels;
-}
-
-function summarizePlayableChannel(channel) {
-    return {
-        id: channel.id,
-        name: channel.name,
-        logo: channel.logo || '',
-        quality: channel.streams?.[0]?.quality || 'Auto',
-        streamCount: channel.streams?.length || 0
-    };
-}
-
-function buildBrowserViewing(game, broadcasts, resolved = {}) {
-    const channels = [];
-    [...(resolved.channels || []), ...resolveBrowserChannels(broadcasts)].forEach(channel => {
-        const fullChannel = state.channels.find(candidate => candidate.id === channel.id) || channel;
-        if (!fullChannel?.streams?.length || channels.some(candidate => candidate.id === fullChannel.id)) return;
-        channels.push(summarizePlayableChannel(fullChannel));
-    });
-
-    const providers = [];
-    (resolved.providers || []).forEach(provider => {
-        if (provider?.url && !providers.some(candidate => candidate.url === provider.url)) providers.push(provider);
-    });
-    broadcasts.forEach(network => {
-        const provider = getBrowserGameProvider(network);
-        if (provider && !providers.some(candidate => candidate.url === provider.url)) {
-            providers.push({ ...provider, network });
-        }
-    });
-
-    return {
-        channels,
-        providers: providers.length ? providers : [...(game.viewing?.providers || [])],
-        networks: [...broadcasts]
-    };
-}
-
-function mergeResolvedChannels(channels = []) {
-    channels.forEach(channel => {
-        if (!channel?.id || !channel.streams?.length) return;
-        const existingIndex = state.channels.findIndex(candidate => candidate.id === channel.id);
-        if (existingIndex === -1) state.channels.push(channel);
-        else state.channels[existingIndex] = channel;
-    });
-}
-
-function reconcilePlayableGames() {
-    let changed = false;
-    state.games = state.games.map(game => {
-        if (!game.broadcasts?.length) return game;
-        const viewing = buildBrowserViewing(game, game.broadcasts);
-        const currentIds = (game.viewing?.channels || []).map(channel => channel.id).join('|');
-        const nextIds = viewing.channels.map(channel => channel.id).join('|');
-        if (currentIds === nextIds) return game;
-        changed = true;
-        return { ...game, viewing };
-    });
-    return changed;
-}
-
-function scheduleEnrichmentRender() {
-    if (state.gameEnrichmentRenderTimer) globalThis.clearTimeout(state.gameEnrichmentRenderTimer);
-    state.gameEnrichmentRenderTimer = globalThis.setTimeout(() => {
-        state.gameEnrichmentRenderTimer = null;
-        renderGames();
-    }, 120);
-}
-
-async function requestResolvedPlayback(game, signal) {
-    const eventId = encodeURIComponent(game.sourceId);
-    const leagueId = encodeURIComponent(game.league.id);
-    const response = await fetch(`/api/live-tv/games/${leagueId}/${eventId}/playback`, {
-        signal,
-        cache: 'no-store'
-    });
-    if (response.ok) {
-        const payload = await response.json();
-        if (payload.success && Array.isArray(payload.networks) && Array.isArray(payload.channels)) return payload;
-    }
-
-    const sport = game.league?.sport;
-    const slug = game.league?.slug;
-    if (!sport || !slug) throw new Error(`Game playback resolver returned ${response.status}`);
-    const directUrl = `https://sports.core.api.espn.com/v2/sports/${encodeURIComponent(sport)}/leagues/${encodeURIComponent(slug)}/events/${eventId}/competitions/${eventId}/broadcasts?lang=en&region=us`;
-    const directResponse = await fetch(directUrl, { signal, cache: 'no-store' });
-    if (!directResponse.ok) throw new Error(`Broadcast fallback returned ${directResponse.status}`);
-    const directPayload = await directResponse.json();
-    if (!Array.isArray(directPayload.items)) throw new Error('Broadcast fallback returned invalid data');
-
-    return {
-        success: true,
-        networks: [...new Set(directPayload.items
-            .map(item => item.station || item.media?.shortName || item.media?.name || '')
-            .map(value => String(value).trim())
-            .filter(Boolean))],
-        channels: [],
-        providers: []
-    };
-}
-
-async function enrichGameBroadcasts(game) {
-    const league = game.league;
-    if (!game.sourceId || !league?.id) {
-        state.enrichingGames.delete(game.id);
-        state.failedGames.add(game.id);
-        return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = globalThis.setTimeout(() => controller.abort(), 35_000);
-
-    try {
-        const payload = await requestResolvedPlayback(game, controller.signal);
-        const broadcasts = payload.networks.map(value => String(value).trim()).filter(Boolean);
-        mergeResolvedChannels(payload.channels);
-
-        state.games = state.games.map(candidate => candidate.id === game.id ? {
-            ...candidate,
-            broadcasts: broadcasts.length ? broadcasts : candidate.broadcasts,
-            viewing: broadcasts.length
-                ? buildBrowserViewing(candidate, broadcasts, {
-                    channels: payload.channels,
-                    providers: payload.providers
-                })
-                : candidate.viewing,
-            broadcastsEnriched: true
-        } : candidate);
-        state.enrichedGames.add(game.id);
-        scheduleEnrichmentRender();
-    } catch (error) {
-        state.failedGames.add(game.id);
-    } finally {
-        globalThis.clearTimeout(timeoutId);
-        state.enrichingGames.delete(game.id);
-    }
-}
-
-function enrichVisibleCompactGames() {
-    const games = getVisibleGames().slice(0, 96).filter(game => (
-        game.compact
-        && game.sourceId
-        && game.league?.id
-        && !game.broadcastsEnriched
-        && !state.enrichingGames.has(game.id)
-        && !state.enrichedGames.has(game.id)
-        && !state.failedGames.has(game.id)
-    ));
-
-    games.forEach((game, index) => {
-        state.enrichingGames.add(game.id);
-        const delay = Math.floor(index / 5) * 1_000;
-        globalThis.setTimeout(() => {
-            void enrichGameBroadcasts(game);
-        }, delay);
-    });
-}
-
-function updateGameStatusSummary() {
-    if (!state.gamesLoaded) return;
-    const liveCount = state.games.filter(game => game.status?.state === 'live').length;
-    const nativeCount = state.games.filter(game => game.viewing?.channels?.length).length;
-    const warning = state.gameGuideWarning ? ` ${state.gameGuideWarning}` : '';
-    setGameStatus(
-        `${liveCount} live / ${state.games.length} indexed / ${nativeCount} native stream${nativeCount === 1 ? '' : 's'}.${warning}`,
-        state.gameGuideStale ? 'warning' : 'ready'
-    );
-}
-
-function renderGames() {
-    if (!dom.gameGrid) return;
-    updateGameStatusSummary();
-    const games = getVisibleGames();
-    const displayedGames = games.slice(0, 96);
-    if (dom.gameCount) {
-        const suffix = games.length > displayedGames.length ? ` / showing ${displayedGames.length}` : '';
-        dom.gameCount.textContent = `${games.length} game${games.length === 1 ? '' : 's'}${suffix}`;
-    }
-
-    if (!displayedGames.length) {
-        dom.gameGrid.innerHTML = `
-            <div class="sports-game-empty">
-                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                <strong>No matching games</strong>
-                <span>Try another team, league, or date range.</span>
-            </div>
-        `;
-        return;
-    }
-
-    dom.gameGrid.innerHTML = displayedGames.map(renderGameCard).join('');
-    dom.gameGrid.querySelectorAll('[data-channel-id]').forEach(button => {
-        button.addEventListener('click', async () => {
-            let channel = state.channels.find(candidate => candidate.id === button.dataset.channelId);
-            if (!channel) {
-                setGameStatus('Loading the native stream...', 'loading');
-                await loadCatalog({ force: state.channels.length > 0 });
-                channel = state.channels.find(candidate => candidate.id === button.dataset.channelId);
-            }
-            if (!channel) {
-                setGameStatus('That native feed is temporarily unavailable.', 'warning');
-                return;
-            }
-            const game = state.games.find(candidate => candidate.id === button.dataset.gameId) || null;
-            tuneChannel(channel, 0, { game });
-            dom.playerShell?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
-    });
-    dom.gameGrid.querySelectorAll('.sports-game-team-logo img').forEach(image => {
-        image.addEventListener('error', event => {
-            event.currentTarget.style.display = 'none';
-        }, { once: true });
-    });
-    Promise.resolve().then(enrichVisibleCompactGames);
-}
-
-function renderGameLoadingState() {
-    if (!dom.gameGrid) return;
-    dom.gameGrid.innerHTML = Array.from({ length: 6 }, () => `
-        <div class="sports-game-card sports-game-skeleton" aria-hidden="true">
-            <span></span><span></span><span></span>
-        </div>
-    `).join('');
-    if (dom.gameCount) dom.gameCount.textContent = 'Loading games';
-}
-
-async function loadGameGuide({ force = false } = {}) {
-    if (state.gamesLoading || (state.gamesLoaded && !force)) {
-        renderGameWindowFilters();
-        renderGameLeagueFilters();
-        renderGames();
-        return;
-    }
-
-    state.gamesLoading = true;
-    if (force) {
-        state.enrichingGames.clear();
-        state.enrichedGames.clear();
-        state.failedGames.clear();
-        if (state.gameEnrichmentRenderTimer) {
-            globalThis.clearTimeout(state.gameEnrichmentRenderTimer);
-            state.gameEnrichmentRenderTimer = null;
-        }
-    }
-    renderGameLoadingState();
-    setGameStatus('Loading schedules across every league...', 'loading');
-
-    try {
-        const response = await fetch('/api/live-tv/games', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`Sports guide returned ${response.status}`);
-        const data = await response.json();
-        if (!data.success || !Array.isArray(data.events)) throw new Error(data.error || 'Invalid sports guide');
-
-        state.games = data.events;
-        state.gameLeagues = Array.isArray(data.leagues) ? data.leagues : [];
-        state.gameDateWindow = data.window || null;
-        state.gameGuideWarning = data.warning || '';
-        state.gameGuideStale = Boolean(data.stale || data.partial);
-        state.gamesLoaded = true;
-        reconcilePlayableGames();
-        if (state.activeGameLeague !== 'all' && !state.gameLeagues.some(league => league.id === state.activeGameLeague)) {
-            state.activeGameLeague = 'all';
-        }
-        if (data.window && dom.gameWindowLabel) {
-            dom.gameWindowLabel.textContent = `${data.window.from} through ${data.window.to}`;
-        }
-        if (state.gameWindow === 'today' && !getVisibleGames().length && state.games.length) state.gameWindow = 'week';
-
-        renderGameWindowFilters();
-        renderGameLeagueFilters();
-        renderGames();
-    } catch (error) {
-        console.error('[LiveTV] Unable to load sports guide:', error);
-        setGameStatus('Game schedules are unavailable. Try again shortly.', 'error');
-        dom.gameGrid.innerHTML = `
-            <button id="sports-game-retry" class="sports-game-empty sports-game-retry" type="button">
-                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-                <strong>Schedule unavailable</strong>
-                <span>Choose this card to retry.</span>
-            </button>
-        `;
-        document.getElementById('sports-game-retry')?.addEventListener('click', () => loadGameGuide({ force: true }));
-    } finally {
-        state.gamesLoading = false;
-    }
-}
-
-function getVisibleChannels() {
-    const query = state.query.toLowerCase();
-    return state.channels.filter(channel => {
-        const categoryMatch = state.activeCategory === 'all'
-            || (state.activeCategory === 'featured' ? channel.featured : channel.category === state.activeCategory);
-        const queryMatch = !query || [channel.name, channel.network, channel.categoryLabel, ...(channel.categories || [])]
-            .filter(Boolean)
-            .some(value => String(value).toLowerCase().includes(query));
-        return categoryMatch && queryMatch;
-    });
-}
-
-function renderCategoryFilters() {
-    if (!dom.filters) return;
-    const categories = [
-        { id: 'all', label: 'All Channels', count: state.channels.length },
-        ...state.categories
-    ];
-    dom.filters.innerHTML = categories.map(category => `
-        <button class="live-filter${category.id === state.activeCategory ? ' active' : ''}"
-            type="button" data-category="${escapeHtml(category.id)}" aria-pressed="${category.id === state.activeCategory}">
-            <span>${escapeHtml(category.label)}</span>
-            <small>${Number(category.count) || 0}</small>
-        </button>
-    `).join('');
-    dom.filters.querySelectorAll('.live-filter').forEach(button => {
-        button.addEventListener('click', () => {
-            state.activeCategory = button.dataset.category || 'all';
-            renderCategoryFilters();
+    dom.categories.innerHTML = '';
+    values.forEach((label, value) => {
+        const button = document.createElement('button');
+        button.className = `btn-secondary live-chip${state.category === value ? ' active' : ''}`;
+        button.tabIndex = 0;
+        button.textContent = label;
+        button.setAttribute('aria-pressed', String(state.category === value));
+        button.onclick = () => {
+            state.category = value;
+            renderCategories();
             renderChannels();
-        });
+        };
+        dom.categories.appendChild(button);
     });
 }
 
 function renderChannels() {
-    if (!dom.channelGrid) return;
-    const channels = getVisibleChannels();
-    if (dom.channelCount) {
-        dom.channelCount.textContent = `${channels.length} channel${channels.length === 1 ? '' : 's'}`;
-    }
+    const channels = state.channels.filter(channelMatches);
+    dom.channelGrid.innerHTML = '';
     if (!channels.length) {
-        dom.channelGrid.innerHTML = `
-            <div class="live-tv-empty-state">
-                <i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>
-                <strong>No channels found</strong>
-                <span>Try another category or search term.</span>
-            </div>
-        `;
+        dom.channelGrid.innerHTML = '<div class="live-state"><i class="fa-solid fa-satellite-dish"></i><h2>No channels found</h2><p>Try another category or search.</p></div>';
         return;
     }
-
-    dom.channelGrid.innerHTML = channels.map(channel => `
-        <button class="live-channel-card${channel.id === state.activeChannel?.id ? ' active' : ''}"
-            type="button" data-channel-id="${escapeHtml(channel.id)}" aria-pressed="${channel.id === state.activeChannel?.id}">
-            <span class="live-channel-logo">
-                ${channel.logo
-                    ? `<img src="${escapeHtml(channel.logo)}" alt="" loading="lazy">`
-                    : `<span>${escapeHtml(getInitials(channel.name))}</span>`}
-            </span>
-            <span class="live-channel-copy">
-                <span class="live-channel-name">${escapeHtml(channel.name)}</span>
-                <span class="live-channel-meta">${escapeHtml(channel.categoryLabel || 'Live TV')} / ${escapeHtml(channel.streams?.[0]?.quality || 'Auto')}</span>
-            </span>
-            <span class="live-channel-badge"><i></i> Live</span>
-        </button>
-    `).join('');
-
-    dom.channelGrid.querySelectorAll('.live-channel-card').forEach(card => {
-        const channel = state.channels.find(item => item.id === card.dataset.channelId);
-        if (!channel) return;
-        card.addEventListener('click', () => {
-            tuneChannel(channel, 0, { game: null });
-            dom.playerShell?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
-        card.querySelector('img')?.addEventListener('error', event => {
-            event.currentTarget.parentElement.innerHTML = `<span>${escapeHtml(getInitials(channel.name))}</span>`;
-        }, { once: true });
+    const fragment = document.createDocumentFragment();
+    channels.forEach(channel => {
+        const card = document.createElement('button');
+        card.className = 'live-card';
+        card.dataset.channelId = channel.id;
+        card.setAttribute('aria-pressed', String(channel.id === state.activeChannel?.id));
+        card.innerHTML = `
+            <span class="live-badge">LIVE</span>
+            ${channel.logo
+                ? `<img class="live-card-logo" src="${escapeHtml(channel.logo)}" alt="" loading="lazy">`
+                : `<span class="live-card-logo">${escapeHtml(getInitials(channel.name))}</span>`}
+            <span><h3>${escapeHtml(channel.name)}</h3><span class="live-card-meta">${escapeHtml(channel.categoryLabel || channel.network || 'Live channel')}</span></span>`;
+        card.onclick = () => tuneChannel(channel);
+        fragment.appendChild(card);
     });
+    dom.channelGrid.appendChild(fragment);
 }
 
-function renderLoadingState() {
-    if (!dom.channelGrid) return;
-    dom.channelGrid.innerHTML = Array.from({ length: 10 }, () => `
-        <div class="live-channel-card live-channel-skeleton" aria-hidden="true">
-            <span class="live-channel-logo"></span>
-            <span class="live-channel-copy"></span>
-        </div>
-    `).join('');
-    if (dom.channelCount) dom.channelCount.textContent = 'Loading channels';
+function formatGameTime(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return 'Time TBA';
+    return new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(date);
 }
 
-async function loadCatalog({ force = false } = {}) {
-    if (state.catalogLoadPromise) return state.catalogLoadPromise;
-    if (state.channels.length && !force) {
-        renderCategoryFilters();
-        renderChannels();
+function renderGames() {
+    dom.guide.innerHTML = '';
+    const programs = state.guideChannels
+        .flatMap(channel => (channel.programs || []).map(program => ({ ...program, channel: state.channels.find(item => item.id === channel.id) })))
+        .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+    if (programs.length) {
+        const fragment = document.createDocumentFragment();
+        programs.slice(0, 160).forEach(program => {
+            const card = document.createElement('button');
+            card.className = 'game-card';
+            card.innerHTML = `
+                <span><span class="game-time">${escapeHtml(formatGameTime(program.startsAt))}</span><br><span class="game-league">${escapeHtml(program.channel?.name || program.channelId)}</span></span>
+                <span><strong>${escapeHtml(program.title)}</strong><br><span class="live-card-meta">${escapeHtml(program.synopsis || 'Live program')}</span></span>
+                <span class="btn-secondary">Watch</span>`;
+            card.onclick = () => program.channel && tuneChannel(program.channel);
+            fragment.appendChild(card);
+        });
+        dom.guide.appendChild(fragment);
+        if (state.guideMeta?.stale) {
+            dom.guide.insertAdjacentHTML('afterbegin', `<div class="live-state">Schedule last updated ${escapeHtml(new Date(state.guideMeta.lastUpdated).toLocaleString())}</div>`);
+        }
         return;
     }
-    state.loading = true;
-    renderLoadingState();
-    setGuideStatus('Refreshing the live channel guide...', 'loading');
+    const games = state.games.slice().sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    if (!games.length) {
+        dom.guide.innerHTML = '<div class="live-state"><i class="fa-solid fa-calendar-days"></i><h2>No scheduled games</h2><p>The live sports guide will update automatically.</p></div>';
+        return;
+    }
+    const fragment = document.createDocumentFragment();
+    games.slice(0, 120).forEach(game => {
+        const card = document.createElement('button');
+        card.className = 'game-card';
+        const status = game.status?.detail || 'Scheduled';
+        card.innerHTML = `
+            <span><span class="game-time">${escapeHtml(formatGameTime(game.startTime))}</span><br><span class="game-league">${escapeHtml(game.league?.label || '')}</span></span>
+            <span><strong>${escapeHtml(game.fullTitle || game.title)}</strong><br><span class="live-card-meta">${escapeHtml((game.viewing?.networks || game.broadcasts || []).join(' · ') || status)}</span></span>
+            <span class="btn-secondary">${escapeHtml(status)}</span>`;
+        card.onclick = () => {
+            const ids = new Set((game.viewing?.channels || []).map(item => item.id || item.channelId).filter(Boolean));
+            const matching = state.channels.find(channel => ids.has(channel.id));
+            if (matching) tuneChannel(matching);
+            else {
+                dom.nowTitle.textContent = game.fullTitle || game.title;
+                dom.nowMeta.textContent = (game.viewing?.networks || []).join(' · ') || 'No matching free channel is available for this event.';
+            }
+        };
+        fragment.appendChild(card);
+    });
+    dom.guide.appendChild(fragment);
+}
 
-    state.catalogLoadPromise = (async () => {
+function setMode(mode) {
+    state.mode = mode;
+    const channelsMode = mode === 'channels';
+    dom.channelGrid.classList.toggle('hidden', !channelsMode);
+    dom.guide.classList.toggle('hidden', channelsMode);
+    dom.channelsTab.classList.toggle('active', channelsMode);
+    dom.guideTab.classList.toggle('active', !channelsMode);
+    dom.channelsTab.setAttribute('aria-selected', String(channelsMode));
+    dom.guideTab.setAttribute('aria-selected', String(!channelsMode));
+    dom.categories.classList.toggle('hidden', !channelsMode);
+    dom.search.placeholder = channelsMode ? 'Search channels...' : 'Search the sports guide...';
+    if (channelsMode) renderChannels(); else renderGames();
+}
+
+async function loadLiveData(force = false) {
+    dom.channelGrid.innerHTML = '<div class="live-state"><i class="fa-solid fa-spinner fa-spin"></i><h2>Loading live channels</h2><p>Connecting to the Tellyvo channel guide...</p></div>';
+    try {
+        const options = buildBackendFetchOptions(getProxyHost(), { cache: force ? 'reload' : 'no-store' });
+        const [channelsResponse, gamesResponse] = await Promise.all([
+            fetch(endpoint('/api/live-tv/channels'), options),
+            fetch(endpoint('/api/live-tv/games'), options).catch(() => null)
+        ]);
+        if (!channelsResponse.ok) throw new Error(`Channel service returned ${channelsResponse.status}`);
+        const channelsPayload = await channelsResponse.json();
+        const gamesPayload = gamesResponse?.ok ? await gamesResponse.json() : { games: [] };
+        state.channels = Array.isArray(channelsPayload.channels) ? channelsPayload.channels : [];
+        state.games = Array.isArray(gamesPayload.games) ? gamesPayload.games : [];
         try {
-            const response = await fetch('/api/live-tv/channels', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Channel guide returned ${response.status}`);
-            const data = await response.json();
-            if (!data.success || !Array.isArray(data.channels)) throw new Error(data.error || 'Invalid channel guide');
-            state.channels = data.channels;
-            state.categories = Array.isArray(data.categories) ? data.categories : [];
-            const playableGamesChanged = reconcilePlayableGames();
-            renderCategoryFilters();
-            renderChannels();
-            if (playableGamesChanged && state.gamesLoaded) renderGames();
-            const warning = data.warning ? ` ${data.warning}` : '';
-            setGuideStatus(`${state.channels.length} public channels ready.${warning}`, data.stale ? 'warning' : 'ready');
-
-            if (!state.activeChannel) {
-                state.activeChannel = state.channels.find(channel => channel.featured) || state.channels[0] || null;
-                if (state.activeChannel) {
-                    updateNowPlaying(state.activeChannel);
-                    markActiveCard();
-                }
+            const from = new Date();
+            const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+            const ids = state.channels.map(channel => channel.id).slice(0, 100).join(',');
+            const guideResponse = await fetch(endpoint(`/api/live-tv/guide?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&channelIds=${encodeURIComponent(ids)}`), options);
+            if (guideResponse.ok) {
+                const guidePayload = await guideResponse.json();
+                state.guideChannels = Array.isArray(guidePayload.channels) ? guidePayload.channels : [];
+                state.guideMeta = guidePayload;
             }
         } catch (error) {
-            console.error('[LiveTV] Unable to load channel guide:', error);
-            setGuideStatus('Live TV guide unavailable. Try again in a moment.', 'error');
-            dom.channelGrid.innerHTML = `
-                <button id="live-tv-retry" class="live-tv-empty-state live-tv-retry" type="button">
-                    <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-                    <strong>Guide unavailable</strong>
-                    <span>Choose this card to retry.</span>
-                </button>
-            `;
-            document.getElementById('live-tv-retry')?.addEventListener('click', () => loadCatalog({ force: true }));
-        } finally {
-            state.loading = false;
-            state.catalogLoadPromise = null;
+            console.warn('[Live TV] EPG unavailable; using sports schedule fallback:', error.message);
         }
-    })();
-    return state.catalogLoadPromise;
-}
-
-async function requestFullscreen() {
-    try {
-        if (dom.playerShell?.requestFullscreen) {
-            await dom.playerShell.requestFullscreen();
-        } else if (dom.video?.webkitEnterFullscreen) {
-            dom.video.webkitEnterFullscreen();
-        }
+        renderCategories();
+        renderChannels();
+        renderGames();
     } catch (error) {
-        console.warn('[LiveTV] Fullscreen request was declined:', error.message);
+        console.warn('[Live TV] Unable to load:', error.message);
+        dom.channelGrid.innerHTML = `<div class="live-state"><i class="fa-solid fa-triangle-exclamation"></i><h2>Live TV is temporarily unavailable</h2><p>${escapeHtml(error.message)}</p></div>`;
     }
 }
 
 export function initLiveTv() {
     if (state.initialized) return;
-    dom.view = document.getElementById('view-live-tv');
-    if (!dom.view) return;
-
     state.initialized = true;
-    dom.video = document.getElementById('live-tv-player');
-    dom.playerShell = document.getElementById('live-tv-player-shell');
-    dom.playerMessage = document.getElementById('live-tv-player-message');
-    dom.guideStatus = document.getElementById('live-tv-guide-status');
-    dom.channelGrid = document.getElementById('live-tv-channel-grid');
-    dom.channelCount = document.getElementById('live-tv-channel-count');
-    dom.filters = document.getElementById('live-tv-filters');
-    dom.search = document.getElementById('live-tv-search');
-    dom.nowLogo = document.getElementById('live-tv-now-logo');
-    dom.nowName = document.getElementById('live-tv-now-name');
-    dom.nowMeta = document.getElementById('live-tv-now-meta');
-    dom.networkLink = document.getElementById('live-tv-network-link');
-    dom.fullscreenButton = document.getElementById('live-tv-fullscreen');
-    dom.clock = document.getElementById('live-tv-clock');
-    dom.gameSearch = document.getElementById('sports-game-search');
-    dom.gameWindows = document.getElementById('sports-game-windows');
-    dom.gameLeagueFilters = document.getElementById('sports-league-filters');
-    dom.gameGrid = document.getElementById('sports-game-grid');
-    dom.gameCount = document.getElementById('sports-game-count');
-    dom.gameStatus = document.getElementById('sports-game-status');
-    dom.gameWindowLabel = document.getElementById('sports-game-window');
-    dom.liveGameCount = document.getElementById('sports-live-count');
-
-    dom.search?.addEventListener('input', event => {
-        state.query = event.target.value.trim();
-        renderChannels();
+    Object.assign(dom, {
+        video: document.getElementById('live-video'),
+        videoEmpty: document.getElementById('live-video-empty'),
+        nowTitle: document.getElementById('live-now-title'),
+        nowMeta: document.getElementById('live-now-meta'),
+        channelsTab: document.getElementById('live-channels-tab'),
+        guideTab: document.getElementById('live-guide-tab'),
+        search: document.getElementById('live-search-input'),
+        refresh: document.getElementById('live-refresh-btn'),
+        categories: document.getElementById('live-categories'),
+        channelGrid: document.getElementById('live-channel-grid'),
+        guide: document.getElementById('sports-guide')
     });
-    dom.gameSearch?.addEventListener('input', event => {
-        const previousQuery = state.gameQuery;
-        state.gameQuery = event.target.value.trim();
-        if (state.gameQuery && !previousQuery) state.gameWindow = 'all';
-        renderGameWindowFilters();
-        renderGames();
-    });
-    dom.gameWindows?.querySelectorAll('button[data-window]').forEach(button => {
-        button.addEventListener('click', () => {
-            state.gameWindow = button.dataset.window || 'today';
-            renderGameWindowFilters();
+    if (!dom.channelGrid) return;
+    dom.channelsTab.onclick = () => setMode('channels');
+    dom.guideTab.onclick = () => setMode('guide');
+    dom.search.oninput = () => {
+        state.query = dom.search.value.trim().toLowerCase();
+        if (state.mode === 'channels') renderChannels();
+        else {
+            const query = state.query;
+            const original = state.games;
+            state.games = original.filter(game => `${game.fullTitle || game.title} ${game.league?.label || ''}`.toLowerCase().includes(query));
             renderGames();
-        });
-    });
-    dom.fullscreenButton?.addEventListener('click', requestFullscreen);
-    dom.video?.addEventListener('playing', () => {
-        clearTuneTimer();
-        dom.playerShell?.classList.add('is-playing');
-        dom.playerShell?.classList.remove('has-error');
-        setPlayerMessage('', '', '', false);
-        if (state.activeChannel) {
-            const gameTitle = state.activeGame?.fullTitle || state.activeGame?.title;
-            setGuideStatus(
-                gameTitle ? `${gameTitle} is playing on ${state.activeChannel.name}.` : `${state.activeChannel.name} is on air.`,
-                'live'
-            );
+            state.games = original;
         }
-    });
-    dom.video?.addEventListener('waiting', () => {
-        if (!state.activeChannel) return;
-        setGuideStatus(`Buffering ${state.activeChannel.name}...`, 'loading');
-    });
-
+    };
+    dom.refresh.onclick = () => loadLiveData(true);
     globalThis.addEventListener('load-live-tv', () => {
-        document.getElementById('genre-filter')?.classList.add('hidden');
-        loadCatalog();
-        loadGameGuide();
+        if (!state.channels.length) loadLiveData();
     });
     globalThis.addEventListener('hashchange', () => {
-        if (!globalThis.location.hash.startsWith('#live-tv')) stopPlayback();
-    });
-
-    updateClock();
-    globalThis.setInterval(updateClock, 30_000);
-    globalThis.addEventListener('keydown', event => {
-        if (event.key !== '/' || !globalThis.location.hash.startsWith('#live-tv')) return;
-        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-        event.preventDefault();
-        dom.gameSearch?.focus();
+        if (!globalThis.location.hash.startsWith('#live-tv')) stopLivePlayback();
     });
 }
