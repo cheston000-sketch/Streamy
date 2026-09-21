@@ -345,13 +345,13 @@ body::before {
 }
 .row-header::after { content: '  ›'; color: var(--brand-cyan); }
 .row-posters {
-  gap: 18px;
-  padding: 28px clamp(42px, 6vw, 104px);
+  gap: 14px;
+  padding: 24px clamp(42px, 5vw, 88px) 28px;
   scroll-padding-inline: clamp(42px, 6vw, 104px);
 }
 .poster-card {
-  flex-basis: clamp(180px, 12vw, 226px);
-  height: clamp(270px, 18vw, 339px);
+  flex-basis: clamp(156px, 9.8vw, 188px);
+  height: clamp(234px, 14.7vw, 282px);
   border: 1px solid rgba(122,142,199,.18);
   border-radius: 12px;
   background: linear-gradient(145deg, #171f39, #0b1024);
@@ -373,6 +373,11 @@ body::before {
 }
 .poster-info { z-index: 4; }
 .poster-progress-fill { background: var(--brand-gradient); }
+
+.grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px 16px;
+}
 
 .btn-play {
   color: #fff;
@@ -487,6 +492,44 @@ body::before {
   .hero-actions { margin-top: 16px; }
   .hero-actions button { min-height: 50px; }
   #rows-container { margin-top: -20px; }
+  .row-header {
+    margin-left: 20px;
+    font-size: 1.18rem;
+  }
+  .row-posters {
+    gap: 10px;
+    padding: 18px 20px 22px;
+    scroll-padding-inline: 20px;
+  }
+  .poster-card {
+    flex-basis: 120px;
+    height: 180px;
+    border-radius: 10px;
+  }
+  .poster-card img { border-radius: 10px; }
+  .poster-info {
+    gap: 2px;
+    padding: 34px 8px 9px;
+    transform: translateY(25px);
+  }
+  .poster-title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: .8rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .poster-subline { font-size: .62rem; }
+  .poster-card:focus,
+  .poster-card:hover {
+    transform: scale(1.06) translateY(-4px);
+    border-radius: 10px;
+  }
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 16px 12px;
+  }
 }
 @media (max-width: 900px) {
   #top-bar { top: auto; bottom: 0; min-height: 70px; padding: 8px 12px; background: rgba(5,8,25,.96); }
