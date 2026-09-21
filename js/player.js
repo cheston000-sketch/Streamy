@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=134';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=134';
-import { navigateTo, navigateBack } from './router.js?v=134';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=135';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=135';
+import { navigateTo, navigateBack } from './router.js?v=135';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -1118,8 +1118,8 @@ function getFallbackStreamLinks(movie, season = 1, episode = 1) {
         {
             server: 'Vidlink',
             url: isTv
-                ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`
-                : `https://vidlink.pro/movie/${tmdbId}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`,
+                ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`
+                : `https://vidlink.pro/movie/${tmdbId}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`,
             type: 'iframe',
             providerTier: 'vidlink'
         },

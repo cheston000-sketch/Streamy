@@ -451,8 +451,8 @@ function buildFallbackLinks({ tmdb, type, season = 1, episode = 1 }, includeExtr
     const links = [{
         server: 'Vidlink',
         url: isTv
-            ? `https://vidlink.pro/tv/${tmdb}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`
-            : `https://vidlink.pro/movie/${tmdb}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`,
+            ? `https://vidlink.pro/tv/${tmdb}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`
+            : `https://vidlink.pro/movie/${tmdb}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`,
         type: 'iframe'
     }];
 
