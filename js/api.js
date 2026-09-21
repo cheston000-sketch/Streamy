@@ -4,7 +4,7 @@ import {
     getUsRatingsFromPayload,
     hasKidsSafeCatalogShape,
     resolveMediaType
-} from './kids-safety.js?v=136';
+} from './kids-safety.js?v=137';
 
 export const TMDB_API_KEY = 'a9b4a682953630df7df70fb2178528b8';
 export const BASE_URL = 'https://api.themoviedb.org/3';

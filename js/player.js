@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=136';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=136';
-import { navigateTo, navigateBack } from './router.js?v=136';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=137';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=137';
+import { navigateTo, navigateBack } from './router.js?v=137';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -825,6 +825,10 @@ function recordPlaybackDiagnostic(update = {}) {
 }
 
 function getSourceScore(link) {
+    // VidLink is Tellyvo's first playback attempt. User preferences and
+    // historical source health only decide the order of the remaining links.
+    if (isVidlinkSource(link)) return -1000;
+
     const settings = getPlaybackSettings();
     const health = getSourceHealth(link);
     let baseScore = link?.type !== 'iframe' ? -20 : getIframeHostPriority(link);
@@ -1102,9 +1106,6 @@ function getIframeHostPriority(link) {
 function choosePreferredLink(links = []) {
     if (!Array.isArray(links) || links.length === 0) return null;
     const sorted = sortStreamLinks(links);
-    const directLink = sorted.find(link => link.type !== 'iframe');
-    if (directLink) return directLink;
-
     return sorted[0] || links[0];
 }
 
