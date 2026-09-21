@@ -1,10 +1,10 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=133';
-import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=133';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=133';
-import { setupRouter, navigateTo, navigateBack } from './router.js?v=133';
-import { NavigationManager } from './navigation.js?v=133';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=133';
-import { initLiveTv } from './live-tv.js?v=133';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=134';
+import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=134';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=134';
+import { setupRouter, navigateTo, navigateBack } from './router.js?v=134';
+import { NavigationManager } from './navigation.js?v=134';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=134';
+import { initLiveTv } from './live-tv.js?v=134';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -16,7 +16,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 133;
+const PACKAGED_APP_VERSION = 134;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
@@ -582,6 +582,14 @@ function selectProfile(profile, silent = false) {
     activeProfile = profile;
     globalThis.localStorage.setItem('streamy_active_profile', profile.id);
     DOM.currentProfileName.textContent = profile.name;
+
+    if (profile.isKid) {
+        globalThis.TellyvoHeroSelection = null;
+        DOM.heroBanner.style.backgroundImage = 'none';
+        DOM.heroTitle.textContent = 'Kids on Tellyvo';
+        DOM.heroMeta.textContent = 'CHILD-RATED TITLES ONLY';
+        DOM.heroDesc.textContent = 'Only titles with an approved US children’s rating appear in this profile.';
+    }
     
     DOM.profileSelectionScreen.classList.add('hidden');
     DOM.mainContent.classList.remove('hidden');
@@ -589,6 +597,15 @@ function selectProfile(profile, silent = false) {
     
     DOM.genreFilter.classList.remove('hidden');
     DOM.genreFilter.value = '';
+
+    // The live catalog does not carry consistently enforceable content ratings,
+    // so Kids profiles fail closed and cannot enter that surface.
+    const liveTvTab = document.querySelector('.nav-tab[data-view="live-tv"]');
+    if (liveTvTab) {
+        liveTvTab.classList.toggle('hidden', profile.isKid === true);
+        liveTvTab.tabIndex = profile.isKid ? -1 : 0;
+        liveTvTab.setAttribute('aria-hidden', String(profile.isKid === true));
+    }
     
     if (!silent) {
         navigateTo('#home');
@@ -605,7 +622,8 @@ async function getBecauseYouWatchedItems(type) {
         history = [];
     }
 
-    const seeds = history
+    const ratedHistory = await filterItemsForActiveProfile(history, type);
+    const seeds = ratedHistory
         .filter(item => item && item.id && (item.type || 'movie') === type)
         .slice(0, 3);
 
@@ -632,14 +650,24 @@ async function loadHomeRows() {
     const renderToken = ++activeRowsRenderToken;
     DOM.rowsContainer.innerHTML = '<div class="grid-state">Preparing your Tellyvo home...</div>';
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
-    const history = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]')
+    const storedHistory = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]')
         .filter(item => !isCompletedHistoryItem(item));
-    const [trendingMovies, recentMovies, popularShows] = await Promise.all([
+    const [history, trendingMovies, recentMovies, popularShows] = await Promise.all([
+        filterItemsForActiveProfile(storedHistory),
         discoverByCategory('movie', 'trending', 1),
         discoverByCategory('movie', 'now_playing', 1),
         discoverByCategory('tv', 'popular', 1)
     ]);
     if (renderToken !== activeRowsRenderToken) return;
+
+    if (activeProfile?.isKid) {
+        const safeHeroSource = history[0] || trendingMovies[0] || recentMovies[0] || popularShows[0];
+        if (safeHeroSource) {
+            const fallbackType = popularShows.includes(safeHeroSource) ? 'tv' : 'movie';
+            updateHeroBanner(normalizeItem(safeHeroSource, fallbackType));
+        }
+    }
+
     DOM.rowsContainer.innerHTML = '';
     if (history.length) {
         buildRow({ title: 'Continue Watching', items: history.slice(0, 18), isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
@@ -662,7 +690,11 @@ async function loadMovieRows() {
     // Fetch History first
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
-    const movieHistory = hList.filter(item => (item?.type || 'movie') === 'movie' && !isCompletedHistoryItem(item));
+    const movieHistory = await filterItemsForActiveProfile(
+        hList.filter(item => (item?.type || 'movie') === 'movie' && !isCompletedHistoryItem(item)),
+        'movie'
+    );
+    if (renderToken !== activeRowsRenderToken) return;
     if(movieHistory.length > 0) {
         buildRow({ title: 'Continue Watching', items: movieHistory, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
         focusFirstRowCard(renderToken);
@@ -705,7 +737,11 @@ async function loadTVRows() {
     DOM.rowsContainer.innerHTML = '';
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
-    const tvHistory = hList.filter(item => (item?.type || 'movie') === 'tv' && !isCompletedHistoryItem(item));
+    const tvHistory = await filterItemsForActiveProfile(
+        hList.filter(item => (item?.type || 'movie') === 'tv' && !isCompletedHistoryItem(item)),
+        'tv'
+    );
+    if (renderToken !== activeRowsRenderToken) return;
     if(tvHistory.length > 0) {
         buildRow({ title: 'Continue Watching', items: tvHistory, isWatchlistDict: true, typeFallback: 'tv', isFirstRow: true, onCardClick: openDetails });
         focusFirstRowCard(renderToken);
@@ -740,12 +776,17 @@ async function loadTVRows() {
     }
 }
 
-function loadWatchlist() {
+async function loadWatchlist() {
     const renderToken = ++activeRowsRenderToken;
     DOM.rowsContainer.innerHTML = '';
-    const list = getWatchlistItems();
+    const storedList = getWatchlistItems();
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
-    const history = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
+    const storedHistory = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
+    const [list, history] = await Promise.all([
+        filterItemsForActiveProfile(storedList),
+        filterItemsForActiveProfile(storedHistory)
+    ]);
+    if (renderToken !== activeRowsRenderToken) return;
     const continueWatching = history.filter(item => !isCompletedHistoryItem(item));
     if (continueWatching.length > 0) {
         buildRow({ title: 'Continue Watching', items: continueWatching, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });

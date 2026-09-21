@@ -1,4 +1,4 @@
-import { buildBackendFetchOptions, getProxyHost } from './api.js?v=133';
+import { buildBackendFetchOptions, getProxyHost } from './api.js?v=134';
 
 const state = {
     initialized: false,

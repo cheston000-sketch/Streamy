@@ -1,6 +1,6 @@
 {
   "name": "streamos",
-  "version": "133.0.0",
+  "version": "134.0.0",
   "description": "Tellyvo web application and OTA backend",
   "main": "index.js",
   "scripts": {

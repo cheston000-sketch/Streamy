@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=133';
+import { NavigationManager } from './navigation.js?v=134';
 
 let currentRouteKey = null;
 const routeStack = [];
@@ -11,6 +11,16 @@ function routeKeyForHash(hash) {
     const normalized = normalizedHash(hash);
     return ['#search', '#live-tv', '#player', '#details', '#links', '#category', '#settings', '#watchlist', '#tv', '#movies', '#home']
         .find(route => normalized.startsWith(route)) || '#home';
+}
+
+function isKidsProfileActive() {
+    try {
+        const activeId = globalThis.localStorage.getItem('streamy_active_profile');
+        const profiles = JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
+        return profiles.some(profile => profile?.id === activeId && profile.isKid === true);
+    } catch (error) {
+        return false;
+    }
 }
 
 export function navigateBack() {
@@ -124,7 +134,11 @@ function updateNavUI(activeHash) {
 }
 
 export function handleRoute() {
-    const hash = globalThis.location.hash || '#home';
+    let hash = globalThis.location.hash || '#home';
+    if (hash.startsWith('#live-tv') && isKidsProfileActive()) {
+        globalThis.history.replaceState(null, '', '#home');
+        hash = '#home';
+    }
 
     if (hash !== '#player') stopVideoPlayback();
     updateNavUI(hash);

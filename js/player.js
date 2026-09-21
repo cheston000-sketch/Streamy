@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=133';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=133';
-import { navigateTo, navigateBack } from './router.js?v=133';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=134';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=134';
+import { navigateTo, navigateBack } from './router.js?v=134';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -1290,6 +1290,13 @@ function reloadCurrentSource() {
 }
 
 export async function openDetails(movie) {
+    const allowedItems = await filterItemsForActiveProfile([movie], movie?.type || movie?.media_type || '');
+    if (!allowedItems.length) {
+        console.warn('[Kids] Blocked an unrated or disallowed title before opening details.');
+        navigateTo('#home');
+        return;
+    }
+
     cancelActiveExtraction();
     const requestId = ++detailsSessionId;
     episodeLoadId++;

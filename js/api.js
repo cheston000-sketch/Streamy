@@ -1,3 +1,11 @@
+import {
+    areRatingsKidsSafe,
+    getEmbeddedUsRatings,
+    getUsRatingsFromPayload,
+    hasKidsSafeCatalogShape,
+    resolveMediaType
+} from './kids-safety.js?v=134';
+
 export const TMDB_API_KEY = 'a9b4a682953630df7df70fb2178528b8';
 export const BASE_URL = 'https://api.themoviedb.org/3';
 export const IMAGE_URL = 'https://image.tmdb.org/t/p/w500';
@@ -84,29 +92,97 @@ export async function clearAPICache() {
     }
 }
 
+function getActiveProfile() {
+    const activeProfileId = globalThis.localStorage.getItem('streamy_active_profile');
+    if (!activeProfileId) return null;
+    try {
+        const profiles = JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
+        return profiles.find(profile => profile?.id === activeProfileId) || null;
+    } catch (error) {
+        console.warn('[Profile] Unable to read active profile:', error);
+        return null;
+    }
+}
+
+export function isKidsProfileActive() {
+    return getActiveProfile()?.isKid === true;
+}
+
 function getKidModeParams(endpoint, profile) {
     if (!profile?.isKid) return '';
+    if (!endpoint.includes('/discover/')) return endpoint.includes('?') ? '&include_adult=false' : '?include_adult=false';
+
     let category = 'default';
     if (endpoint.includes('/movie') || endpoint.includes('movie')) category = 'movie';
     else if (endpoint.includes('/tv') || endpoint.includes('tv')) category = 'tv';
-    
-    const limit = category === 'tv' ? 'TV-14' : 'PG-13';
-    return `${endpoint.includes('?') ? '&' : '?'}certification_country=US&certification.lte=${limit}`;
+
+    const limit = category === 'tv' ? 'TV-G' : 'PG';
+    return `${endpoint.includes('?') ? '&' : '?'}include_adult=false&certification_country=US&certification.lte=${limit}`;
+}
+
+function inferMediaTypeFromEndpoint(endpoint) {
+    if (/\/(?:discover|trending|search)?\/?tv(?:\/|\?|$)/.test(endpoint) || endpoint.startsWith('/tv/')) return 'tv';
+    if (/\/(?:discover|trending|search)?\/?movie(?:\/|\?|$)/.test(endpoint) || endpoint.startsWith('/movie/')) return 'movie';
+    return '';
+}
+
+async function fetchTmdbRatingPayload(endpoint, signal) {
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const requestUrl = `${BASE_URL}${endpoint}${separator}api_key=${TMDB_API_KEY}`;
+    const cachedItem = await getCache(requestUrl);
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+    if (cachedItem && (Date.now() - cachedItem.timestamp) < 43200000) return cachedItem.data;
+
+    const response = await fetch(requestUrl, { signal });
+    if (!response.ok) throw new Error(`TMDB rating request failed (${response.status})`);
+    const data = await response.json();
+    await setCache(requestUrl, data);
+    return data;
+}
+
+async function isKidsRatedItem(item, fallbackType, signal) {
+    if (!hasKidsSafeCatalogShape(item, fallbackType)) return false;
+    const mediaType = resolveMediaType(item, fallbackType);
+    const embeddedRatings = getEmbeddedUsRatings(item);
+    if (embeddedRatings.length) return areRatingsKidsSafe(mediaType, embeddedRatings);
+
+    try {
+        const endpoint = mediaType === 'movie'
+            ? `/movie/${item.id}/release_dates`
+            : `/tv/${item.id}/content_ratings`;
+        const payload = await fetchTmdbRatingPayload(endpoint, signal);
+        return areRatingsKidsSafe(mediaType, getUsRatingsFromPayload(payload, mediaType));
+    } catch (error) {
+        if (error?.name === 'AbortError') throw error;
+        console.warn(`[Kids] Excluding unrated title ${mediaType}:${item.id}:`, error.message);
+        return false;
+    }
+}
+
+export async function filterItemsForActiveProfile(items, fallbackType = '', options = {}) {
+    const list = Array.isArray(items) ? items : [];
+    if (!isKidsProfileActive()) return list;
+
+    const { signal } = options;
+    const approved = new Array(list.length).fill(false);
+    let cursor = 0;
+    const workerCount = Math.min(5, list.length);
+    const workers = Array.from({ length: workerCount }, async () => {
+        while (cursor < list.length) {
+            const index = cursor++;
+            if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+            approved[index] = await isKidsRatedItem(list[index], fallbackType, signal);
+        }
+    });
+    await Promise.all(workers);
+    return list.filter((_, index) => approved[index]);
 }
 
 export async function fetchFromTMDB(endpoint, options = {}) {
     const { signal } = options;
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
-    const activeProfileId = globalThis.localStorage.getItem('streamy_active_profile');
-    if (activeProfileId) {
-        try {
-            const profiles = JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
-            const profile = profiles.find(p => p.id === activeProfileId);
-            endpoint += getKidModeParams(endpoint, profile);
-        } catch(e) {
-            console.warn("[Profile] Kid-mode check failed:", e);
-        }
-    }
+    const profile = getActiveProfile();
+    endpoint += getKidModeParams(endpoint, profile);
 
     const separator = endpoint.includes('?') ? '&' : '?';
     const requestUrl = `${BASE_URL}${endpoint}${separator}api_key=${TMDB_API_KEY}`;
@@ -115,7 +191,10 @@ export async function fetchFromTMDB(endpoint, options = {}) {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
     // 12 hours cache
     if (cachedItem && (Date.now() - cachedItem.timestamp) < 43200000) {
-        return cachedItem.data.results || cachedItem.data || [];
+        const cachedResult = cachedItem.data.results || cachedItem.data || [];
+        return profile?.isKid && Array.isArray(cachedResult)
+            ? filterItemsForActiveProfile(cachedResult, inferMediaTypeFromEndpoint(endpoint), { signal })
+            : cachedResult;
     }
 
     try {
@@ -126,7 +205,10 @@ export async function fetchFromTMDB(endpoint, options = {}) {
         }
         const data = await res.json();
         await setCache(requestUrl, data);
-        return data.results ? data.results : data;
+        const result = data.results ? data.results : data;
+        return profile?.isKid && Array.isArray(result)
+            ? filterItemsForActiveProfile(result, inferMediaTypeFromEndpoint(endpoint), { signal })
+            : result;
     } catch (e) {
         if (e?.name === 'AbortError') throw e;
         console.error("TMDB error:", e);
