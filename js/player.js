@@ -1,6 +1,6 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=137';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=137';
-import { navigateTo, navigateBack } from './router.js?v=137';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=138';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=138';
+import { navigateTo, navigateBack } from './router.js?v=138';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -577,11 +577,15 @@ function isVidlinkSource(link) {
     return source.includes('vidlink');
 }
 
+function isVideasySource(link) {
+    const source = `${link?.server || ''} ${link?.url || ''} ${link?.providerTier || ''}`.toLowerCase();
+    return source.includes('videasy');
+}
+
 function isTrustedEmbedSource(link) {
     const source = `${link?.server || ''} ${link?.url || ''}`.toLowerCase();
     return [
         'vidlink',
-        'videasy',
         'autoembed',
         'vidrock',
         'vsembed',
@@ -592,13 +596,14 @@ function isTrustedEmbedSource(link) {
 
 function filterLinksForPlaybackSettings(links = []) {
     const settings = getPlaybackSettings();
+    const availableLinks = links.filter(link => !isVideasySource(link));
     if (settings.sourcePreference === 'vidlink') {
-        return links.filter(isVidlinkSource);
+        return availableLinks.filter(isVidlinkSource);
     }
     if (!settings.includeBackupSources) {
-        return links.filter(link => link?.type !== 'iframe' || isTrustedEmbedSource(link));
+        return availableLinks.filter(link => link?.type !== 'iframe' || isTrustedEmbedSource(link));
     }
-    return links;
+    return availableLinks;
 }
 
 function parseDirectSourceEndpoints(value = '') {
@@ -906,7 +911,6 @@ function getNamedDirectProviderLabel(link) {
         streamex: 'StreameX Direct',
         cinemaos: 'CinemaOS Direct',
         vid2: 'Vid2 Direct',
-        videasy: 'Videasy Direct',
         vidpro: 'VidPro Direct',
         'bee-compat': 'Bee-Compatible',
         stremio: 'Stremio Direct'
@@ -1123,14 +1127,6 @@ function getFallbackStreamLinks(movie, season = 1, episode = 1) {
                 : `https://vidlink.pro/movie/${tmdbId}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`,
             type: 'iframe',
             providerTier: 'vidlink'
-        },
-        {
-            server: 'Videasy',
-            url: isTv
-                ? `https://player.videasy.net/tv/${tmdbId}/${season}/${episode}?autoplay=true`
-                : `https://player.videasy.net/movie/${tmdbId}?autoplay=true`,
-            type: 'iframe',
-            providerTier: 'bee-compat'
         },
         {
             server: 'AutoEmbed',
