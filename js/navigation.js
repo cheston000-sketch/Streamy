@@ -1,4 +1,4 @@
-import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=138';
+import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=139';
 
 const FOCUSABLE_SELECTOR = [
     'button',
@@ -28,7 +28,6 @@ const SCROLL_CONTAINER_SELECTOR = [
 ].join(', ');
 
 const HORIZONTAL_GROUP_SELECTOR = [
-    '.hero-actions',
     '.row-posters',
     '.content-grid',
     '#episode-list',

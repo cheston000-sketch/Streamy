@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=138';
+import { NavigationManager } from './navigation.js?v=139';
 
 let currentRouteKey = null;
 const routeStack = [];
@@ -195,9 +195,7 @@ export function handleRoute() {
              NavigationManager.restoreFocus(routeKey, '#setting-backend-input');
         } else if (hash.startsWith('#player')) {
              NavigationManager.restoreFocus(routeKey, '#player-back-btn');
-        } else if (routeKey === '#home') {
-             NavigationManager.restoreFocus(routeKey, '#hero-watch-btn');
-        } else if (routeKey === '#movies' || routeKey === '#tv' || routeKey === '#watchlist') {
+        } else if (routeKey === '#home' || routeKey === '#movies' || routeKey === '#tv' || routeKey === '#watchlist') {
              NavigationManager.restoreFocus(routeKey, '.poster-card');
         } else {
              NavigationManager.restoreFocus(routeKey);

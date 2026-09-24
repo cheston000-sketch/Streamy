@@ -330,8 +330,6 @@ body::before {
   overflow: hidden;
 }
 #hero-meta { color: #aebadb; font-size: 16px; letter-spacing: .05em; }
-.hero-actions { display: flex; gap: 14px; margin-top: 24px; }
-.hero-actions button { min-height: 56px; padding: 0 26px; border-radius: 999px; }
 
 #rows-container { margin-top: -104px; z-index: 10; padding-bottom: 90px; }
 .content-row { margin-bottom: 13px; }
@@ -489,8 +487,6 @@ body::before {
    visually connected to the hero without allowing it to cover hero actions. */
 @media (min-width: 901px) and (max-width: 1100px) {
   .hero-content { top: 24%; bottom: auto; }
-  .hero-actions { margin-top: 16px; }
-  .hero-actions button { min-height: 50px; }
   #rows-container { margin-top: -20px; }
   .row-header {
     margin-left: 20px;
@@ -554,7 +550,6 @@ body::before {
 @media (max-width: 560px) {
   .live-grid { grid-template-columns: 1fr; }
   .live-toolbar { flex-direction: column; }
-  .hero-actions { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 1ms !important; animation-duration: 1ms !important; }
