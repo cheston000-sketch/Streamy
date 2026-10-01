@@ -1,4 +1,4 @@
-import { buildBackendFetchOptions, getProxyHost } from './api.js?v=140';
+import { buildBackendFetchOptions, getProxyHost } from './api.js?v=141';
 
 const state = {
     initialized: false,
@@ -71,6 +71,7 @@ function stopLivePlayback() {
     }
     if (dom.video) {
         dom.video.pause();
+        dom.video.controls = false;
         dom.video.removeAttribute('src');
         dom.video.load();
     }
@@ -120,6 +121,7 @@ function tryWebStream(channel, streamIndex, token) {
         state.hls = null;
     }
     dom.video.pause();
+    dom.video.controls = true;
     dom.video.removeAttribute('src');
     dom.video.load();
 
