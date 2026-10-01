@@ -415,19 +415,23 @@ body::before {
 .episode-card-v2:focus, .server-btn:focus { border-color: #fff; box-shadow: 0 0 0 3px rgba(0,195,255,.48), 0 0 28px rgba(123,60,255,.28); }
 
 /* Live TV */
-#view-live-tv { min-height: 100%; padding: 110px clamp(42px, 5vw, 84px) 70px; }
-.live-heading { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 28px; }
+#view-live-tv { min-height: 100%; padding: 104px clamp(42px, 5vw, 84px) 70px; }
+.live-heading { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 20px; }
 .live-kicker { color: var(--brand-cyan); font-size: 13px; font-weight: 800; letter-spacing: .34em; text-transform: uppercase; }
 .live-title { margin-top: 7px; font-size: clamp(38px, 4vw, 64px); line-height: 1; letter-spacing: -.045em; }
+.live-heading-actions { display: flex; align-items: center; gap: 18px; }
+.live-channel-count { color: var(--text-secondary); font-size: 14px; font-weight: 700; white-space: nowrap; }
 .live-tabs { display: flex; gap: 10px; }
-.live-tab { min-width: 132px; min-height: 50px; border-radius: 999px; }
+.live-tab { min-width: 140px; min-height: 54px; border-radius: 999px; }
 .live-tab.active { border-color: rgba(0,195,255,.8); background: linear-gradient(110deg, rgba(0,195,255,.18), rgba(123,60,255,.28)); }
-.live-toolbar { display: flex; gap: 14px; margin-bottom: 24px; }
-.live-search { flex: 1; min-height: 56px; padding: 0 20px; color: #fff; background: rgba(17,24,49,.9); border: 1px solid var(--border); border-radius: 14px; }
-.live-categories { display: flex; gap: 10px; overflow-x: auto; padding: 5px 5px 14px; }
-.live-chip { min-height: 46px; padding: 0 18px; border-radius: 999px; white-space: nowrap; }
+.live-toolbar { position: relative; display: flex; gap: 14px; margin-bottom: 16px; }
+.live-search-icon { position: absolute; left: 20px; top: 20px; z-index: 1; color: var(--text-muted); pointer-events: none; }
+.live-search { flex: 1; min-height: 58px; padding: 0 20px 0 52px; color: #fff; font-size: 17px; background: rgba(17,24,49,.9); border: 1px solid var(--border); border-radius: 14px; }
+.live-search:focus { border-color: #fff; box-shadow: 0 0 0 3px rgba(0,195,255,.48); }
+.live-categories { display: flex; gap: 10px; overflow-x: auto; padding: 7px 7px 18px; scroll-padding-inline: 7px; }
+.live-chip { min-height: 50px; padding: 0 20px; border-radius: 999px; white-space: nowrap; }
 .live-chip.active { color: #fff; border-color: var(--brand-cyan); background: rgba(0,195,255,.13); }
-.live-layout { display: grid; grid-template-columns: minmax(430px, .86fr) 1.6fr; gap: 28px; align-items: start; }
+.live-layout { display: grid; grid-template-columns: minmax(390px, .84fr) minmax(0, 1.65fr); gap: 28px; align-items: start; }
 .live-preview {
   position: sticky;
   top: 96px;
@@ -439,15 +443,21 @@ body::before {
 }
 .live-video-wrap { position: relative; aspect-ratio: 16/9; background: #02030a; }
 #live-video { width: 100%; height: 100%; object-fit: contain; }
-.live-video-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-secondary); text-align: center; padding: 30px; }
+.live-preview-logo { position: absolute; inset: 18% 18%; width: 64%; height: 64%; object-fit: contain; opacity: .18; filter: grayscale(.2); }
+.live-video-empty { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: var(--text-secondary); text-align: center; padding: 30px; background: radial-gradient(circle at 50% 30%, rgba(0,195,255,.12), transparent 55%); }
+.live-video-empty strong, .live-video-empty span { display: block; }
+.live-video-empty strong { margin-bottom: 8px; color: #fff; font-size: 22px; }
 .live-video-empty i { display: block; margin-bottom: 12px; color: var(--brand-cyan); font-size: 44px; }
 .live-now { padding: 22px; }
 .live-now h2 { margin-bottom: 7px; font-size: 27px; }
 .live-now p { color: var(--text-secondary); line-height: 1.5; }
+.live-now-next { margin-top: 8px; color: #fff !important; font-size: 14px; font-weight: 700; }
+.live-remote-hint { display: flex; gap: 18px; margin-top: 18px; padding-top: 16px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); }
+.live-remote-hint i { margin-right: 6px; color: var(--brand-cyan); }
 .live-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .live-card {
-  min-height: 172px;
-  padding: 20px;
+  min-height: 164px;
+  padding: 18px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -459,17 +469,33 @@ body::before {
   border-radius: 16px;
   background: radial-gradient(circle at 85% 12%, rgba(0,195,255,.13), transparent 42%), linear-gradient(145deg, #161f3e, #0a1027);
 }
-.live-card:focus { transform: scale(1.035); border-color: #fff; box-shadow: 0 0 0 3px var(--brand-cyan), 0 0 30px rgba(123,60,255,.38); }
-.live-card-logo { width: 62px; height: 62px; object-fit: contain; object-position: left center; }
-.live-card h3 { margin-top: 14px; font-size: 18px; }
-.live-card-meta { color: var(--text-secondary); font-size: 13px; }
+.live-card:focus { z-index: 2; transform: scale(1.035); border-color: #fff; outline: 3px solid #fff; outline-offset: 4px; box-shadow: 0 0 32px rgba(123,60,255,.4); }
+.live-card.active { border-color: var(--brand-cyan); background: radial-gradient(circle at 85% 12%, rgba(0,195,255,.22), transparent 45%), linear-gradient(145deg, #18294c, #0b122b); }
+.live-card-brand { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.live-card-logo { width: 66px; height: 52px; object-fit: contain; object-position: left center; }
+.live-card-initials { display: grid; place-items: center; color: #fff; font-size: 20px; font-weight: 900; border-radius: 12px; background: linear-gradient(135deg, rgba(0,195,255,.35), rgba(123,60,255,.4)); }
+.live-card-quality { margin-right: 46px; color: var(--text-muted); font-size: 11px; font-weight: 800; }
+.live-card-copy { display: grid; gap: 4px; }
+.live-card h3 { overflow: hidden; margin: 0; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.live-card-program { overflow: hidden; color: #fff; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.live-card-next { overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .live-badge { position: absolute; right: 12px; top: 12px; padding: 5px 8px; color: #fff; font-size: 10px; font-weight: 900; letter-spacing: .1em; border-radius: 5px; background: var(--live); }
-.live-state { grid-column: 1 / -1; padding: 60px 30px; color: var(--text-secondary); text-align: center; border: 1px dashed var(--border); border-radius: 18px; }
+.live-state { grid-column: 1 / -1; padding: 58px 30px; color: var(--text-secondary); text-align: center; border: 1px dashed var(--border); border-radius: 18px; }
+.live-state > i { margin-bottom: 14px; color: var(--brand-cyan); font-size: 38px; }
+.live-state h2 { margin-bottom: 8px; color: #fff; }
+.live-state-action { min-width: 160px; min-height: 54px; margin-top: 22px; }
 .sports-guide { display: grid; gap: 12px; }
-.game-card { min-height: 94px; padding: 18px 20px; display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 20px; text-align: left; color: #fff; border: 1px solid var(--border); border-radius: 15px; background: rgba(17,24,49,.86); }
-.game-card:focus { border-color: #fff; box-shadow: 0 0 0 3px rgba(0,195,255,.48); }
+.game-card { min-height: 112px; padding: 16px 18px; display: grid; grid-template-columns: 150px minmax(0, 1fr) 62px; align-items: center; gap: 18px; text-align: left; color: #fff; border: 1px solid var(--border); border-radius: 15px; background: rgba(17,24,49,.86); }
+.game-card:focus { z-index: 2; border-color: #fff; outline: 3px solid #fff; outline-offset: 3px; box-shadow: 0 0 26px rgba(0,195,255,.35); }
 .game-time { color: var(--brand-cyan); font-weight: 800; }
 .game-league { color: var(--text-muted); font-size: 12px; letter-spacing: .13em; text-transform: uppercase; }
+.guide-channel { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 10px; }
+.guide-channel img { width: 44px; height: 36px; object-fit: contain; }
+.guide-programs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.guide-program { min-width: 0; padding: 10px; border-left: 2px solid var(--border); }
+.guide-program.current { border-left-color: var(--brand-cyan); background: rgba(0,195,255,.07); }
+.guide-program strong { display: block; overflow: hidden; margin-top: 3px; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.guide-watch { color: var(--brand-cyan); font-size: 12px; font-weight: 900; text-transform: uppercase; }
 
 #profile-selection-screen { background: radial-gradient(circle at 50% 30%, rgba(46,77,255,.23), transparent 28%), radial-gradient(circle at 70% 10%, rgba(123,60,255,.16), transparent 26%), #070a1a !important; }
 #profile-selection-screen::before { content: ''; width: 210px; height: 70px; margin-bottom: 18px; background: url('tellyvo-wordmark.svg') center/contain no-repeat; }
@@ -480,12 +506,22 @@ body::before {
   #top-bar { gap: 20px; padding-inline: 28px; }
   .brand { width: 126px; flex-basis: 126px; }
   .nav-tab { padding-inline: 12px; font-size: 14px; }
-  .live-layout { grid-template-columns: 1fr; }
-  .live-preview { position: relative; top: 0; }
+  .live-layout { grid-template-columns: minmax(320px, .8fr) minmax(0, 1.2fr); gap: 20px; }
+  .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .live-card { min-height: 150px; padding: 16px; }
+  .live-preview { top: 86px; }
+  .live-remote-hint { flex-direction: column; gap: 7px; }
+  .guide-programs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .guide-program:nth-child(3) { display: none; }
 }
 /* Fire TV commonly exposes a 960px-wide CSS viewport. Keep the first shelf
    visually connected to the hero without allowing it to cover hero actions. */
 @media (min-width: 901px) and (max-width: 1100px) {
+  #top-bar { gap: 12px; padding-inline: 20px; }
+  .brand { width: 104px; flex-basis: 104px; }
+  .nav-tabs { gap: 4px; }
+  .nav-tab { padding-inline: 8px; gap: 5px; font-size: 13px; }
+  .nav-tab .desktop-only { display: none; }
   .hero-content { top: 24%; bottom: auto; }
   #rows-container { margin-top: -20px; }
   .row-header {
@@ -543,9 +579,13 @@ body::before {
   .poster-card { flex-basis: 160px; height: 240px; }
   #view-live-tv { padding: 34px 20px 90px; }
   .live-heading { align-items: start; flex-direction: column; }
+  .live-heading-actions { width: 100%; justify-content: space-between; }
+  .live-layout { grid-template-columns: 1fr; }
+  .live-preview { position: relative; top: 0; }
   .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .game-card { grid-template-columns: 92px 1fr; }
-  .game-card .btn-secondary { grid-column: 1/-1; }
+  .game-card { grid-template-columns: 120px 1fr 52px; }
+  .guide-programs { grid-template-columns: 1fr; }
+  .guide-program:nth-child(n+2) { display: none; }
 }
 @media (max-width: 560px) {
   .live-grid { grid-template-columns: 1fr; }

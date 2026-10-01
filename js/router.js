@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=139';
+import { NavigationManager } from './navigation.js?v=140';
 
 let currentRouteKey = null;
 const routeStack = [];
@@ -159,6 +159,9 @@ export function handleRoute() {
 
     const routeKey = routeKeyForHash(hash);
     const route = routeMap[routeKey];
+    if (routeKey !== '#movies' && routeKey !== '#tv') {
+        document.getElementById('genre-filter')?.classList.add('hidden');
+    }
     if (currentRouteKey && currentRouteKey !== routeKey) {
         NavigationManager.saveFocus(currentRouteKey);
     }
@@ -184,7 +187,7 @@ export function handleRoute() {
         if (hash.startsWith('#search')) {
             NavigationManager.restoreFocus(routeKey, '#search-input');
         } else if (hash.startsWith('#live-tv')) {
-             NavigationManager.restoreFocus(routeKey, '#live-search-input');
+             NavigationManager.restoreFocus(routeKey, '#live-channel-grid .live-card');
         } else if (hash.startsWith('#details')) {
              NavigationManager.restoreFocus(routeKey, '#play-btn');
         } else if (hash.startsWith('#links')) {

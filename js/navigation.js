@@ -1,4 +1,4 @@
-import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=139';
+import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=140';
 
 const FOCUSABLE_SELECTOR = [
     'button',
@@ -28,6 +28,9 @@ const SCROLL_CONTAINER_SELECTOR = [
 ].join(', ');
 
 const HORIZONTAL_GROUP_SELECTOR = [
+    '.live-tabs',
+    '.live-toolbar',
+    '.live-categories',
     '.row-posters',
     '.content-grid',
     '#episode-list',
@@ -148,7 +151,7 @@ function handleGridFooterNavigation(active, direction) {
 function handleGridNavigation(active, direction) {
     if (handleGridFooterNavigation(active, direction)) return true;
 
-    const grid = active.closest('.grid');
+    const grid = active.closest('.grid, .live-grid');
     if (!grid) return false;
 
     const result = findGridTarget(getFocusableItems(grid), active, direction);

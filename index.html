@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tellyvo</title>
     <!-- Serverless OTA Distribution Metadata arrays -->
-    <meta name="apk-version" content="139">
+    <meta name="apk-version" content="140">
     <meta name="apk-download-url" content="/api/ota/download">
     <!-- PWA / Web App Manifest Data -->
     <link rel="manifest" href="/manifest.json">
@@ -16,8 +16,8 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=139">
-    <link rel="stylesheet" href="tellyvo.css?v=139">
+    <link rel="stylesheet" href="styles.css?v=140">
+    <link rel="stylesheet" href="tellyvo.css?v=140">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -133,17 +133,21 @@
         <section id="view-live-tv" class="view hidden" aria-labelledby="live-tv-title">
             <header class="live-heading">
                 <div>
-                    <div class="live-kicker">Free channels and live sports</div>
+                    <div class="live-kicker">Free direct streams</div>
                     <h1 class="live-title" id="live-tv-title">Live TV</h1>
                 </div>
-                <div class="live-tabs" role="tablist" aria-label="Live TV views">
-                    <button id="live-channels-tab" class="btn-secondary live-tab active" role="tab" aria-selected="true" tabindex="0">Channels</button>
-                    <button id="live-guide-tab" class="btn-secondary live-tab" role="tab" aria-selected="false" tabindex="0">Guide</button>
+                <div class="live-heading-actions">
+                    <span id="live-channel-count" class="live-channel-count" aria-live="polite">Loading</span>
+                    <div class="live-tabs" role="tablist" aria-label="Live TV views">
+                        <button id="live-channels-tab" class="btn-secondary live-tab active" role="tab" aria-selected="true" tabindex="0"><i class="fa-solid fa-border-all"></i> Channels</button>
+                        <button id="live-guide-tab" class="btn-secondary live-tab" role="tab" aria-selected="false" tabindex="0"><i class="fa-solid fa-list"></i> Guide</button>
+                    </div>
                 </div>
             </header>
             <div class="live-toolbar">
                 <label class="sr-only" for="live-search-input">Search live channels</label>
-                <input id="live-search-input" class="live-search" type="search" placeholder="Search channels..." autocomplete="off" tabindex="0">
+                <i class="fa-solid fa-magnifying-glass live-search-icon" aria-hidden="true"></i>
+                <input id="live-search-input" class="live-search" type="search" placeholder="Search channels or programs" autocomplete="off" tabindex="0">
                 <button id="live-refresh-btn" class="btn-secondary" tabindex="0"><i class="fa-solid fa-rotate"></i> Refresh</button>
             </div>
             <div id="live-categories" class="live-categories" aria-label="Channel categories"></div>
@@ -151,11 +155,14 @@
                 <aside class="live-preview" aria-label="Now playing">
                     <div class="live-video-wrap">
                         <video id="live-video" playsinline controls></video>
-                        <div id="live-video-empty" class="live-video-empty"><div><i class="fa-solid fa-tower-broadcast"></i><strong>Choose a channel</strong><br>Live playback will start here.</div></div>
+                        <img id="live-preview-logo" class="live-preview-logo hidden" alt="">
+                        <div id="live-video-empty" class="live-video-empty"><div><i class="fa-solid fa-tower-broadcast"></i><strong>Choose a channel</strong><span>Move through the channel cards, then press Select to watch.</span></div></div>
                     </div>
                     <div class="live-now">
                         <h2 id="live-now-title">Live television</h2>
-                        <p id="live-now-meta">Select any channel to begin watching. Tellyvo will try available backup signals automatically.</p>
+                        <p id="live-now-meta">Direct web-compatible channels with native playback on Android TV and Fire TV.</p>
+                        <p id="live-now-next" class="live-now-next">Select a channel to see what is playing.</p>
+                        <div class="live-remote-hint"><span><i class="fa-solid fa-circle-dot"></i> Select to watch</span><span><i class="fa-solid fa-arrow-left"></i> Back to return</span></div>
                     </div>
                 </aside>
                 <div>
@@ -244,7 +251,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v139.0</span>
+                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v140.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -375,7 +382,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=139"></script>
+    <script type="module" src="js/app.js?v=140"></script>
 </body>
 
 </html>

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
 import { createIntroMarkerResolver } from './intro-markers.js';
+import { buildLiveChannelCatalog } from './live-tv-catalog.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,10 +24,14 @@ const APP_VERSION = (() => {
 const APP_BUILD = Number.parseInt(APP_VERSION, 10) || 0;
 const introMarkerResolver = createIntroMarkerResolver();
 const EPG_GUIDES_URL = 'https://iptv-org.github.io/api/guides.json';
+const LIVE_CHANNELS_URL = 'https://iptv-org.github.io/api/channels.json';
+const LIVE_STREAMS_URL = 'https://iptv-org.github.io/api/streams.json';
+const LIVE_LOGOS_URL = 'https://iptv-org.github.io/api/logos.json';
 const EPG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const EPG_STALE_TTL_MS = 24 * 60 * 60 * 1000;
 const epgResponseCache = new Map();
 let epgGuideCatalogCache = null;
+let liveChannelCatalogCache = null;
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[Ghost Thread] Blocked rogue unhandled rejection:', reason?.message || reason);
@@ -525,6 +530,7 @@ app.get('/api/health', (req, res) => {
         providerApi: true,
         introMarkers: true,
         liveTvGuide: true,
+        liveTvChannels: true,
         uptimeSeconds: Math.floor(process.uptime())
     });
 });
@@ -629,6 +635,106 @@ async function getEpgGuideCatalog() {
     epgGuideCatalogCache = { guides: Array.isArray(guides) ? guides : [], loadedAt: Date.now() };
     return epgGuideCatalogCache.guides;
 }
+
+async function probeWebManifest(url, timeoutMs = 3_500) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const testOrigin = 'https://tellyvo.app';
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*',
+                Origin: testOrigin,
+                Range: 'bytes=0-2047',
+                'User-Agent': `Tellyvo/${APP_BUILD} web playback verifier`
+            }
+        });
+        const cors = response.headers.get('access-control-allow-origin') || '';
+        const contentType = response.headers.get('content-type') || '';
+        const corsAllowed = cors === '*' || cors === testOrigin;
+        const manifestResponse = /mpegurl|application\/octet-stream|text\/plain/i.test(contentType) || /\.m3u8(?:[?#]|$)/i.test(response.url);
+        await response.body?.cancel().catch(() => {});
+        return response.ok && corsAllowed && manifestResponse;
+    } catch (error) {
+        return false;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function verifyWebPlayableChannels(catalog, targetCount = 48) {
+    const verified = [];
+    const batchSize = 20;
+    for (let offset = 0; offset < catalog.length && verified.length < targetCount; offset += batchSize) {
+        const batch = catalog.slice(offset, offset + batchSize);
+        const results = await Promise.all(batch.map(async channel => {
+            const streams = [];
+            for (const stream of channel.streams) {
+                if (await probeWebManifest(stream.url)) streams.push(stream);
+                if (streams.length >= 2) break;
+            }
+            return streams.length ? { ...channel, streams, webVerified: true } : null;
+        }));
+        verified.push(...results.filter(Boolean));
+    }
+    return verified.slice(0, targetCount);
+}
+
+async function getLiveChannelCatalog({ country = 'US' } = {}) {
+    const cacheMatches = liveChannelCatalogCache?.country === country;
+    if (cacheMatches && Date.now() - liveChannelCatalogCache.loadedAt < EPG_CACHE_TTL_MS) {
+        return { ...liveChannelCatalogCache, stale: false, cached: true };
+    }
+
+    try {
+        const [channels, streams, logos] = await Promise.all([
+            fetchWithTimeout(LIVE_CHANNELS_URL, 20_000).then(response => response.json()),
+            fetchWithTimeout(LIVE_STREAMS_URL, 20_000).then(response => response.json()),
+            fetchWithTimeout(LIVE_LOGOS_URL, 20_000).then(response => response.json())
+        ]);
+        const candidates = buildLiveChannelCatalog({ channels, streams, logos }, { country, limit: 200 });
+        const catalog = await verifyWebPlayableChannels(candidates, 48);
+        if (!catalog.length) throw new Error('No web-playable live manifests passed verification');
+        liveChannelCatalogCache = {
+            country,
+            channels: catalog,
+            loadedAt: Date.now(),
+            lastUpdated: new Date().toISOString()
+        };
+        return { ...liveChannelCatalogCache, stale: false, cached: false };
+    } catch (error) {
+        if (cacheMatches && Date.now() - liveChannelCatalogCache.loadedAt < EPG_STALE_TTL_MS) {
+            return { ...liveChannelCatalogCache, stale: true, cached: true, warning: error.message };
+        }
+        throw error;
+    }
+}
+
+app.get('/api/live-tv/channels', async (req, res) => {
+    const country = String(req.query.country || 'US').trim().toUpperCase();
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 120));
+    if (!/^[A-Z]{2}$/.test(country)) {
+        return res.status(400).json({ success: false, error: 'Country must be a two-letter code' });
+    }
+
+    try {
+        const result = await getLiveChannelCatalog({ country });
+        return res.json({
+            success: true,
+            source: 'iptv-org public direct streams',
+            generatedAt: new Date().toISOString(),
+            lastUpdated: result.lastUpdated,
+            stale: result.stale,
+            cached: result.cached,
+            channels: result.channels.slice(0, limit),
+            warning: result.warning || ''
+        });
+    } catch (error) {
+        console.warn('[Live TV] Channel catalog unavailable:', error.message);
+        return res.status(503).json({ success: false, error: 'The direct channel catalog is temporarily unavailable' });
+    }
+});
 
 app.get('/api/live-tv/guide', async (req, res) => {
     const channelIds = [...new Set(String(req.query.channelIds || '').split(',').map(value => value.trim()).filter(Boolean))].slice(0, 100);
