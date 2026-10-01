@@ -27,6 +27,7 @@ const EPG_GUIDES_URL = 'https://iptv-org.github.io/api/guides.json';
 const LIVE_CHANNELS_URL = 'https://iptv-org.github.io/api/channels.json';
 const LIVE_STREAMS_URL = 'https://iptv-org.github.io/api/streams.json';
 const LIVE_LOGOS_URL = 'https://iptv-org.github.io/api/logos.json';
+const LIVE_WEB_ORIGIN = process.env.TELLYVO_WEB_ORIGIN || 'https://streamy-vez5.onrender.com';
 const EPG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const EPG_STALE_TTL_MS = 24 * 60 * 60 * 1000;
 const epgResponseCache = new Map();
@@ -639,7 +640,7 @@ async function getEpgGuideCatalog() {
 async function probeWebManifest(url, timeoutMs = 3_500) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    const testOrigin = 'https://tellyvo.app';
+    const testOrigin = LIVE_WEB_ORIGIN;
     try {
         const response = await fetch(url, {
             signal: controller.signal,
