@@ -85,3 +85,7 @@ Included preset patterns:
 `STREMIO_ADDON_URLS` or `STREAMOS_STREMIO_ADDONS`
 
 Comma-separated or newline-separated Stremio addon base URLs or `manifest.json` URLs. StreamOS calls `/stream/{type}/{id}.json` and normalizes direct `url`, `file`, `hls`, or `playlistUrl` stream entries.
+
+## Embed replacement check (2026-10-29)
+
+AutoEmbed.pro is retired and filtered from client/backend results. MovieTV API uses documented `/embed/movie/{tmdb}` and `/embed/tv/{tmdb}/{season}/{episode}` routes (https://movietvapi.stream/docs). Desktop Chrome playback advanced for movie 550 and TV 1399 S1E1. This is a spot check, not an uptime or Fire TV compatibility guarantee. Existing Vidlink preference is preserved.

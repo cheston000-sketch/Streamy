@@ -455,6 +455,14 @@ function buildFallbackLinks({ tmdb, type, season = 1, episode = 1 }, includeExtr
 
     links.push(
         {
+            server: 'MovieTV API',
+            url: isTv
+                ? `https://movietvapi.stream/embed/tv/${tmdb}/${season}/${episode}`
+                : `https://movietvapi.stream/embed/movie/${tmdb}`,
+            type: 'iframe',
+            providerTier: 'bee-compat'
+        },
+        {
             server: 'Vidsrc.me',
             url: isTv
                 ? `https://vidsrc.me/embed/tv?tmdb=${tmdb}&season=${season}&episode=${episode}`
@@ -490,7 +498,10 @@ function dedupeLinks(links = []) {
 }
 
 function excludeRetiredSources(links = []) {
-    return links.filter(link => !`${link?.server || ''} ${link?.url || ''} ${link?.providerTier || ''}`.toLowerCase().includes('videasy'));
+    return links.filter(link => {
+        const source = `${link?.server || ''} ${link?.url || ''} ${link?.providerTier || ''}`.toLowerCase();
+        return !source.includes('videasy') && !/(?:https?:\/\/)?(?:[^/\s]+\.)?autoembed\.pro(?:[/:?#\s]|$)/i.test(source);
+    });
 }
 
 function buildProviderStatus(directLinkCount, warnings = [], elapsedMs = 0) {

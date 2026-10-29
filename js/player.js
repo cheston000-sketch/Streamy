@@ -1,7 +1,7 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=142';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=142';
-import { navigateTo, navigateBack } from './router.js?v=142';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=142';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=143';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=143';
+import { navigateTo, navigateBack } from './router.js?v=143';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=143';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -615,16 +615,16 @@ function isVidlinkSource(link) {
     return source.includes('vidlink');
 }
 
-function isVideasySource(link) {
+function isRetiredSource(link) {
     const source = `${link?.server || ''} ${link?.url || ''} ${link?.providerTier || ''}`.toLowerCase();
-    return source.includes('videasy');
+    return source.includes('videasy') || /(?:https?:\/\/)?(?:[^/\s]+\.)?autoembed\.pro(?:[/:?#\s]|$)/i.test(source);
 }
 
 function isTrustedEmbedSource(link) {
     const source = `${link?.server || ''} ${link?.url || ''}`.toLowerCase();
     return [
         'vidlink',
-        'autoembed',
+        'movietvapi.stream',
         'vidrock',
         'vsembed',
         'cinemaos',
@@ -634,7 +634,7 @@ function isTrustedEmbedSource(link) {
 
 function filterLinksForPlaybackSettings(links = []) {
     const settings = getPlaybackSettings();
-    const availableLinks = links.filter(link => !isVideasySource(link));
+    const availableLinks = links.filter(link => !isRetiredSource(link));
     if (settings.sourcePreference === 'vidlink') {
         return availableLinks.filter(isVidlinkSource);
     }
@@ -1139,7 +1139,8 @@ function getIframeHostPriority(link) {
     const server = (link?.server || '').toLowerCase();
     const source = `${server} ${url}`;
     if (source.includes('vidlink')) return 0;
-    if (source.includes('vidbinge')) return 1;
+    if (source.includes('movietvapi.stream')) return 1;
+    if (source.includes('vidbinge')) return 2;
     if (source.includes('vidsrc.me')) return 2;
     if (source.includes('vidsrc.net')) return 3;
     if (source.includes('multiembed')) return 4;
@@ -1168,10 +1169,10 @@ function getFallbackStreamLinks(movie, season = 1, episode = 1) {
             providerTier: 'vidlink'
         },
         {
-            server: 'AutoEmbed',
+            server: 'MovieTV API',
             url: isTv
-                ? `https://autoembed.pro/embed/tv/${tmdbId}/${season}/${episode}`
-                : `https://autoembed.pro/embed/movie/${imdbId || tmdbId}`,
+                ? `https://movietvapi.stream/embed/tv/${tmdbId}/${season}/${episode}`
+                : `https://movietvapi.stream/embed/movie/${tmdbId}`,
             type: 'iframe',
             providerTier: 'bee-compat'
         },
