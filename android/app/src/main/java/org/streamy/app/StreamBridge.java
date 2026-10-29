@@ -31,6 +31,14 @@ public class StreamBridge {
         return true;
     }
 
+    @JavascriptInterface
+    public String getSourceHealth(String key) {
+        return SourceHealthStore.get(context, key == null ? "" : key);
+    }
+
+    @JavascriptInterface
+    public void clearSourceHealth() { SourceHealthStore.clear(context); }
+
     /** Returns the version installed by Android rather than a web-bundle constant. */
     @JavascriptInterface
     public long getInstalledVersionCode() {

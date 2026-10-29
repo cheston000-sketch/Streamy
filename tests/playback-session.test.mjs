@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from '../www/js/source-policy.js';
 import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from '../www/js/playback-optimization.js';
 
 // Run the actual player module with small browser/bridge substitutes, so source
@@ -45,7 +46,7 @@ class FakeHls {
 }
 const context = vm.createContext({
     console, Event, URL, Hls: FakeHls,
-    normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback,
+    normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback, refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty,
     DOM: { videoPlayer: video, autoplayOverlay: { classList }, playerNextEpBtn: { classList } },
     document: { getElementById() { return null; } },
     localStorage: {
@@ -114,5 +115,23 @@ listeners.get('streamy-stop-web-playback')();
 assert.equal(run('getSavedPlaybackPositionMs()'), 95000, 'empty route cleanup must not erase saved progress');
 second.emit(FakeHls.Events.MANIFEST_PARSED);
 assert.equal(video.paused, true, 'late manifest callback cannot restart playback after leaving');
+
+// Actual browser events only count a source once playback begins, and a fatal
+// error switches once while preserving the live position.
+run("currentPlaybackLinks = [{server:'First',url:'https://first.example/a.m3u8',type:'hls'},{server:'Second',url:'https://second.example/b.m3u8',type:'hls'}]");
+run('currentPlaybackSourceIndex = -1; sourceHandoffPositionMs = null; playSourceAt(0)');
+const failedHls = FakeHls.instances.at(-1);
+failedHls.emit(FakeHls.Events.MANIFEST_PARSED);
+assert.equal(run("getSourceHealth(currentPlaybackLinks[0]).successes || 0"), 0, 'manifest alone is not playback');
+video.onplaying();
+assert.equal(run("getSourceHealth(currentPlaybackLinks[0]).successes"), 1);
+video.currentTime = 12;
+failedHls.emit(FakeHls.Events.ERROR, {fatal:true,type:'network'});
+assert.equal(run('currentPlaybackSourceIndex'), 1);
+assert.equal(run("getSourceHealth(currentPlaybackLinks[0]).failures"), 1, 'one error must be counted once');
+const recoveryHls = FakeHls.instances.at(-1);
+recoveryHls.emit(FakeHls.Events.MANIFEST_PARSED);
+assert.equal(video.currentTime, 12, 'short playback positions survive failover');
+listeners.get('streamy-stop-web-playback')();
 
 console.log('Playback settings, native metadata, and browser lifecycle tests passed.');

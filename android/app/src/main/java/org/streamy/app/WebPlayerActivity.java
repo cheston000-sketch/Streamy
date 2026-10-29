@@ -62,6 +62,7 @@ public class WebPlayerActivity extends AppCompatActivity {
     private String playbackMetadataJson;
     private int sourceIndex;
     private String playbackTitle;
+    private boolean mainFrameFailed;
     private final Runnable noMediaFailoverRunnable = new Runnable() {
         @Override
         public void run() {
@@ -221,6 +222,16 @@ public class WebPlayerActivity extends AppCompatActivity {
                     }
                 }
                 return super.shouldInterceptRequest(view, request);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (!request.isForMainFrame() || launchedNativePlayer || mainFrameFailed) return;
+                mainFrameFailed = true;
+                String reason = "Embedded player network error " + error.getErrorCode();
+                SourceHealthStore.record(WebPlayerActivity.this, getSourceAt(sourceIndex), "failed", 0, reason);
+                tryLaunchNextSource(reason);
             }
 
             @Override
@@ -668,11 +679,9 @@ public class WebPlayerActivity extends AppCompatActivity {
     }
 
     private void scheduleNoMediaFailover() {
-        if (webView == null) {
-            return;
-        }
-        webView.removeCallbacks(noMediaFailoverRunnable);
-        webView.postDelayed(noMediaFailoverRunnable, 15000L);
+        // Embedded pages may play without exposing media requests. Only a real
+        // main-frame or native playback error warrants automatic failover.
+        if (webView != null) webView.removeCallbacks(noMediaFailoverRunnable);
     }
 
     private JSONObject getSourceAt(int index) {
@@ -716,6 +725,7 @@ public class WebPlayerActivity extends AppCompatActivity {
 
             Log.i(TAG, "Failing over to source " + index + " (" + server + ") because " + reason);
             sourceIndex = index;
+            mainFrameFailed = false;
             promotedIframeUrl = null;
             hideCustomView();
 

@@ -59,6 +59,13 @@ try {
     assert.equal(Object.hasOwn(health, 'liveTvChannels'), false);
     assert.equal(Object.hasOwn(health, 'liveTvGuide'), false);
 
+    const registryResponse = await fetch(baseUrl + '/api/source-registry');
+    assert.equal(registryResponse.status, 200);
+    const registry = await registryResponse.json();
+    assert.equal(registry.schemaVersion, 1);
+    assert.ok(registry.providers.some(p => p.id === 'movietv' && p.enabled));
+    assert.ok(registry.disabledHosts.includes('autoembed.pro'));
+
     const providersResponse = await fetch(`${baseUrl}/api/providers`);
     assert.equal(providersResponse.status, 200);
     const providerInfo = await providersResponse.json();

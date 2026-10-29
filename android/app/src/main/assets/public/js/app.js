@@ -1,9 +1,9 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem } from './ui.js?v=120';
-import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=120';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=120';
-import { setupRouter, navigateTo } from './router.js?v=123';
-import { NavigationManager } from './navigation.js?v=123';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=120';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=144';
+import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=144';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=144';
+import { setupRouter, navigateTo, navigateBack } from './router.js?v=144';
+import { NavigationManager } from './navigation.js?v=144';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=144';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -15,7 +15,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 123;
+const PACKAGED_APP_VERSION = 144;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
@@ -110,21 +110,6 @@ async function checkForUpdatesBackground({ force = false } = {}) {
     return updateCheckInFlight;
 }
 
-function refreshInstallPermission() {
-    const row = document.getElementById('install-permission-row');
-    if (!row) return;
-    row.classList.toggle('hidden', !isNativeAppRuntime());
-    if (!isNativeAppRuntime()) return;
-    const allowed = globalThis.NativeBridge?.canInstallUpdates?.() === true;
-    const status = document.getElementById('install-permission-status');
-    const button = document.getElementById('setting-install-permission');
-    status.textContent = allowed
-        ? 'Updates are enabled. Vela downloads updates and opens the Fire TV installer for confirmation.'
-        : 'Allow Vela to install updates, then confirm each installation in the Fire TV prompt.';
-    button.textContent = allowed ? 'Updates enabled' : 'Enable update installation';
-    button.disabled = allowed;
-}
-
 function setUpdateStatus(message, state = 'ready') {
     const status = document.getElementById('required-update-status');
     const updateButton = document.getElementById('required-update-install');
@@ -141,7 +126,7 @@ function setUpdateStatus(message, state = 'ready') {
 
 function startRequiredUpdate() {
     if (!requiredUpdate) return;
-    setUpdateStatus('Downloading the update. Please keep Vela open.', 'downloading');
+    setUpdateStatus('Downloading the verified update. Please keep Tellyvo open.', 'downloading');
 
     if (globalThis.NativeBridge?.downloadRequiredUpdate) {
         globalThis.NativeBridge.downloadRequiredUpdate(requiredUpdate.url, String(requiredUpdate.version));
@@ -149,7 +134,7 @@ function startRequiredUpdate() {
         globalThis.NativeBridge.downloadUpdate(requiredUpdate.url);
     } else {
         globalThis.open(requiredUpdate.url, '_blank');
-        setUpdateStatus('Install the update, then reopen Vela.', 'installing');
+        setUpdateStatus('Install the update, then reopen Tellyvo.', 'installing');
     }
 }
 
@@ -187,7 +172,7 @@ function showRequiredUpdate(newVersionKey, downloadUrl) {
             <div class="required-update-card">
                 <div class="required-update-mark"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
                 <p class="required-update-kicker">Required update</p>
-                <h1 id="required-update-title">A new Vela is ready</h1>
+                <h1 id="required-update-title">A newer Tellyvo is ready</h1>
                 <p class="required-update-copy">Update to continue using movies, TV shows, profiles, and playback.</p>
                 <p id="required-update-version" class="required-update-version"></p>
                 <p id="required-update-status" class="required-update-status" aria-live="polite">Choose Update now to begin.</p>
@@ -217,7 +202,6 @@ function showRequiredUpdate(newVersionKey, downloadUrl) {
 
 globalThis.StreamOSUpdate = {
     isRequired: () => isNativeAppRuntime() && !!requiredUpdate,
-    onInstallPermissionChanged: refreshInstallPermission,
     onDownloadState(state, message) {
         const normalizedState = String(state || 'ready');
         setUpdateStatus(message || 'Update status changed.', normalizedState);
@@ -366,7 +350,16 @@ function focusFirstRowCard(renderToken = activeRowsRenderToken) {
     setTimeout(() => {
         if (renderToken !== activeRowsRenderToken) return;
         if (focusedRowsRenderToken === renderToken) return;
-        if (!isRowsRoute() || !shouldMoveFocusIntoRows()) return;
+        if (!isRowsRoute()) return;
+
+        const routeKey = globalThis.location.hash || '#home';
+        if (NavigationManager.restoreFocus(routeKey)) {
+            focusedRowsRenderToken = renderToken;
+            forceInitialFireTvPaint();
+            return;
+        }
+
+        if (!shouldMoveFocusIntoRows()) return;
 
         const firstCard = DOM.rowsContainer?.querySelector('.poster-card');
         if (firstCard) {
@@ -407,14 +400,6 @@ function showProfilesScreen({ editing = false, focusFirst = true } = {}) {
     }
 }
 
-globalThis.StreamOSProfiles = {
-    showStartup() {
-        activeProfile = null;
-        DOM.profileSelectionScreen.dataset.selectionRequired = 'true';
-        showProfilesScreen();
-    }
-};
-
 function initProfiles() {
     let profiles = getProfiles();
     
@@ -446,39 +431,18 @@ function initProfiles() {
     // Always render for the switcher even if we don't show the screen yet
     renderProfilesScreen(profiles, activeIndex);
 
-    // Remember the profile's data, but require a choice on each new launch.
-    activeProfile = null;
-    DOM.profileSelectionScreen.dataset.selectionRequired = 'true';
+    // If we have an active profile, stay in the main app
+    if (activeProfile) {
+        selectProfile(activeProfile, true); // true = silent init
+        return true; 
+    } 
+    
+    // Otherwise, show the selection screen
     showProfilesScreen({ editing: false, focusFirst: true });
     return false;
 }
     
 function initProfileBindings() {
-    // Fire TV can emit Enter without the browser's synthetic button click.
-    // Capture it once so profile cards and action buttons behave identically.
-    [DOM.profileSelectionScreen, DOM.profileEditModal].forEach(root => {
-        let lastFocusedControl = null;
-        root.addEventListener('focusin', event => {
-            if (event.target.matches('button, input')) {
-                lastFocusedControl = event.target;
-            } else if (event.target === root) {
-                // Fire OS may focus the scroll panel when the WebView gains focus.
-                const target = lastFocusedControl?.isConnected && !lastFocusedControl.disabled
-                    && lastFocusedControl.offsetParent !== null
-                    ? lastFocusedControl : root.querySelector('button:not(:disabled), input:not(:disabled)');
-                target?.focus();
-            }
-        });
-        root.addEventListener('keydown', event => {
-            if (!['Enter', ' ', 'Spacebar', 'Accept'].includes(event.key)) return;
-            const control = event.target.closest?.('button, input[type="checkbox"]');
-            if (!control || control.disabled) return;
-            event.preventDefault();
-            event.stopPropagation();
-            if (!event.repeat) control.click();
-        }, true);
-    });
-
     DOM.editProfilesBtn.onclick = () => setProfilesEditing(!DOM.profilesGrid.classList.contains('edit-mode'));
 
     DOM.addProfileBtn.onclick = () => openProfileModal(null);
@@ -492,7 +456,7 @@ function initProfileBindings() {
     const versionEl = document.getElementById('setting-build-version');
     if (versionEl) {
         versionEl.innerText = isNativeAppRuntime()
-            ? `${getInstalledAppVersion()}.0`
+            ? `${getInstalledAppVersion()}.0 (GLOBAL SYNC SUCCESS)`
             : 'Web app';
     }
     
@@ -508,14 +472,12 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         card.tabIndex = 0;
         card.style.background = 'transparent'; card.style.border = 'none'; card.style.color = 'white';
         
-        const avatarIcons = { '1': 'fa-user-astronaut', '2': 'fa-ghost', '3': 'fa-robot' };
-        const svgContent = `<i class="fa-solid ${avatarIcons[p.avatar] || 'fa-user-astronaut'}" aria-hidden="true"></i>`;
+        const svgContent = `<i class="fa-solid fa-user"></i>`;
         
         card.innerHTML = `
             <div class="profile-avatar">${svgContent}${p.isKid ? '<span class="kid-badge">KIDS</span>' : ''}</div>
-            <div class="profile-name"></div>
+            <div style="font-size: 1.5rem; font-weight: bold; text-shadow: 1px 1px 3px black;">${p.name}</div>
         `;
-        card.querySelector('.profile-name').textContent = p.name;
         
         card.onclick = () => {
             if (isEditing) openProfileModal(p);
@@ -547,26 +509,12 @@ function openProfileModal(profile) {
     // Ensure "Manage Profiles" from settings is visible
     DOM.settingManageProfiles.style.display = 'flex';
     
-    let selectedAvatar = ['1', '2', '3'].includes(String(profile?.avatar)) ? String(profile.avatar) : '1';
+    // Simulate Avatar Selection Grid
     DOM.avatarSelectionGrid.innerHTML = `
-        <button class="nav-tab" data-avatar="1" aria-label="Astronaut avatar" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-user-astronaut"></i></button>
-        <button class="nav-tab" data-avatar="2" aria-label="Ghost avatar" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-ghost"></i></button>
-        <button class="nav-tab" data-avatar="3" aria-label="Robot avatar" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-robot"></i></button>
+        <button class="nav-tab active" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-user"></i></button>
+        <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-ghost"></i></button>
+        <button class="nav-tab" style="font-size:3rem; padding:10px;"><i class="fa-solid fa-robot"></i></button>
     `;
-    const updateAvatarSelection = () => {
-        DOM.avatarSelectionGrid.querySelectorAll('button').forEach(button => {
-            const selected = button.dataset.avatar === selectedAvatar;
-            button.classList.toggle('active', selected);
-            button.setAttribute('aria-pressed', String(selected));
-        });
-    };
-    DOM.avatarSelectionGrid.querySelectorAll('button').forEach(button => {
-        button.onclick = () => {
-            selectedAvatar = button.dataset.avatar;
-            updateAvatarSelection();
-        };
-    });
-    updateAvatarSelection();
 
     DOM.saveProfileBtn.onclick = () => {
         if (!DOM.profileNameInput.value.trim()) return;
@@ -576,14 +524,13 @@ function openProfileModal(profile) {
             if (index > -1) {
                 profiles[index].name = DOM.profileNameInput.value.trim();
                 profiles[index].isKid = DOM.profileKidCheckbox.checked;
-                profiles[index].avatar = selectedAvatar;
             }
         } else {
-            profiles.push({ id: Date.now().toString(), name: DOM.profileNameInput.value.trim(), avatar: selectedAvatar, isKid: DOM.profileKidCheckbox.checked });
+            profiles.push({ id: Date.now().toString(), name: DOM.profileNameInput.value.trim(), avatar: '1', isKid: DOM.profileKidCheckbox.checked });
         }
         saveProfiles(profiles);
         DOM.profileEditModal.classList.add('hidden');
-        setProfilesEditing(true);
+        renderProfilesScreen(profiles, -1, true);
         NavigationManager.lockFocus('#profile-selection-screen');
         setTimeout(() => DOM.profilesGrid.lastElementChild?.focus(), 120);
     };
@@ -603,7 +550,7 @@ function openProfileModal(profile) {
         }
         saveProfiles(profiles);
         DOM.profileEditModal.classList.add('hidden');
-        setProfilesEditing(true);
+        renderProfilesScreen(profiles, -1, true);
         NavigationManager.lockFocus('#profile-selection-screen');
         setTimeout(() => DOM.profilesGrid.firstElementChild?.focus(), 120);
     };
@@ -622,9 +569,16 @@ function openProfileModal(profile) {
 
 function selectProfile(profile, silent = false) {
     activeProfile = profile;
-    DOM.profileSelectionScreen.dataset.selectionRequired = 'false';
     globalThis.localStorage.setItem('streamy_active_profile', profile.id);
     DOM.currentProfileName.textContent = profile.name;
+
+    if (profile.isKid) {
+        globalThis.TellyvoHeroSelection = null;
+        DOM.heroBanner.style.backgroundImage = 'none';
+        DOM.heroTitle.textContent = 'Kids on Tellyvo';
+        DOM.heroMeta.textContent = 'CHILD-RATED TITLES ONLY';
+        DOM.heroDesc.textContent = 'Only titles with an approved US children’s rating appear in this profile.';
+    }
     
     DOM.profileSelectionScreen.classList.add('hidden');
     DOM.mainContent.classList.remove('hidden');
@@ -632,7 +586,7 @@ function selectProfile(profile, silent = false) {
     
     DOM.genreFilter.classList.remove('hidden');
     DOM.genreFilter.value = '';
-    
+
     if (!silent) {
         navigateTo('#home');
     }
@@ -648,7 +602,8 @@ async function getBecauseYouWatchedItems(type) {
         history = [];
     }
 
-    const seeds = history
+    const ratedHistory = await filterItemsForActiveProfile(history, type);
+    const seeds = ratedHistory
         .filter(item => item && item.id && (item.type || 'movie') === type)
         .slice(0, 3);
 
@@ -671,13 +626,55 @@ async function getBecauseYouWatchedItems(type) {
 }
 
 // Data Fetching and Rows Array
+async function loadHomeRows() {
+    const renderToken = ++activeRowsRenderToken;
+    DOM.rowsContainer.innerHTML = '<div class="grid-state">Preparing your Tellyvo home...</div>';
+    const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
+    const storedHistory = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]')
+        .filter(item => !isCompletedHistoryItem(item));
+    const [history, trendingMovies, recentMovies, popularShows] = await Promise.all([
+        filterItemsForActiveProfile(storedHistory),
+        discoverByCategory('movie', 'trending', 1),
+        discoverByCategory('movie', 'now_playing', 1),
+        discoverByCategory('tv', 'popular', 1)
+    ]);
+    if (renderToken !== activeRowsRenderToken) return;
+
+    if (activeProfile?.isKid) {
+        const safeHeroSource = history[0] || trendingMovies[0] || recentMovies[0] || popularShows[0];
+        if (safeHeroSource) {
+            const fallbackType = popularShows.includes(safeHeroSource) ? 'tv' : 'movie';
+            updateHeroBanner(normalizeItem(safeHeroSource, fallbackType));
+        }
+    }
+
+    DOM.rowsContainer.innerHTML = '';
+    if (history.length) {
+        buildRow({ title: 'Continue Watching', items: history.slice(0, 18), isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
+    }
+    if (trendingMovies.length) {
+        buildRow({ title: 'Trending Now', items: trendingMovies, typeFallback: 'movie', isFirstRow: !history.length, categoryVal: 'trending', onCardClick: openDetails, onViewAllClick: openCategoryView });
+    }
+    if (recentMovies.length) {
+        buildRow({ title: 'Recently Added', items: recentMovies, typeFallback: 'movie', categoryVal: 'now_playing', onCardClick: openDetails, onViewAllClick: openCategoryView });
+    }
+    if (popularShows.length) {
+        buildRow({ title: 'Popular Series', items: popularShows, typeFallback: 'tv', categoryVal: 'popular', onCardClick: openDetails, onViewAllClick: openCategoryView });
+    }
+    focusFirstRowCard(renderToken);
+}
+
 async function loadMovieRows() {
     const renderToken = ++activeRowsRenderToken;
     DOM.rowsContainer.innerHTML = '';
     // Fetch History first
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
-    const movieHistory = hList.filter(item => (item?.type || 'movie') === 'movie' && !isCompletedHistoryItem(item));
+    const movieHistory = await filterItemsForActiveProfile(
+        hList.filter(item => (item?.type || 'movie') === 'movie' && !isCompletedHistoryItem(item)),
+        'movie'
+    );
+    if (renderToken !== activeRowsRenderToken) return;
     if(movieHistory.length > 0) {
         buildRow({ title: 'Continue Watching', items: movieHistory, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
         focusFirstRowCard(renderToken);
@@ -720,7 +717,11 @@ async function loadTVRows() {
     DOM.rowsContainer.innerHTML = '';
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
     let hList = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
-    const tvHistory = hList.filter(item => (item?.type || 'movie') === 'tv' && !isCompletedHistoryItem(item));
+    const tvHistory = await filterItemsForActiveProfile(
+        hList.filter(item => (item?.type || 'movie') === 'tv' && !isCompletedHistoryItem(item)),
+        'tv'
+    );
+    if (renderToken !== activeRowsRenderToken) return;
     if(tvHistory.length > 0) {
         buildRow({ title: 'Continue Watching', items: tvHistory, isWatchlistDict: true, typeFallback: 'tv', isFirstRow: true, onCardClick: openDetails });
         focusFirstRowCard(renderToken);
@@ -755,16 +756,31 @@ async function loadTVRows() {
     }
 }
 
-function loadWatchlist() {
+async function loadWatchlist() {
     const renderToken = ++activeRowsRenderToken;
     DOM.rowsContainer.innerHTML = '';
-    const list = getWatchlistItems();
-    if(list.length > 0) {
-        buildRow({ title: 'My Watchlist', items: list, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, categoryVal: 'watchlist', onCardClick: openDetails });
-        focusFirstRowCard(renderToken);
-    } else {
-        DOM.rowsContainer.innerHTML = '<h2 style="padding: 100px; text-align:center; color:#555;">No Titles in Watchlist</h2>';
+    const storedList = getWatchlistItems();
+    const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
+    const storedHistory = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]');
+    const [list, history] = await Promise.all([
+        filterItemsForActiveProfile(storedList),
+        filterItemsForActiveProfile(storedHistory)
+    ]);
+    if (renderToken !== activeRowsRenderToken) return;
+    const continueWatching = history.filter(item => !isCompletedHistoryItem(item));
+    if (continueWatching.length > 0) {
+        buildRow({ title: 'Continue Watching', items: continueWatching, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
     }
+    if(list.length > 0) {
+        buildRow({ title: 'My List', items: list, isWatchlistDict: true, typeFallback: 'movie', isFirstRow: !continueWatching.length, categoryVal: 'watchlist', onCardClick: openDetails });
+    }
+    if (history.length > 0) {
+        buildRow({ title: 'Watch History', items: history.slice(0, 30), isWatchlistDict: true, typeFallback: 'movie', isFirstRow: !continueWatching.length && !list.length, onCardClick: openDetails });
+    }
+    if (!continueWatching.length && !list.length && !history.length) {
+        DOM.rowsContainer.innerHTML = '<div class="grid-state"><h2>Your Tellyvo is ready</h2><p>Add movies and shows to My List, or start watching to see your history here.</p></div>';
+    }
+    focusFirstRowCard(renderToken);
 }
 
 function setCategoryLoadMoreState(state) {
@@ -981,7 +997,7 @@ function setupDpadLogic() {
             // If in details/links/player, go back
             const hash = globalThis.location.hash;
             if (hash && hash !== '#home' && hash !== '#movies' && hash !== '#tv') {
-                globalThis.history.back();
+                navigateBack();
                 e.preventDefault();
             }
             return;
@@ -1047,7 +1063,7 @@ function initApp() {
     initSearch();
     setupDpadLogic();
     setupRouter();
-    
+
     // Settings Binding
     const settingClearCache = document.getElementById('setting-clear-cache');
     if (settingClearCache) {
@@ -1060,11 +1076,6 @@ function initApp() {
     }
     
     const settingCheckUpdate = document.getElementById('setting-check-update');
-    const permissionButton = document.getElementById('setting-install-permission');
-    if (permissionButton) {
-        permissionButton.onclick = () => globalThis.NativeBridge?.openInstallPermissionSettings?.();
-        refreshInstallPermission();
-    }
     if (settingCheckUpdate) {
         if (!isNativeAppRuntime()) {
             settingCheckUpdate.classList.add('hidden');
@@ -1127,6 +1138,12 @@ function initApp() {
     }
 
     const playbackSettings = getPlaybackSettings();
+    if (DOM.playbackOptimizationSelect) {
+        DOM.playbackOptimizationSelect.value = playbackSettings.playbackOptimization;
+        DOM.playbackOptimizationSelect.onchange = () => {
+            savePlaybackSettings({ playbackOptimization: DOM.playbackOptimizationSelect.value });
+        };
+    }
     if (DOM.sourcePreferenceSelect) {
         DOM.sourcePreferenceSelect.value = playbackSettings.sourcePreference;
         DOM.sourcePreferenceSelect.onchange = () => {
@@ -1271,6 +1288,10 @@ function initApp() {
         updateFilterDropdown('watchlist');
         loadWatchlist();
     });
+    globalThis.addEventListener('load-home-rows', () => {
+        updateFilterDropdown('home');
+        loadHomeRows();
+    });
     globalThis.addEventListener('watchlist-updated', () => {
         if (globalThis.location.hash === '#watchlist') {
             loadWatchlist();
@@ -1287,6 +1308,17 @@ function initApp() {
     }
     forceInitialFireTvPaint();
     setTimeout(forceInitialFireTvPaint, 750);
+    setTimeout(() => {
+        const route = globalThis.location.hash || '#home';
+        const active = document.activeElement;
+        const focusIsStranded = !active
+            || active === document.body
+            || active.classList?.contains('brand')
+            || isHiddenByClass(active);
+        if (isRowsRoute() && focusIsStranded) {
+            DOM.rowsContainer?.querySelector('.poster-card')?.focus();
+        }
+    }, 1200);
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

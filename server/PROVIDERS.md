@@ -89,3 +89,9 @@ Comma-separated or newline-separated Stremio addon base URLs or `manifest.json` 
 ## Embed replacement check (2026-10-29)
 
 AutoEmbed.pro is retired and filtered from client/backend results. MovieTV API uses documented `/embed/movie/{tmdb}` and `/embed/tv/{tmdb}/{season}/{episode}` routes (https://movietvapi.stream/docs). Desktop Chrome playback advanced for movie 550 and TV 1399 S1E1. This is a spot check, not an uptime or Fire TV compatibility guarantee. Existing Vidlink preference is preserved.
+
+## Updating embed sources remotely
+
+The backend publishes a versioned registry at /api/source-registry. The built-in registry is server/source-registry.json. Set SOURCE_REGISTRY_JSON to a complete registry object with a higher integer version to update it on the backend without rebuilding the APK. Set a provider's enabled field to false or add a hostname to disabledHosts to retire it. The app validates HTTPS URLs, caches the last accepted registry for seven days, and uses its packaged providers if no usable registry is available. Keep the full set of intended providers in an override; it replaces the built-in registry.
+
+Native-player successes, buffering and errors are stored locally on the device. A source with two consecutive confirmed errors is demoted for 15 minutes; the viewer can still select it manually. Embedded sources are not failed just because their media is inaccessible to the app.

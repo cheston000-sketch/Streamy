@@ -1,14 +1,21 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=120';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=120';
-import { navigateTo } from './router.js?v=120';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=144';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=144';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=144';
+import { navigateTo, navigateBack } from './router.js?v=144';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=144';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
+let activeWebHls = null;
+let webPlaybackSessionId = 0;
 let nearEndPromptDismissed = false;
 let nearEndPromptShown = false;
 let currentNextEpisodeTarget = null;
 let currentPlaybackLinks = [];
 let currentPlaybackSourceIndex = -1;
+let sourceOpenedAt = 0;
+let browserSourcePlayed = false;
+let sourceHandoffPositionMs = null;
 let currentPlaybackSeason = 1;
 let currentPlaybackEpisode = 1;
 let currentIntroMarker = null;
@@ -29,6 +36,7 @@ let activeSourceFilter = 'all';
 let nativeNextEpisodeRequestKey = '';
 
 function cancelActiveExtraction() {
+    sourceHandoffPositionMs = null;
     extractionSessionId++;
     if (extractionAbortController) {
         extractionAbortController.abort();
@@ -63,6 +71,7 @@ function getPlaybackMetadataPayload() {
         imdbId: getImdbId(currentMovieContext),
         season: currentPlaybackSeason,
         episode: currentPlaybackEpisode,
+        playbackOptimization: getPlaybackSettings().playbackOptimization,
         introMarker: currentMovieContext?.type === 'tv' ? currentIntroMarker : null,
         recapMarker: currentMovieContext?.type === 'tv' ? currentRecapMarker : null
     });
@@ -233,6 +242,40 @@ function bindWebPlaybackProgress(video) {
         }
     }, 10000);
 }
+
+function stopWebPlayback() {
+    webPlaybackSessionId++;
+    clearBrowserFailoverTimer();
+    const video = DOM.videoPlayer;
+    // pause events are asynchronous; save explicitly before removing callbacks.
+    if (video && webPlaybackSaveTimer !== null) syncWebPlaybackProgress(video);
+    if (video) video.onpause = null;
+    if (video && !video.paused) video.pause();
+    if (webPlaybackSaveTimer) globalThis.clearInterval(webPlaybackSaveTimer);
+    webPlaybackSaveTimer = null;
+    if (video) {
+        video.onloadedmetadata = null;
+        video.onerror = null;
+        video.ontimeupdate = null;
+        video.onpause = null;
+        video.onended = null;
+        video.onvolumechange = null;
+        video.onplay = null;
+        video.onplaying = null;
+        video.onwaiting = null;
+        video.oncanplay = null;
+    }
+    if (activeWebHls) {
+        activeWebHls.destroy();
+        activeWebHls = null;
+    }
+    if (video) {
+        video.removeAttribute('src');
+        video.load();
+    }
+}
+
+globalThis.addEventListener('streamy-stop-web-playback', stopWebPlayback);
 
 async function maybeShowNextEpisodePrompt(video) {
     if (!currentMovieContext || currentMovieContext.type !== 'tv' || nearEndPromptDismissed || nearEndPromptShown) return;
@@ -517,6 +560,7 @@ export function getPlaybackSettings() {
         && Number(stored.backupSourcesOptInVersion || 0) >= 102;
     return {
         sourcePreference: stored.sourcePreference || 'extractor',
+        playbackOptimization: normalizePlaybackOptimization(stored.playbackOptimization),
         autoplaySources: stored.autoplaySources !== false,
         autoplayNextEpisode: stored.autoplayNextEpisode !== false,
         includeBackupSources: backupSourcesOptedIn,
@@ -530,6 +574,7 @@ export function savePlaybackSettings(nextSettings = {}) {
         ...current,
         ...nextSettings,
         sourcePreference: nextSettings.sourcePreference || current.sourcePreference || 'extractor',
+        playbackOptimization: normalizePlaybackOptimization(nextSettings.playbackOptimization ?? current.playbackOptimization),
         autoplaySources: typeof nextSettings.autoplaySources === 'boolean'
             ? nextSettings.autoplaySources
             : current.autoplaySources,
@@ -552,6 +597,7 @@ export function savePlaybackSettings(nextSettings = {}) {
 
 export function resetSourceHealth() {
     globalThis.localStorage.removeItem(SOURCE_HEALTH_KEY);
+    globalThis.NativeBridge?.clearSourceHealth?.();
     globalThis.dispatchEvent(new Event('streamy-playback-diagnostics-updated'));
 }
 
@@ -569,6 +615,10 @@ function getSourceKey(link) {
 
 function getSourceHealth(link) {
     const db = readJsonObject(SOURCE_HEALTH_KEY);
+    try {
+        const native = JSON.parse(globalThis.NativeBridge?.getSourceHealth?.(getSourceKey(link)) || '{}');
+        if (native.lastUpdatedAt > (db[getSourceKey(link)]?.lastUpdatedAt || 0)) return native;
+    } catch {}
     return db[getSourceKey(link)] || { failures: 0, successes: 0, lastStatus: 'unknown', lastReason: '' };
 }
 
@@ -577,12 +627,16 @@ function isVidlinkSource(link) {
     return source.includes('vidlink');
 }
 
+function isRetiredSource(link) {
+    const source = `${link?.server || ''} ${link?.url || ''} ${link?.providerTier || ''}`.toLowerCase();
+    return source.includes('videasy') || /(?:https?:\/\/)?(?:[^/\s]+\.)?autoembed\.pro(?:[/:?#\s]|$)/i.test(source);
+}
+
 function isTrustedEmbedSource(link) {
     const source = `${link?.server || ''} ${link?.url || ''}`.toLowerCase();
     return [
         'vidlink',
-        'videasy',
-        'autoembed',
+        'movietvapi.stream',
         'vidrock',
         'vsembed',
         'cinemaos',
@@ -592,13 +646,14 @@ function isTrustedEmbedSource(link) {
 
 function filterLinksForPlaybackSettings(links = []) {
     const settings = getPlaybackSettings();
+    const availableLinks = links.filter(link => !isRetiredSource(link));
     if (settings.sourcePreference === 'vidlink') {
-        return links.filter(isVidlinkSource);
+        return availableLinks.filter(isVidlinkSource);
     }
     if (!settings.includeBackupSources) {
-        return links.filter(link => link?.type !== 'iframe' || isTrustedEmbedSource(link));
+        return availableLinks.filter(link => link?.type !== 'iframe' || link?.registryPrimary === true || isTrustedEmbedSource(link));
     }
-    return links;
+    return availableLinks;
 }
 
 function parseDirectSourceEndpoints(value = '') {
@@ -789,15 +844,7 @@ function markSourceResult(link, status, reason = '') {
     const db = readJsonObject(SOURCE_HEALTH_KEY);
     const current = db[key] || { failures: 0, successes: 0 };
 
-    db[key] = {
-        ...current,
-        failures: status === 'failed' ? Number(current.failures || 0) + 1 : Math.max(0, Number(current.failures || 0) - 1),
-        successes: status === 'success' ? Number(current.successes || 0) + 1 : Number(current.successes || 0),
-        lastStatus: status,
-        lastReason: reason,
-        lastUpdatedAt: Date.now(),
-        server: link.server || key
-    };
+    db[key] = { ...updateSourceHealth(current, status, Date.now(), status === 'success' ? Date.now() - sourceOpenedAt : 0), lastReason: reason, server: link.server || key };
     writeJsonObject(SOURCE_HEALTH_KEY, db);
 }
 
@@ -825,9 +872,11 @@ function recordPlaybackDiagnostic(update = {}) {
 }
 
 function getSourceScore(link) {
+    // Keep Vidlink preferred when healthy, while allowing confirmed failures to demote it.
+
     const settings = getPlaybackSettings();
     const health = getSourceHealth(link);
-    let baseScore = link?.type !== 'iframe' ? -20 : getIframeHostPriority(link);
+    let baseScore = isVidlinkSource(link) ? -70 : link?.type !== 'iframe' ? -20 : getIframeHostPriority(link);
     if (isNamedDirectProvider(link)) baseScore -= 18;
 
     if (settings.sourcePreference === 'extractor') {
@@ -848,10 +897,7 @@ function getSourceScore(link) {
         baseScore += isVidlinkSource(link) ? -40 : 30;
     }
 
-    const failureMultiplier = settings.sourcePreference === 'stable' ? 8 : 3;
-    const recentFailurePenalty = health.lastStatus === 'failed' ? Math.min(30, Number(health.failures || 0) * failureMultiplier) : 0;
-    const successBonus = Math.min(settings.sourcePreference === 'stable' ? 12 : 3, Number(health.successes || 0) * (settings.sourcePreference === 'stable' ? 3 : 1));
-    return baseScore + recentFailurePenalty - successBonus;
+    return baseScore + sourceHealthPenalty(health);
 }
 
 function getSourceBadge(link, isPreferred = false) {
@@ -902,7 +948,6 @@ function getNamedDirectProviderLabel(link) {
         streamex: 'StreameX Direct',
         cinemaos: 'CinemaOS Direct',
         vid2: 'Vid2 Direct',
-        videasy: 'Videasy Direct',
         vidpro: 'VidPro Direct',
         'bee-compat': 'Bee-Compatible',
         stremio: 'Stremio Direct'
@@ -1069,6 +1114,7 @@ export function getPlaybackDiagnosticsText() {
         `Status: ${diag.status || 'idle'}`,
         `Reason: ${diag.reason || 'none'}`,
         `Native Media: ${diag.nativeMediaStatus || 'waiting/not reported'}`,
+        `Stream Optimization: ${getPlaybackSettings().playbackOptimization}`,
         `URL: ${diag.sourceUrl || 'none'}`,
         '',
         'Recent Source Health:',
@@ -1092,7 +1138,8 @@ function getIframeHostPriority(link) {
     const server = (link?.server || '').toLowerCase();
     const source = `${server} ${url}`;
     if (source.includes('vidlink')) return 0;
-    if (source.includes('vidbinge')) return 1;
+    if (source.includes('movietvapi.stream')) return 1;
+    if (source.includes('vidbinge')) return 2;
     if (source.includes('vidsrc.me')) return 2;
     if (source.includes('vidsrc.net')) return 3;
     if (source.includes('multiembed')) return 4;
@@ -1102,9 +1149,6 @@ function getIframeHostPriority(link) {
 function choosePreferredLink(links = []) {
     if (!Array.isArray(links) || links.length === 0) return null;
     const sorted = sortStreamLinks(links);
-    const directLink = sorted.find(link => link.type !== 'iframe');
-    if (directLink) return directLink;
-
     return sorted[0] || links[0];
 }
 
@@ -1118,24 +1162,16 @@ function getFallbackStreamLinks(movie, season = 1, episode = 1) {
         {
             server: 'Vidlink',
             url: isTv
-                ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`
-                : `https://vidlink.pro/movie/${tmdbId}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`,
+                ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`
+                : `https://vidlink.pro/movie/${tmdbId}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`,
             type: 'iframe',
             providerTier: 'vidlink'
         },
         {
-            server: 'Videasy',
+            server: 'MovieTV API',
             url: isTv
-                ? `https://player.videasy.net/tv/${tmdbId}/${season}/${episode}?autoplay=true`
-                : `https://player.videasy.net/movie/${tmdbId}?autoplay=true`,
-            type: 'iframe',
-            providerTier: 'bee-compat'
-        },
-        {
-            server: 'AutoEmbed',
-            url: isTv
-                ? `https://autoembed.pro/embed/tv/${tmdbId}/${season}/${episode}`
-                : `https://autoembed.pro/embed/movie/${imdbId || tmdbId}`,
+                ? `https://movietvapi.stream/embed/tv/${tmdbId}/${season}/${episode}`
+                : `https://movietvapi.stream/embed/movie/${tmdbId}`,
             type: 'iframe',
             providerTier: 'bee-compat'
         },
@@ -1208,33 +1244,11 @@ function clearBrowserFailoverTimer() {
     }
 }
 
-function startBrowserFailoverTimer(link, index) {
+function startBrowserFailoverTimer(link) {
+    // A cross-origin iframe cannot tell us whether it is playing. Keep it open
+    // until a real player error is reported or the viewer chooses another source.
     clearBrowserFailoverTimer();
-    const settings = getPlaybackSettings();
-    const shouldAutoFailover = link?.type !== 'iframe' || settings.includeBackupSources;
-    if (!shouldAutoFailover || isVidlinkSource(link)) {
-        recordPlaybackDiagnostic({
-            status: 'browser-source-opened',
-            reason: 'Strict source mode is keeping this source open instead of jumping to unreliable backups',
-            nativeMediaStatus: 'waiting',
-            link
-        });
-        return;
-    }
-
-    browserFailoverTimer = globalThis.setTimeout(() => {
-        const iframe = document.getElementById('fallback-iframe');
-        const videoIsPlaying = DOM.videoPlayer && !DOM.videoPlayer.paused && DOM.videoPlayer.currentTime > 0;
-        if (!iframe || iframe.style.display === 'none' || videoIsPlaying) return;
-        markSourceResult(link, 'failed', 'Browser iframe timed out');
-        recordPlaybackDiagnostic({
-            status: 'source-timeout',
-            reason: 'Browser iframe did not expose playable media in time',
-            nativeMediaStatus: 'timeout',
-            link
-        });
-        playNextSource('browser-timeout');
-    }, BROWSER_SOURCE_TIMEOUT_MS);
+    recordPlaybackDiagnostic({status:'browser-source-opened', reason:'Waiting for embedded player', nativeMediaStatus:'waiting', link});
 }
 
 function playSourceAt(index, reason = 'manual') {
@@ -1242,7 +1256,12 @@ function playSourceAt(index, reason = 'manual') {
     if (index < 0 || index >= currentPlaybackLinks.length) return false;
 
     const link = currentPlaybackLinks[index];
+    if (webPlaybackSaveTimer !== null && Number.isFinite(DOM.videoPlayer?.currentTime)) {
+        sourceHandoffPositionMs = Math.max(0, Math.round(DOM.videoPlayer.currentTime * 1000));
+    }
     currentPlaybackSourceIndex = index;
+    sourceOpenedAt = Date.now();
+    browserSourcePlayed = false;
     recordPlaybackDiagnostic({
         status: 'opening-source',
         reason,
@@ -1260,7 +1279,7 @@ function playSourceAt(index, reason = 'manual') {
 
 function playNextSource(reason = 'manual-next') {
     const failedLink = currentPlaybackLinks[currentPlaybackSourceIndex];
-    if (failedLink) markSourceResult(failedLink, 'failed', reason);
+    if (failedLink && !reason.startsWith('manual')) markSourceResult(failedLink, 'failed', reason);
 
     const nextIndex = currentPlaybackSourceIndex + 1;
     if (playSourceAt(nextIndex, reason)) return true;
@@ -1272,9 +1291,9 @@ function playNextSource(reason = 'manual-next') {
         nativeMediaStatus: 'failed'
     });
     DOM.scraperStatus.classList.remove('hidden');
-    DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> All sources failed. Try again later or select a source manually.</div>';
+    DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error"><i class="fa-solid fa-triangle-exclamation"></i> We couldn’t start this title. Please go back and try again.</div>';
     navigateTo('#links');
-    setTimeout(() => DOM.serverList?.querySelector('.server-btn')?.focus(), 150);
+    setTimeout(() => document.getElementById('loading-back-btn')?.focus(), 150);
     return false;
 }
 
@@ -1290,7 +1309,15 @@ function reloadCurrentSource() {
 }
 
 export async function openDetails(movie) {
+    const allowedItems = await filterItemsForActiveProfile([movie], movie?.type || movie?.media_type || '');
+    if (!allowedItems.length) {
+        console.warn('[Kids] Blocked an unrated or disallowed title before opening details.');
+        navigateTo('#home');
+        return;
+    }
+
     cancelActiveExtraction();
+    stopWebPlayback();
     const requestId = ++detailsSessionId;
     episodeLoadId++;
     episodeFocusRequested = false;
@@ -1482,6 +1509,7 @@ async function loadEpisodes(tvId, seasonNum, progressRecord = null, requestId = 
 
 async function startScrapingSession(targetS = null, targetE = null) {
     if (!currentMovieContext) return;
+    stopWebPlayback();
     cancelActiveExtraction();
     const sessionId = extractionSessionId;
     const sessionMovie = currentMovieContext;
@@ -1512,9 +1540,9 @@ async function startScrapingSession(targetS = null, targetE = null) {
 
     DOM.serverList.innerHTML = '';
     DOM.sourceFilterControls?.classList.add('hidden');
-    DOM.linksTitle.textContent = `Resolving: ${sessionMovie.title}`;
+    DOM.linksTitle.textContent = `Preparing ${sessionMovie.title}`;
     DOM.scraperStatus.classList.remove('hidden');
-    DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-spinner fa-spin"></i> Proxying remote background extractors natively...</p>';
+    DOM.scraperStatus.textContent = 'Preparing your stream…';
     
     navigateTo('#links');
 
@@ -1601,7 +1629,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
     };
 
     try {
-        DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-network-wired fa-fade"></i> Finding the best source broker...</p>';
+        DOM.scraperStatus.textContent = 'Finding the best way to play this title…';
         await discoverBackendHost().catch(error => {
             if (error?.name === 'AbortError') throw error;
             console.warn('[Extraction] Backend discovery failed before extraction:', error);
@@ -1609,18 +1637,20 @@ async function startScrapingSession(targetS = null, targetE = null) {
         if (!isCurrentSession()) return;
 
         const primaryHost = getExtractionApi();
+        let sourceHost = primaryHost;
         const candidateHosts = [...new Set([primaryHost, UPDATE_SERVER].filter(Boolean))];
         const backendErrors = [];
         let data = null;
 
         for (let index = 0; index < candidateHosts.length; index++) {
             const host = candidateHosts[index];
-            DOM.scraperStatus.innerHTML = index === 0
-                ? '<p><i class="fa-solid fa-satellite-dish fa-fade"></i> Connecting to extraction grid...</p>'
-                : '<p><i class="fa-solid fa-shield-halved fa-fade"></i> Primary unavailable. Trying backup node...</p>';
+            DOM.scraperStatus.textContent = index === 0
+                ? 'Almost ready…'
+                : 'Still loading—trying another route…';
 
             try {
                 data = await performExtraction(host);
+                sourceHost = host;
                 break;
             } catch (error) {
                 if (error?.name === 'AbortError') throw error;
@@ -1634,7 +1664,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
         if (!data) {
             const reason = backendErrors.join(' | ') || 'No healthy extraction node was available';
             console.warn('[Extraction] Cloud extraction unavailable. Continuing with packaged backup sources.', reason);
-            DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-life-ring fa-fade"></i> Cloud node unavailable. Loading backup sources...</p>';
+            DOM.scraperStatus.textContent = 'Still loading—trying another route…';
             data = {
                 success: false,
                 links: [],
@@ -1662,10 +1692,13 @@ async function startScrapingSession(targetS = null, targetE = null) {
 
         const configuredDirectLinks = await fetchConfiguredDirectLinks(s, e, sessionMovie, controller.signal);
         if (!isCurrentSession()) return;
-        const mergedLinks = data.success
-            ? mergeStreamLinks(data.links, getFallbackStreamLinks(sessionMovie, s, e))
+        const registry = await refreshRegistry({host: sourceHost, storage: globalThis.localStorage, options: buildBackendFetchOptions(sourceHost), signal: controller.signal});
+        if (!isCurrentSession()) return;
+        const fallbackLinks = registry
+            ? registryLinks(registry, {tmdb:sessionMovie.id, imdb:getImdbId(sessionMovie), type:sessionMovie.type, season:s, episode:e})
             : getFallbackStreamLinks(sessionMovie, s, e);
-        const links = filterLinksForPlaybackSettings(mergeStreamLinks(configuredDirectLinks, mergedLinks));
+        const mergedLinks = data.success ? mergeStreamLinks(fallbackLinks, data.links) : fallbackLinks;
+        const links = filterLinksForPlaybackSettings(mergeStreamLinks(configuredDirectLinks, mergedLinks).filter(link => registryAllows(link, registry)));
 
         if(links.length > 0) {
             currentPlaybackSeason = s;
@@ -1683,51 +1716,25 @@ async function startScrapingSession(targetS = null, targetE = null) {
             
             activeSourceFilter = 'all';
             renderSourceList(preferredBestLink);
-            const preferredButton = DOM.serverList?.querySelector('.server-btn.preferred') || DOM.serverList?.querySelector('.server-btn');
-            preferredButton?.focus();
-
-            if (preferredBestLink && getPlaybackSettings().autoplaySources) {
+            if (preferredBestLink) {
                 setTimeout(() => {
                     if (!isCurrentSession() || globalThis.location.hash !== '#links') return;
                     playSourceAt(preferredIndex, 'autoplay-best-source');
                 }, 800);
             } else {
                 DOM.scraperStatus.classList.remove('hidden');
-                DOM.scraperStatus.innerHTML = '<p><i class="fa-solid fa-list-check"></i> Sources ready. Pick a link to play.</p>';
+                DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error">We couldn’t prepare this title. Please go back and try again.</div>';
             }
         } else {
             DOM.scraperStatus.classList.remove('hidden');
-            DOM.scraperStatus.innerHTML = '<div style="color:var(--primary);"><i class="fa-solid fa-triangle-exclamation"></i> Extraction failed. Node proxy returned empty payload.</div>';
+            DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error"><i class="fa-solid fa-triangle-exclamation"></i> We couldn’t prepare this title. Please go back and try again.</div>';
         }
     } catch (err) {
         if (err?.name === 'AbortError' || !isCurrentSession()) return;
         console.error("Stream extraction failed:", err);
-        const currentHost = getExtractionApi();
         DOM.scraperStatus.classList.remove('hidden');
-        DOM.scraperStatus.innerHTML = `
-            <div style="color:white; background:#e50914; padding:20px; border-radius:12px; margin-top:20px; border:4px solid #fff; box-shadow:0 0 40px rgba(229,9,20,0.5);">
-                <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;"></i> <b style="font-size:24px;">Extraction Error</b><br>
-                <div style="background:rgba(0,0,0,0.5); padding:10px; border-radius:6px; margin-top:10px; text-align:left;">
-                    <span style="font-size:14px;color:#ccc;display:block;">Primary Host: ${currentHost}</span>
-                    <span style="font-size:14px;color:#ff9800;display:block;margin-top:5px;">Reason: ${err.message || "Network Error"}</span>
-                    <div style="display:flex;gap:10px;margin-top:15px;">
-                        <button onclick="location.reload()" style="flex:1;padding:10px;background:white;color:black;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">RETRY CONNECTION</button>
-                        <button id="copy-debug-logs-err-btn" style="flex:1;padding:10px;background:rgba(255,255,255,0.2);color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">COPY DEBUG LOGS</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        const copyBtn = document.getElementById('copy-debug-logs-err-btn');
-        if (copyBtn) {
-            copyBtn.onclick = () => {
-                const logs = getDiscoveryLogs();
-                navigator.clipboard.writeText(logs).then(() => {
-                    copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> COPIED';
-                    setTimeout(() => { if (copyBtn) copyBtn.innerText = 'COPY DEBUG LOGS'; }, 2000);
-                });
-            };
-        }
+        DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error"><i class="fa-solid fa-triangle-exclamation"></i> We couldn’t start this title. Check your connection and try again.</div>';
+        setTimeout(() => document.getElementById('loading-back-btn')?.focus(), 150);
     } finally {
         if (sessionId === extractionSessionId && extractionAbortController === controller) {
             extractionAbortController = null;
@@ -1741,12 +1748,13 @@ async function startScrapingSession(targetS = null, targetE = null) {
 // =============================================
 
 function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybackSourceIndex) {
+    stopWebPlayback();
     clearAutoplayCountdown();
     nearEndPromptDismissed = false;
     nearEndPromptShown = false;
     if (globalThis.NativeBridge && typeof globalThis.NativeBridge.openWebPlayer === 'function') {
         const mediaKey = getPlaybackMediaKey(currentMovieContext);
-        const savedPositionMs = getSavedPlaybackPositionMs(currentMovieContext);
+        const savedPositionMs = sourceHandoffPositionMs ?? getSavedPlaybackPositionMs(currentMovieContext);
         const nextSeason = String(currentNextEpisodeTarget?.season || 0);
         const nextEpisode = String(currentNextEpisodeTarget?.episode || 0);
         const autoplayNextEpisode = String(getPlaybackSettings().autoplayNextEpisode);
@@ -1755,7 +1763,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             if (typeof globalThis.NativeBridge.openWebPlayerWithMetadata === 'function') {
                 globalThis.NativeBridge.openWebPlayerWithMetadata(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Tellyvo'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1769,7 +1777,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             } else if (typeof globalThis.NativeBridge.openWebPlayerWithContext === 'function') {
                 globalThis.NativeBridge.openWebPlayerWithContext(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Tellyvo'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1782,7 +1790,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             } else {
                 globalThis.NativeBridge.openWebPlayer(
                     iframeUrl,
-                    `${currentMovieContext?.title || 'Vela'} | ${link?.server || 'Browser Player'}`,
+                    `${currentMovieContext?.title || 'Tellyvo'} | ${link?.server || 'Browser Player'}`,
                     String(currentMovieContext?.id || ''),
                     mediaKey,
                     String(savedPositionMs),
@@ -1796,7 +1804,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
             console.warn('[Autoplay] Full browser playback context failed; using compatibility bridge:', error);
             globalThis.NativeBridge.openWebPlayer(
                 iframeUrl,
-                `${currentMovieContext?.title || 'Vela'} | Browser Player`,
+                `${currentMovieContext?.title || 'Tellyvo'} | Browser Player`,
                 String(currentMovieContext?.id || ''),
                 mediaKey,
                 String(savedPositionMs),
@@ -1844,6 +1852,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
 }
 
 function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSourceIndex) {
+    stopWebPlayback();
     clearAutoplayCountdown();
     nearEndPromptDismissed = false;
     nearEndPromptShown = false;
@@ -1853,7 +1862,7 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
         || typeof globalThis.NativeBridge.playStreamWithContext === 'function'
         || typeof globalThis.NativeBridge.playStreamWithProgress === 'function'
     );
-    const savedPositionMs = getSavedPlaybackPositionMs(currentMovieContext);
+    const savedPositionMs = sourceHandoffPositionMs ?? getSavedPlaybackPositionMs(currentMovieContext);
     const forceMaxVolume = () => {
         DOM.videoPlayer.defaultMuted = false;
         if (DOM.videoPlayer.muted || DOM.videoPlayer.volume < 0.99) {
@@ -1963,7 +1972,7 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
         globalThis.StreamyPlayer.playStream(
             streamUrl,
             mimeType,
-            currentMovieContext?.title || "Vela Video",
+            currentMovieContext?.title || "Tellyvo Video",
             getPlaybackMediaKey(currentMovieContext),
             savedPositionMs
         );
@@ -1987,18 +1996,21 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
     forceMaxVolume();
     DOM.videoPlayer.onvolumechange = forceMaxVolume;
 
-    const isM3U8 = streamUrl.includes('.m3u8');
-    const canPlayNativeHLS = DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl');
+    const webSessionId = webPlaybackSessionId;
+    const isCurrentWebSession = () => webSessionId === webPlaybackSessionId;
+    const isM3U8 = inferDirectStreamType(streamUrl, link?.type) === 'hls';
 
-    if (isM3U8 && !canPlayNativeHLS && globalThis.Hls && Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(streamUrl);
-        hls.attachMedia(DOM.videoPlayer);
+    if (isM3U8 && globalThis.Hls?.isSupported?.()) {
+        const Hls = globalThis.Hls;
+        const mode = getPlaybackSettings().playbackOptimization;
+        const hls = new Hls(createHlsPlaybackConfig(mode));
+        activeWebHls = hls;
+        configureHlsPlayback(hls, Hls, mode);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
+            if (!isCurrentWebSession()) return;
             clearBrowserFailoverTimer();
-            markSourceResult(link, 'success', 'Browser HLS manifest parsed');
             recordPlaybackDiagnostic({ status: 'playing-browser-hls', reason: 'manifest-parsed', nativeMediaStatus: 'browser-playback', link });
-            if (savedPositionMs >= 30000) {
+            if (savedPositionMs > 0) {
                 try {
                     DOM.videoPlayer.currentTime = savedPositionMs / 1000;
                 } catch (error) {
@@ -2009,19 +2021,22 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
             DOM.videoPlayer.play().catch(e => console.warn(e));
         });
         hls.on(Hls.Events.ERROR, function(event, data) {
+            if (!isCurrentWebSession()) return;
             if (data?.fatal) {
-                markSourceResult(link, 'failed', `Fatal HLS error: ${data.type || 'unknown'}`);
                 recordPlaybackDiagnostic({ status: 'source-error', reason: `Fatal HLS error: ${data.type || 'unknown'}`, nativeMediaStatus: 'browser-error', link });
                 playNextSource('fatal-hls-error');
             }
         });
+        hls.attachMedia(DOM.videoPlayer);
+        hls.loadSource(streamUrl);
     } else {
         DOM.videoPlayer.src = streamUrl;
-        DOM.videoPlayer.addEventListener('loadedmetadata', function() {
+        DOM.videoPlayer.onloadedmetadata = function() {
+            if (!isCurrentWebSession()) return;
+            DOM.videoPlayer.onloadedmetadata = null;
             clearBrowserFailoverTimer();
-            markSourceResult(link, 'success', 'Browser metadata loaded');
             recordPlaybackDiagnostic({ status: 'playing-browser-video', reason: 'loadedmetadata', nativeMediaStatus: 'browser-playback', link });
-            if (savedPositionMs >= 30000) {
+            if (savedPositionMs > 0) {
                 try {
                     DOM.videoPlayer.currentTime = savedPositionMs / 1000;
                 } catch (error) {
@@ -2030,15 +2045,20 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
             }
             forceMaxVolume();
             DOM.videoPlayer.play().catch(e => console.warn("Autoplay block:", e));
-        }, {once: true});
+        };
     }
     DOM.videoPlayer.onerror = () => {
-        markSourceResult(link, 'failed', 'Browser video element error');
+        if (!isCurrentWebSession()) return;
         recordPlaybackDiagnostic({ status: 'source-error', reason: 'Browser video element error', nativeMediaStatus: 'browser-error', link });
         playNextSource('browser-video-error');
     };
-    DOM.videoPlayer.addEventListener('play', forceMaxVolume, { once: true });
-    DOM.videoPlayer.addEventListener('canplay', forceMaxVolume, { once: true });
+    DOM.videoPlayer.onplaying = () => {
+        if (!isCurrentWebSession()) return;
+        if (!browserSourcePlayed) { browserSourcePlayed = true; markSourceResult(link, 'success', 'Playback started'); }
+    };
+    DOM.videoPlayer.onwaiting = () => { if (isCurrentWebSession() && browserSourcePlayed) markSourceResult(link, 'buffering', 'Playback buffering'); };
+    DOM.videoPlayer.onplay = forceMaxVolume;
+    DOM.videoPlayer.oncanplay = forceMaxVolume;
     bindWebPlaybackProgress(DOM.videoPlayer);
 }
 
@@ -2115,9 +2135,11 @@ async function playNextEpisode() {
 }
 
 if (DOM.playerServerCycleBtn) {
-    DOM.playerServerCycleBtn.innerHTML = '<i class="fa-solid fa-list"></i> Source List';
-    DOM.playerServerCycleBtn.onclick = () => navigateTo('#links');
+    DOM.playerServerCycleBtn.innerHTML = '<i class="fa-solid fa-shuffle"></i> Switch Source';
+    DOM.playerServerCycleBtn.onclick = () => playNextSource('manual-source-cycle');
 }
+
+document.getElementById('loading-back-btn')?.addEventListener('click', () => navigateBack());
 
 if (DOM.playerReloadSourceBtn) {
     DOM.playerReloadSourceBtn.onclick = () => reloadCurrentSource();
@@ -2132,7 +2154,7 @@ if (DOM.playerDetailsBtn) {
 }
 
 if (DOM.playerBackBtn) {
-    DOM.playerBackBtn.addEventListener('click', () => globalThis.history.back());
+    DOM.playerBackBtn.addEventListener('click', () => navigateBack());
 }
 
 if (DOM.playerFullscreenBtn) {

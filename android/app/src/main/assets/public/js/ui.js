@@ -1,4 +1,4 @@
-import { IMAGE_URL, BACKDROP_URL } from './api.js?v=120';
+import { IMAGE_URL, BACKDROP_URL } from './api.js?v=144';
 
 export const DOM = {
     topBar: document.getElementById('top-bar'),
@@ -88,6 +88,7 @@ export const DOM = {
     refreshPlaybackDiagnosticsBtn: document.getElementById('setting-refresh-playback-diagnostics'),
     copyPlaybackDiagnosticsBtn: document.getElementById('setting-copy-playback-diagnostics'),
     sourcePreferenceSelect: document.getElementById('setting-source-preference'),
+    playbackOptimizationSelect: document.getElementById('setting-playback-optimization'),
     directSourceEndpointInput: document.getElementById('setting-direct-source-endpoint'),
     autoplaySourcesToggle: document.getElementById('setting-autoplay-sources'),
     autoplayNextEpisodeToggle: document.getElementById('setting-autoplay-next-episode'),
@@ -129,6 +130,7 @@ export function normalizeItem(item, typeFallback) {
 }
 
 export function updateHeroBanner(movie) {
+    globalThis.TellyvoHeroSelection = movie;
     if (movie.backdrop && movie.backdrop !== 'none' && cachedBackdrops[movie.id] !== movie.backdrop) {
         DOM.heroBanner.style.backgroundImage = `url('${movie.backdrop}')`;
         cachedBackdrops[movie.id] = movie.backdrop;
@@ -213,6 +215,8 @@ export function buildRow({ title, items, isWatchlistDict = false, typeFallback =
         const card = document.createElement('div');
         card.className = 'poster-card';
         card.tabIndex = 0;
+        card.dataset.mediaKey = `${parsed.type || typeFallback}:${parsed.id}`;
+        card.dataset.shelfTitle = String(title || '');
         
         const progress = getPlaybackProgressInfo(parsed);
         let progressHtml = '';

@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { makeProviders, makeStandardFetcher, targets } from '@movie-web/providers';
+import { validateRegistry } from '../js/source-policy.js';
 import { createIntroMarkerResolver } from './intro-markers.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,6 +23,12 @@ const APP_VERSION = (() => {
 })();
 const APP_BUILD = Number.parseInt(APP_VERSION, 10) || 0;
 const introMarkerResolver = createIntroMarkerResolver();
+const SOURCE_REGISTRY = (() => {
+    const packaged = validateRegistry(JSON.parse(fs.readFileSync(path.join(__dirname, 'source-registry.json'), 'utf8')));
+    if (!process.env.SOURCE_REGISTRY_JSON) return packaged;
+    try { return validateRegistry(JSON.parse(process.env.SOURCE_REGISTRY_JSON)); }
+    catch (error) { console.warn('[SourceRegistry] Invalid override; using packaged registry:', error.message); return packaged; }
+})();
 
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[Ghost Thread] Blocked rogue unhandled rejection:', reason?.message || reason);
@@ -50,6 +57,7 @@ app.use((req, res, next) => {
     }
     next();
 });
+app.get('/api/source-registry', (req, res) => res.json(SOURCE_REGISTRY));
 app.use(express.static(APP_ROOT, { dotfiles: 'deny' }));
 
 const providers = makeProviders({

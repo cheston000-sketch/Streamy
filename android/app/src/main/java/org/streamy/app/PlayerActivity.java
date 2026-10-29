@@ -105,6 +105,9 @@ public class PlayerActivity extends AppCompatActivity {
     private String playbackMetadataJson;
     private int sourceIndex;
     private boolean failedOverAfterError;
+    private boolean sourcePlayed;
+    private boolean sourceBuffering;
+    private long sourceStartedAt;
     private long lastProgressPersistElapsedMs;
     private final Runnable nextPromptChecker = new Runnable() {
         @Override
@@ -224,6 +227,7 @@ public class PlayerActivity extends AppCompatActivity {
             mediaSource = new ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem);
         }
 
+        sourceStartedAt = SystemClock.elapsedRealtime();
         player = createPlayer(optimizationMode);
         applySavedAudioLanguagePreference();
         playerView.setPlayer(player);
@@ -239,8 +243,22 @@ public class PlayerActivity extends AppCompatActivity {
             }
 
             @Override
+            public void onIsPlayingChanged(boolean isPlaying) {
+                if (isPlaying && !sourcePlayed) {
+                    sourcePlayed = true;
+                    SourceHealthStore.record(PlayerActivity.this, getSourceAt(sourceIndex), "success", SystemClock.elapsedRealtime() - sourceStartedAt, "Playback started");
+                }
+            }
+
+            @Override
             public void onPlaybackStateChanged(int playbackState) {
-                if (!resumeSeekApplied && playbackState == Player.STATE_READY && pendingStartPositionMs >= PlaybackProgressPolicy.RESUME_MIN_POSITION_MS) {
+                if (playbackState == Player.STATE_BUFFERING && sourcePlayed && !sourceBuffering) {
+                    sourceBuffering = true;
+                    SourceHealthStore.record(PlayerActivity.this, getSourceAt(sourceIndex), "buffering", 0, "Playback buffering");
+                } else if (playbackState == Player.STATE_READY) {
+                    sourceBuffering = false;
+                }
+                if (!resumeSeekApplied && playbackState == Player.STATE_READY && pendingStartPositionMs > 0L) {
                     Log.i(TAG, "Applying resume seek mediaKey=" + mediaKey + " positionMs=" + pendingStartPositionMs);
                     player.seekTo(pendingStartPositionMs);
                     resumeSeekApplied = true;
@@ -264,6 +282,7 @@ public class PlayerActivity extends AppCompatActivity {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "Playback failed mimeType=" + mimeType + " referer=" + referer + " origin=" + origin + " hasCookie=" + (cookie != null && !cookie.isEmpty()), error);
+                if (!failedOverAfterError) SourceHealthStore.record(PlayerActivity.this, getSourceAt(sourceIndex), "failed", 0, error.getErrorCodeName());
                 tryLaunchNextSource("Native player error: " + error.getErrorCodeName());
             }
         });
@@ -382,10 +401,9 @@ public class PlayerActivity extends AppCompatActivity {
             intent.putExtra("origin", origin);
             intent.putExtra("cookie", cookie);
             intent.putExtra("mediaKey", mediaKey);
-            long currentPositionMs = PlaybackProgressPolicy.resolveFailoverPosition(
-                pendingStartPositionMs,
-                player == null ? 0L : player.getCurrentPosition()
-            );
+            long currentPositionMs = resumeSeekApplied && player != null
+                ? Math.max(0L, player.getCurrentPosition())
+                : PlaybackProgressPolicy.resolveFailoverPosition(pendingStartPositionMs, player == null ? 0L : player.getCurrentPosition());
             intent.putExtra("startPositionMs", currentPositionMs);
             intent.putExtra("nextSeason", nextSeason);
             intent.putExtra("nextEpisode", nextEpisode);

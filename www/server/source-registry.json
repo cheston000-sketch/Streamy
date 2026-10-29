@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "providers": [
+    {
+      "id": "vidlink",
+      "name": "Vidlink",
+      "enabled": true,
+      "primary": true,
+      "movie": "https://vidlink.pro/movie/{tmdb}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true",
+      "tv": "https://vidlink.pro/tv/{tmdb}/{season}/{episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true"
+    },
+    {
+      "id": "movietv",
+      "name": "MovieTV API",
+      "enabled": true,
+      "primary": true,
+      "movie": "https://movietvapi.stream/embed/movie/{tmdb}",
+      "tv": "https://movietvapi.stream/embed/tv/{tmdb}/{season}/{episode}"
+    },
+    {
+      "id": "vidrock",
+      "name": "VidRock",
+      "enabled": true,
+      "primary": true,
+      "movie": "https://vidrock.net/movie/{tmdb}",
+      "tv": "https://vidrock.net/tv/{tmdb}/{season}/{episode}"
+    },
+    {
+      "id": "vsembed",
+      "name": "VSEmbed",
+      "enabled": true,
+      "primary": true,
+      "movie": "https://vsembed.ru/embed/movie/{tmdb}",
+      "tv": "https://vsembed.ru/embed/tv/{tmdb}/{season}/{episode}"
+    },
+    {
+      "id": "multiembed",
+      "name": "MultiEmbed",
+      "enabled": true,
+      "primary": false,
+      "movie": "https://multiembed.mov/directstream.php?video_id={tmdb}&tmdb=1",
+      "tv": "https://multiembed.mov/directstream.php?video_id={tmdb}&tmdb=1&s={season}&e={episode}"
+    },
+    {
+      "id": "vidbinge",
+      "name": "VidBinge",
+      "enabled": true,
+      "primary": false,
+      "movie": "https://vidbinge.dev/embed/movie/{tmdb}",
+      "tv": "https://vidbinge.dev/embed/tv/{tmdb}/{season}/{episode}"
+    },
+    {
+      "id": "vidsrc-me",
+      "name": "Vidsrc.me",
+      "enabled": true,
+      "primary": false,
+      "movie": "https://vidsrc.me/embed/movie?tmdb={tmdb}",
+      "tv": "https://vidsrc.me/embed/tv?tmdb={tmdb}&season={season}&episode={episode}"
+    },
+    {
+      "id": "vidsrc-net",
+      "name": "Vidsrc.net",
+      "enabled": true,
+      "primary": false,
+      "movie": "https://vidsrc.net/embed/movie?tmdb={tmdb}",
+      "tv": "https://vidsrc.net/embed/tv?tmdb={tmdb}&season={season}&episode={episode}"
+    }
+  ],
+  "disabledHosts": [
+    "autoembed.pro"
+  ]
+}
