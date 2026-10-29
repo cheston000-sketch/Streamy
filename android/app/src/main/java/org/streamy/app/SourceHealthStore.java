@@ -35,6 +35,7 @@ final class SourceHealthStore {
                 double previous = state.optDouble("startupMs", 0);
                 state.put("startupMs", previous > 0 ? previous * 0.7 + startupMs * 0.3 : startupMs);
             } else if ("failed".equals(status)) {
+                state.put("lastError", reason);
                 int consecutive = state.optInt("consecutiveFailures") + 1;
                 state.put("failures", state.optInt("failures") + 1).put("consecutiveFailures", consecutive);
                 if (consecutive >= 2) state.put("cooldownUntil", now + 15 * 60 * 1000L);
@@ -43,6 +44,15 @@ final class SourceHealthStore {
             }
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(key, state.toString()).apply();
         } catch (Exception ignored) { }
+    }
+
+    static synchronized String summary(Context context) {
+        JSONObject result = new JSONObject();
+        for (java.util.Map.Entry<String, ?> entry : context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getAll().entrySet()) {
+            try { result.put(entry.getKey(), new JSONObject(String.valueOf(entry.getValue()))); }
+            catch (Exception ignored) { }
+        }
+        return result.toString();
     }
 
     static synchronized void clear(Context context) {

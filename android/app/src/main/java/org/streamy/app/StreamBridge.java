@@ -37,6 +37,9 @@ public class StreamBridge {
     }
 
     @JavascriptInterface
+    public String getSourceHealthSummary() { return SourceHealthStore.summary(context); }
+
+    @JavascriptInterface
     public void clearSourceHealth() { SourceHealthStore.clear(context); }
 
     /** Returns the version installed by Android rather than a web-bundle constant. */

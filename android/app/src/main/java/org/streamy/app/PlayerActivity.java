@@ -326,6 +326,12 @@ public class PlayerActivity extends AppCompatActivity {
                     .setMaxVideoBitrate(PlaybackOptimizationPolicy.DATA_SAVER_MAX_BITRATE)
                     .setExceedVideoConstraintsIfNecessary(true));
             }
+            if (mode == PlaybackOptimizationPolicy.Mode.QUALITY_1080) {
+                trackSelector.setParameters(trackSelector.buildUponParameters()
+                    .setMaxVideoSize(PlaybackOptimizationPolicy.QUALITY_1080_MAX_WIDTH,
+                        PlaybackOptimizationPolicy.QUALITY_1080_MAX_HEIGHT)
+                    .setExceedVideoConstraintsIfNecessary(true));
+            }
             builder.setTrackSelector(trackSelector);
             builder.setLoadControl(new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(buffering.minBufferMs, buffering.maxBufferMs,

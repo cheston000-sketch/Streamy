@@ -7,7 +7,7 @@ import {
 } from '../www/js/playback-optimization.js';
 
 assert.equal(Hls.version, '1.6.17');
-for (const mode of ['auto', 'data-saver', 'original']) {
+for (const mode of ['auto', 'data-saver', 'quality-1080', 'original']) {
     assert.equal(normalizePlaybackOptimization(mode), mode);
 }
 for (const value of [undefined, null, '', 'invalid', '720p', {}, 1]) {
@@ -102,6 +102,13 @@ cleanup();
 hls.levels = [rendition(360, 500_000)];
 hls.emit(Hls.Events.LEVELS_UPDATED);
 assert.equal(hls.autoLevelCapping, 1, 'Cleanup must detach the policy listeners');
+const hd = new TestHls();
+hd.levels = [rendition(480, 900_000), rendition(1080, 5_000_000), rendition(2160, 18_000_000)];
+configureHlsPlayback(hd, Hls, 'quality-1080');
+assert.equal(hd.autoLevelCapping, 1, '1080p setting must keep adaptive variants up to 1080p');
+assert.equal(hd.currentLevel, -1, '1080p setting remains adaptive');
+hd.levels = [rendition(2160, 18_000_000)]; hd.emit(Hls.Events.LEVELS_UPDATED);
+assert.equal(hd.autoLevelCapping, 0, 'A single 4K-only source must remain playable');
 for (const mode of ['auto', 'original', 'invalid']) {
     const uncapped = new TestHls();
     uncapped.levels = [rendition(360, 500_000), rendition(2160, 18_000_000)];

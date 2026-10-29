@@ -19,6 +19,8 @@ public class PlaybackOptimizationPolicyTest {
     public void recognizesSavedModesWithoutDependingOnCapitalizationOrWhitespace() {
         assertEquals(PlaybackOptimizationPolicy.Mode.DATA_SAVER,
             PlaybackOptimizationPolicy.parseMode(" DATA-SAVER "));
+        assertEquals(PlaybackOptimizationPolicy.Mode.QUALITY_1080,
+            PlaybackOptimizationPolicy.parseMode("quality-1080"));
         assertEquals(PlaybackOptimizationPolicy.Mode.ORIGINAL,
             PlaybackOptimizationPolicy.parseMode("Original"));
     }
@@ -31,7 +33,7 @@ public class PlaybackOptimizationPolicyTest {
     @Test
     public void optimizedProfilesKeepLegalThresholdsAndBoundedMemory() {
         for (PlaybackOptimizationPolicy.Mode mode : new PlaybackOptimizationPolicy.Mode[] {
-            PlaybackOptimizationPolicy.Mode.AUTO, PlaybackOptimizationPolicy.Mode.DATA_SAVER
+            PlaybackOptimizationPolicy.Mode.AUTO, PlaybackOptimizationPolicy.Mode.DATA_SAVER, PlaybackOptimizationPolicy.Mode.QUALITY_1080
         }) {
             PlaybackOptimizationPolicy.BufferingProfile profile =
                 PlaybackOptimizationPolicy.bufferingProfile(mode);

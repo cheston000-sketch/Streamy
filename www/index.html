@@ -16,8 +16,8 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=144">
-    <link rel="stylesheet" href="tellyvo.css?v=144">
+    <link rel="stylesheet" href="styles.css?v=145">
+    <link rel="stylesheet" href="tellyvo.css?v=145">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -178,10 +178,11 @@
                             <span>Stream optimization</span>
                             <select id="setting-playback-optimization" class="settings-select" tabindex="0" aria-describedby="playback-optimization-help">
                                 <option value="auto">Smart Auto (recommended)</option>
+                                <option value="quality-1080">Up to 1080p — adaptive</option>
                                 <option value="data-saver">Data Saver — prefer up to 720p</option>
                                 <option value="original">Standard player behavior</option>
                             </select>
-                            <small id="playback-optimization-help" class="settings-help">Smart Auto adapts quality to your connection and buffers ahead to reduce interruptions. Data Saver prefers smaller streams when available. Applies when you next start playback. Single-quality files and embedded players may not offer quality adjustment.</small>
+                            <small id="playback-optimization-help" class="settings-help">Smart Auto adapts quality to your connection and buffers ahead to reduce interruptions. Up to 1080p and Data Saver prefer smaller variants when available. Applies when you next start playback. Single-quality files and embedded players may not offer quality adjustment.</small>
                         </label>
                         <label class="settings-field" for="setting-source-preference">
                             <span>Default source preference</span>
@@ -216,7 +217,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v144.0</span>
+                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v145.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -347,7 +348,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=144"></script>
+    <script type="module" src="js/app.js?v=145"></script>
 </body>
 
 </html>

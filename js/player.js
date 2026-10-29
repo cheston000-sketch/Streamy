@@ -1,8 +1,8 @@
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=144';
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=144';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=144';
-import { navigateTo, navigateBack } from './router.js?v=144';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=144';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=145';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=145';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=145';
+import { navigateTo, navigateBack } from './router.js?v=145';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=145';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -844,7 +844,7 @@ function markSourceResult(link, status, reason = '') {
     const db = readJsonObject(SOURCE_HEALTH_KEY);
     const current = db[key] || { failures: 0, successes: 0 };
 
-    db[key] = { ...updateSourceHealth(current, status, Date.now(), status === 'success' ? Date.now() - sourceOpenedAt : 0), lastReason: reason, server: link.server || key };
+    db[key] = { ...updateSourceHealth(current, status, Date.now(), status === 'success' ? Date.now() - sourceOpenedAt : 0), lastReason: reason, lastError: status === 'failed' ? reason : current.lastError || '', server: link.server || key };
     writeJsonObject(SOURCE_HEALTH_KEY, db);
 }
 
@@ -1099,26 +1099,33 @@ function sortStreamLinks(links) {
 export function getPlaybackDiagnosticsText() {
     const diag = readJsonObject(PLAYBACK_DIAGNOSTICS_KEY);
     const health = readJsonObject(SOURCE_HEALTH_KEY);
+    let nativeHealth = {};
+    try { nativeHealth = JSON.parse(globalThis.NativeBridge?.getSourceHealthSummary?.() || '{}'); } catch {}
+    for (const [key, value] of Object.entries(nativeHealth || {})) {
+        if (value && typeof value === 'object' && Number(value.lastUpdatedAt || 0) > Number(health[key]?.lastUpdatedAt || 0)) health[key] = value;
+    }
     const healthLines = Object.values(health)
+        .filter(item => item && typeof item === 'object')
         .sort((a, b) => Number(b.lastUpdatedAt || 0) - Number(a.lastUpdatedAt || 0))
         .slice(0, 6)
-        .map(item => `- ${item.server || 'source'}: ${item.lastStatus || 'unknown'} (${item.lastReason || 'no reason'})`);
-
+        .map(item => {
+            const startup = Number(item.startupMs) > 0 ? ` ${(Number(item.startupMs) / 1000).toFixed(1)}s to start;` : '';
+            const buffering = ` ${Number(item.bufferCount || 0)} buffering events;`;
+            const error = item.lastError ? ` last error: ${item.lastError}` : ' no recorded errors';
+            return `- ${item.server || 'source'}: ${item.lastStatus || 'unknown'};${startup}${buffering}${error}`;
+        });
     return [
         `Updated: ${diag.updatedAt || 'never'}`,
         `Title: ${diag.title || 'none'}`,
         `Media: ${diag.mediaType || 'unknown'} ${diag.tmdbId ? `#${diag.tmdbId}` : ''}`,
         `Backend: ${diag.backendHost || getProxyHost()}`,
-        `Source: ${diag.sourceServer || 'none'} (${diag.sourceType || 'unknown'})`,
-        `Source Position: ${Number(diag.sourceIndex || 0) + 1 || 0}/${diag.sourceCount || 0}`,
+        `Selected source: ${diag.sourceServer || 'none'} (${diag.sourceType || 'unknown'})`,
         `Status: ${diag.status || 'idle'}`,
         `Reason: ${diag.reason || 'none'}`,
-        `Native Media: ${diag.nativeMediaStatus || 'waiting/not reported'}`,
-        `Stream Optimization: ${getPlaybackSettings().playbackOptimization}`,
-        `URL: ${diag.sourceUrl || 'none'}`,
+        `Quality setting: ${getPlaybackSettings().playbackOptimization}`,
         '',
-        'Recent Source Health:',
-        ...(healthLines.length ? healthLines : ['- No source health data yet']),
+        'Recent playback by source:',
+        ...(healthLines.length ? healthLines : ['- No playback history yet']),
         '',
         'Backend Discovery:',
         getDiscoveryLogs() || 'No discovery logs yet'

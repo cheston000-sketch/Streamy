@@ -63,6 +63,7 @@ const context = vm.createContext({
     navigateTo(hash) { context.location.hash = hash; },
     getSeriesProgress: () => ({ last_season: 1, last_episode: 2 }),
     getProxyHost: () => 'http://backend.example',
+    getDiscoveryLogs: () => '',
     clearPlaybackCompleted() {}, markPlaybackCompleted() {}
 });
 vm.runInContext(source, context);
@@ -134,4 +135,9 @@ recoveryHls.emit(FakeHls.Events.MANIFEST_PARSED);
 assert.equal(video.currentTime, 12, 'short playback positions survive failover');
 listeners.get('streamy-stop-web-playback')();
 
+context.NativeBridge = { getSourceHealthSummary: () => JSON.stringify({native:{server:'Native source',lastStatus:'buffering',startupMs:3200,bufferCount:4,lastError:'TIMEOUT',lastUpdatedAt:Date.now()}}) };
+const report = run('getPlaybackDiagnosticsText()');
+assert.match(report, /Native source: buffering; 3\.2s to start; 4 buffering events; last error: TIMEOUT/);
+assert.doesNotMatch(report, /URL:/, 'diagnostics must not copy stream URLs');
+delete context.NativeBridge;
 console.log('Playback settings, native metadata, and browser lifecycle tests passed.');

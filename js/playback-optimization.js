@@ -3,7 +3,7 @@ const DATA_SAVER_MAX_WIDTH = 1280;
 const DATA_SAVER_MAX_HEIGHT = 720;
 
 export function normalizePlaybackOptimization(value) {
-    return value === 'data-saver' || value === 'original' ? value : 'auto';
+    return value === 'data-saver' || value === 'quality-1080' || value === 'original' ? value : 'auto';
 }
 
 export function createHlsPlaybackConfig(mode) {
@@ -37,13 +37,18 @@ function fitsDataSaver(level) {
         && width <= DATA_SAVER_MAX_WIDTH && height <= DATA_SAVER_MAX_HEIGHT;
 }
 
-function dataSaverLevelCap(levels) {
+function qualityLevelCap(levels, mode) {
     if (!Array.isArray(levels) || !levels.length) return -1;
 
     // Hls caps an index prefix, not an arbitrary subset of variants. Stop at the
     // first over-budget variant so an earlier expensive level cannot leak through.
     let cap = -1;
-    for (let index = 0; index < levels.length && fitsDataSaver(levels[index]); index += 1) {
+    const fits = mode === 'data-saver' ? fitsDataSaver : level => {
+        const width = Number(level?.width) || 0;
+        const height = Number(level?.height) || 0;
+        return width <= 1920 && height <= 1080;
+    };
+    for (let index = 0; index < levels.length && fits(levels[index]); index += 1) {
         cap = index;
     }
     if (cap >= 0) return cap;
@@ -63,11 +68,12 @@ function dataSaverLevelCap(levels) {
 }
 
 export function configureHlsPlayback(hls, HlsConstructor, mode) {
-    if (normalizePlaybackOptimization(mode) !== 'data-saver' || !hls) return () => {};
+    const normalized = normalizePlaybackOptimization(mode);
+    if ((normalized !== 'data-saver' && normalized !== 'quality-1080') || !hls) return () => {};
 
     const updateCap = (_event, data) => {
         const levels = hls.levels?.length ? hls.levels : data?.levels;
-        const cap = dataSaverLevelCap(levels);
+        const cap = qualityLevelCap(levels, normalized);
         if (cap >= 0 && hls.autoLevelCapping !== cap) hls.autoLevelCapping = cap;
     };
     const events = [...new Set([

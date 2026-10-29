@@ -4,8 +4,10 @@ import java.util.Locale;
 
 /** Playback tuning only; compression requires an alternate encode supplied by the host. */
 final class PlaybackOptimizationPolicy {
-    enum Mode { AUTO, DATA_SAVER, ORIGINAL }
+    enum Mode { AUTO, DATA_SAVER, QUALITY_1080, ORIGINAL }
 
+    static final int QUALITY_1080_MAX_WIDTH = 1920;
+    static final int QUALITY_1080_MAX_HEIGHT = 1080;
     static final int DATA_SAVER_MAX_WIDTH = 1280;
     static final int DATA_SAVER_MAX_HEIGHT = 720;
     static final int DATA_SAVER_MAX_BITRATE = 2_500_000;
@@ -40,6 +42,7 @@ final class PlaybackOptimizationPolicy {
         String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
         if ("original".equals(normalized)) return Mode.ORIGINAL;
         if ("data-saver".equals(normalized)) return Mode.DATA_SAVER;
+        if ("quality-1080".equals(normalized)) return Mode.QUALITY_1080;
         return Mode.AUTO;
     }
 
