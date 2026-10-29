@@ -1,10 +1,12 @@
-import { initSearchView } from './search-view.js?v=146';
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=146';
-import { fetchTmdbSearchPage, CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=146';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=146';
-import { setupRouter, navigateTo, navigateBack } from './router.js?v=146';
-import { NavigationManager } from './navigation.js?v=146';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=146';
+import { initCatalogStatusNotice } from './catalog-status.js?v=147';
+import { hasParentPin, isValidParentPin, setParentPin, verifyParentPin, removeParentPin } from './parent-pin.js?v=147';
+import { initSearchView } from './search-view.js?v=147';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=147';
+import { fetchTmdbSearchPage, CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=147';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=147';
+import { setupRouter, navigateTo, navigateBack } from './router.js?v=147';
+import { NavigationManager } from './navigation.js?v=147';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=147';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -16,7 +18,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 146;
+const PACKAGED_APP_VERSION = 147;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
@@ -371,6 +373,101 @@ function focusFirstRowCard(renderToken = activeRowsRenderToken) {
     }, 80);
 }
 
+// Parent PIN prompts remain open while verification runs; cancelling invalidates
+// the pending operation, so its completion can never execute a profile action.
+let parentPinPrompt = null;
+function finishParentPinPrompt(value) {
+    const state = parentPinPrompt;
+    if (!state) return;
+    parentPinPrompt = null;
+    const modal = document.getElementById('parent-pin-modal');
+    document.getElementById('parent-pin-input').value = '';
+    modal.classList.add('hidden');
+    state.resolve(value);
+    if (state.previousFocus?.isConnected && !state.previousFocus.closest('.hidden')) state.previousFocus.focus();
+}
+function promptParentPin(title, detail, verify) {
+    if (parentPinPrompt) return Promise.resolve(null);
+    const modal = document.getElementById('parent-pin-modal');
+    const input = document.getElementById('parent-pin-input');
+    const error = document.getElementById('parent-pin-error');
+    document.getElementById('parent-pin-title').textContent = title;
+    document.getElementById('parent-pin-detail').textContent = detail;
+    input.value = ''; error.textContent = '';
+    document.getElementById('parent-pin-submit').disabled = false;
+    modal.classList.remove('hidden');
+    return new Promise(resolve => {
+        const state = {resolve, previousFocus:document.activeElement, verify, busy:false};
+        parentPinPrompt = state;
+        NavigationManager.lockFocus('#parent-pin-modal');
+        document.querySelector('#parent-pin-pad [data-pin-digit]')?.focus();
+    });
+}
+function initParentPinDialog() {
+    const input = document.getElementById('parent-pin-input');
+    const error = document.getElementById('parent-pin-error');
+    const submit = document.getElementById('parent-pin-submit');
+    document.querySelectorAll('#parent-pin-pad [data-pin-digit]').forEach(button => {
+        button.onclick = () => { if (input.value.length < 6 && !parentPinPrompt?.busy) input.value += button.dataset.pinDigit; };
+    });
+    document.getElementById('parent-pin-clear').onclick = () => { if (!parentPinPrompt?.busy) input.value = ''; };
+    document.getElementById('parent-pin-delete').onclick = () => { if (!parentPinPrompt?.busy) input.value = input.value.slice(0, -1); };
+    document.getElementById('parent-pin-cancel').onclick = () => finishParentPinPrompt(null);
+    input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); });
+    input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); submit.click(); } });
+    submit.onclick = async () => {
+        const state = parentPinPrompt;
+        if (!state || state.busy) return;
+        const pin = input.value;
+        if (!isValidParentPin(pin)) { error.textContent = 'Enter a PIN with 4 to 6 digits.'; return; }
+        state.busy = true; submit.disabled = true; error.textContent = 'Checking…';
+        try {
+            const result = await state.verify(pin, () => parentPinPrompt === state);
+            if (parentPinPrompt !== state) return;
+            if (result?.ok) { finishParentPinPrompt(result.value ?? true); return; }
+            input.value = ''; error.textContent = result?.message || 'Incorrect PIN. Please try again.';
+        } catch (failure) {
+            if (parentPinPrompt === state) { input.value = ''; error.textContent = failure?.message || 'PIN protection is unavailable.'; }
+        } finally { state.busy = false; if (!parentPinPrompt || parentPinPrompt === state) submit.disabled = false; }
+    };
+}
+async function authorizeParentAction() {
+    if (!hasParentPin()) return true;
+    const result = await promptParentPin('Enter parent PIN', 'Enter the PIN to manage profiles or leave Kids.', async pin => {
+        const checked = await verifyParentPin(pin);
+        return {ok:checked.ok, message:checked.locked ? 'Too many attempts. Try again in one minute.' : 'Incorrect PIN. Please try again.'};
+    });
+    return result === true;
+}
+function updateParentPinSettings() {
+    const enabled = hasParentPin();
+    document.getElementById('setting-parent-pin').textContent = enabled ? 'Change parent PIN' : 'Set parent PIN';
+    document.getElementById('setting-remove-parent-pin').classList.toggle('hidden', !enabled);
+    document.getElementById('parent-pin-settings-help').textContent = enabled
+        ? 'A parent PIN protects profile management and switching out of Kids on this device.'
+        : 'Set an optional PIN to protect profile management and switching out of Kids on this device.';
+}
+async function configureParentPin() {
+    if (hasParentPin()) { if (!await authorizeParentAction()) return; }
+    else if (!activeProfile || activeProfile.isKid) {
+        document.getElementById('parent-pin-settings-help').textContent = 'Switch to an adult profile to set a parent PIN.';
+        return;
+    }
+    const first = await promptParentPin('Set parent PIN', 'Choose 4 to 6 digits.', async pin => ({ok:true, value:pin}));
+    if (!first) return;
+    const confirmed = await promptParentPin('Confirm parent PIN', 'Enter the same digits again.', async (pin, isCurrent) => {
+        if (pin !== first) return {ok:false, message:'PINs do not match. Try again.'};
+        const saved = await setParentPin(pin, globalThis.localStorage, {shouldCommit:isCurrent});
+        return {ok:saved};
+    });
+    if (confirmed) updateParentPinSettings();
+}
+async function clearParentPin() {
+    if (!hasParentPin() || !await authorizeParentAction()) return;
+    removeParentPin();
+    updateParentPinSettings();
+}
+
 // Profiles System
 function getProfiles() {
     try {
@@ -444,10 +541,18 @@ function initProfiles() {
 }
     
 function initProfileBindings() {
-    DOM.editProfilesBtn.onclick = () => setProfilesEditing(!DOM.profilesGrid.classList.contains('edit-mode'));
+    initParentPinDialog();
+    updateParentPinSettings();
+    document.getElementById('setting-parent-pin').onclick = configureParentPin;
+    document.getElementById('setting-remove-parent-pin').onclick = clearParentPin;
+    DOM.editProfilesBtn.onclick = async () => {
+        const editing = DOM.profilesGrid.classList.contains('edit-mode');
+        if (!editing && !await authorizeParentAction()) return;
+        setProfilesEditing(!editing);
+    };
 
-    DOM.addProfileBtn.onclick = () => openProfileModal(null);
-    DOM.settingManageProfiles.onclick = () => showProfilesScreen({ editing: true, focusFirst: true });
+    DOM.addProfileBtn.onclick = async () => { if (await authorizeParentAction()) openProfileModal(null); };
+    DOM.settingManageProfiles.onclick = async () => { if (await authorizeParentAction()) showProfilesScreen({ editing: true, focusFirst: true }); };
 
     DOM.cancelProfileBtn.onclick = () => {
         DOM.profileEditModal.classList.add('hidden');
@@ -477,12 +582,15 @@ function renderProfilesScreen(profiles, focusIndex = 0, isEditing = false) {
         
         card.innerHTML = `
             <div class="profile-avatar">${svgContent}${p.isKid ? '<span class="kid-badge">KIDS</span>' : ''}</div>
-            <div style="font-size: 1.5rem; font-weight: bold; text-shadow: 1px 1px 3px black;">${p.name}</div>
+            <div class="profile-display-name" style="font-size: 1.5rem; font-weight: bold; text-shadow: 1px 1px 3px black;"></div>
         `;
+        card.querySelector('.profile-display-name').textContent = p.name || 'Profile';
         
-        card.onclick = () => {
-            if (isEditing) openProfileModal(p);
-            else selectProfile(p);
+        card.onclick = async () => {
+            if (isEditing) { openProfileModal(p); return; }
+            const requiresPin = !p.isKid && (!activeProfile || activeProfile.isKid);
+            if (requiresPin && !await authorizeParentAction()) return;
+            selectProfile(p);
         };
         card.onkeydown = (e) => { if(e.key === 'Enter') card.click(); };
         DOM.profilesGrid.appendChild(card);
@@ -949,6 +1057,11 @@ function setupDpadLogic() {
         const isInput = tagName === 'INPUT' || tagName === 'TEXTAREA';
         const isEditableText = isInput && !e.target.readOnly && !e.target.disabled;
         
+        if ((e.key === 'Escape' || e.key === 'Backspace') && parentPinPrompt) {
+            e.preventDefault();
+            document.getElementById('parent-pin-cancel')?.click();
+            return;
+        }
         if (e.key === 'Escape' || e.key === 'Backspace') {
             if (isInput && e.target.value.length > 0) return; // Allow backspace in input
             
@@ -1018,6 +1131,7 @@ function initApp() {
     
     initProfiles();
     initProfileBindings();
+    initCatalogStatusNotice();
     initSearch();
     setupDpadLogic();
     setupRouter();
@@ -1249,6 +1363,16 @@ function initApp() {
     globalThis.addEventListener('load-home-rows', () => {
         updateFilterDropdown('home');
         loadHomeRows();
+    });
+    globalThis.addEventListener('streamy-catalog-retry', () => {
+        const route = globalThis.location.hash || '#home';
+        if (route.startsWith('#category') && currentFullCategory) {
+            openCategoryView(currentFullCategory.title, currentFullCategory.val, currentFullCategory.type);
+        } else if (route.startsWith('#movies') || route.startsWith('#tv')) {
+            if (DOM.genreFilter.value) DOM.genreFilter.dispatchEvent(new Event('change'));
+            else globalThis.dispatchEvent(new Event(route.startsWith('#tv') ? 'load-tv-rows' : 'load-movie-rows'));
+        } else if (route.startsWith('#watchlist')) globalThis.dispatchEvent(new Event('load-watchlist-rows'));
+        else if (route.startsWith('#home')) globalThis.dispatchEvent(new Event('load-home-rows'));
     });
     globalThis.addEventListener('watchlist-updated', () => {
         if (globalThis.location.hash === '#watchlist') {

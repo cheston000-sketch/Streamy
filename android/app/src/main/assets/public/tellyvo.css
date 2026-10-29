@@ -513,3 +513,13 @@ body::before {
 .actor-heading { display: flex; align-items: center; gap: 24px; margin: 24px 0; }
 .actor-heading img { width: 110px; height: 145px; object-fit: cover; border-radius: 10px; }
 @media (max-width: 650px) { .search-view { padding: 100px 20px 40px; } .search-filters label { flex: 1 1 140px; } .search-filters select { width: 100%; min-width: 0; } }
+
+.catalog-status-notice {
+  position: sticky; top: 8px; z-index: 100; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin: 8px 24px; padding: 12px 16px; border: 1px solid #879ab8;
+  border-radius: 10px; color: #fff; background: #1a2942; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+}
+.catalog-status-retry { flex: 0 0 auto; padding: 9px 14px; color: #fff; background: #304967; border: 1px solid #a8bed8; border-radius: 7px; font: inherit; }
+.catalog-status-retry:focus { outline: 3px solid #fff; outline-offset: 3px; }
+.catalog-status-retry:disabled { opacity: .6; }
+@media (max-width: 600px) { .catalog-status-notice { margin: 8px; align-items: flex-start; flex-wrap: wrap; } }

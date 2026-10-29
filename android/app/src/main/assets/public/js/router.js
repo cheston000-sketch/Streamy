@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=146';
+import { NavigationManager } from './navigation.js?v=147';
 
 let currentRouteKey = null;
 const routeStack = [];
@@ -36,6 +36,12 @@ export function navigateBack() {
 function handleNativeBack() {
     if (globalThis.StreamOSUpdate?.isRequired?.()) {
         document.getElementById('required-update-install')?.focus();
+        return 'handled';
+    }
+
+    const pinModal = document.querySelector('#parent-pin-modal:not(.hidden)');
+    if (pinModal) {
+        document.getElementById('parent-pin-cancel')?.click();
         return 'handled';
     }
 

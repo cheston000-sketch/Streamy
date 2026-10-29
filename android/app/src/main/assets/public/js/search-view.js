@@ -167,6 +167,11 @@ export function initSearchView({input, grid, fetchPage, fetchDetails, filterTitl
         }
     };
     globalThis.addEventListener('hashchange', syncRoute);
+    globalThis.addEventListener('streamy-catalog-retry', () => {
+        if (!isSearch()) return;
+        if (isActor()) syncRoute();
+        else restart();
+    });
     // Actor details need a selected search result; recover cleanly after a reload.
     if (isActor() && !selectedActor) globalThis.history.replaceState(null, '', '#search');
     syncRoute();

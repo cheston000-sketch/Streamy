@@ -1,4 +1,4 @@
-import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=146';
+import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=147';
 
 const FOCUSABLE_SELECTOR = [
     'button',
@@ -49,6 +49,9 @@ function getFocusableItems(container = document) {
 }
 
 function getContextRoots() {
+    const pinModal = document.querySelector('#parent-pin-modal:not(.hidden)');
+    if (pinModal) return [pinModal];
+
     const modal = document.querySelector('#profile-edit-modal:not(.hidden)');
     if (modal) return [modal];
 
@@ -59,6 +62,8 @@ function getContextRoots() {
     const roots = [];
     const topBar = document.getElementById('top-bar');
     if (topBar && !topBar.classList.contains('hidden')) roots.push(topBar);
+    const catalogNotice = document.getElementById('catalog-status-notice');
+    if (catalogNotice && !catalogNotice.classList.contains('hidden')) roots.push(catalogNotice);
     if (activeView) roots.push(activeView);
     return roots.length ? roots : [document.body];
 }

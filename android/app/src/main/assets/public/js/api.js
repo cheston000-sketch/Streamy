@@ -4,7 +4,7 @@ import {
     getUsRatingsFromPayload,
     hasKidsSafeCatalogShape,
     resolveMediaType
-} from './kids-safety.js?v=146';
+} from './kids-safety.js?v=147';
 
 export const TMDB_API_KEY = 'a9b4a682953630df7df70fb2178528b8';
 export const BASE_URL = 'https://api.themoviedb.org/3';
@@ -15,6 +15,83 @@ const DB_NAME = 'Streamy_CacheDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'tmdb_cache';
 export const CACHE_DB_NAME = DB_NAME;
+const CATALOG_CACHE_MAX_AGE_MS = 43200000;
+const staleCatalogRequests = new Set();
+const unavailableCatalogRequests = new Set();
+let forceCatalogRefreshUntil = 0;
+let catalogRetrying = false;
+let retryGeneration = 0;
+let catalogChangeCounter = 0;
+const catalogChangeVersions = new Map();
+
+export function getCatalogStatus() {
+    return { stale: staleCatalogRequests.size > 0, unavailable: unavailableCatalogRequests.size > 0, retrying: catalogRetrying };
+}
+
+export function resetCatalogStatus() {
+    staleCatalogRequests.clear();
+    unavailableCatalogRequests.clear();
+    catalogRetrying = false;
+    forceCatalogRefreshUntil = 0;
+    retryGeneration++;
+    globalThis.dispatchEvent?.(new Event('streamy-catalog-status-changed'));
+}
+
+// Retry all requests started by the active route, including normally fresh
+// cache entries. Cache alone cannot prove connectivity has recovered.
+export async function retryCatalogRequests() {
+    const generation = ++retryGeneration;
+    const previous = new Map([...staleCatalogRequests, ...unavailableCatalogRequests]
+        .map(key => [key, catalogChangeVersions.get(key) || 0]));
+    forceCatalogRefreshUntil = Date.now() + 15000;
+    catalogRetrying = true;
+    globalThis.dispatchEvent?.(new Event('streamy-catalog-status-changed'));
+    globalThis.dispatchEvent?.(new Event('streamy-catalog-retry'));
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+        const response = await fetch(`${BASE_URL}/configuration?api_key=${TMDB_API_KEY}`, { signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) throw new Error(`Catalog probe failed (${response.status})`);
+        const body = await response.json();
+        if (!body || typeof body !== 'object' || !body.images) throw new Error('Invalid catalog probe');
+        if (generation !== retryGeneration) return;
+        for (const [key, version] of previous) {
+            if ((catalogChangeVersions.get(key) || 0) !== version) continue;
+            staleCatalogRequests.delete(key);
+            unavailableCatalogRequests.delete(key);
+        }
+        unavailableCatalogRequests.delete('__connection_probe__');
+    } catch (error) {
+        if (generation !== retryGeneration) return;
+        unavailableCatalogRequests.add('__connection_probe__');
+    } finally {
+        clearTimeout(timeout);
+        if (generation === retryGeneration) {
+            catalogRetrying = false;
+            globalThis.dispatchEvent?.(new Event('streamy-catalog-status-changed'));
+        }
+    }
+}
+
+function recordCatalogStatus(requestUrl, status) {
+    // A cache hit does not establish that connectivity has returned.
+    if (status === 'cached') return;
+    catalogChangeVersions.set(requestUrl, ++catalogChangeCounter);
+    staleCatalogRequests.delete(requestUrl);
+    unavailableCatalogRequests.delete(requestUrl);
+    if (status === 'stale') staleCatalogRequests.add(requestUrl);
+    if (status === 'unavailable') unavailableCatalogRequests.add(requestUrl);
+    globalThis.dispatchEvent?.(new Event('streamy-catalog-status-changed'));
+}
+
+function isFreshCache(item) {
+    return !!item?.data && typeof item.data === 'object' && Number.isFinite(item.timestamp)
+        && item.timestamp <= Date.now() && Date.now() - item.timestamp < CATALOG_CACHE_MAX_AGE_MS;
+}
+
+function shouldForceCatalogRefresh(options) {
+    return options?.forceRefresh === true || Date.now() < forceCatalogRefreshUntil;
+}
 
 function isTunnelHost(host) {
     const lower = (host || '').toLowerCase();
@@ -54,7 +131,7 @@ function getDB() {
 async function getCache(url) {
     try {
         const db = await getDB();
-        return new Promise((resolve, reject) => {
+        return await new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readonly');
             const store = tx.objectStore(STORE_NAME);
             const req = store.get(url);
@@ -70,7 +147,7 @@ async function getCache(url) {
 async function setCache(url, data) {
     try {
         const db = await getDB();
-        return new Promise((resolve, reject) => {
+        return await new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
             store.put({ url, timestamp: Date.now(), data });
@@ -131,13 +208,26 @@ async function fetchTmdbRatingPayload(endpoint, signal) {
     const requestUrl = `${BASE_URL}${endpoint}${separator}api_key=${TMDB_API_KEY}`;
     const cachedItem = await getCache(requestUrl);
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
-    if (cachedItem && (Date.now() - cachedItem.timestamp) < 43200000) return cachedItem.data;
+    if (isFreshCache(cachedItem)) return cachedItem.data;
 
-    const response = await fetch(requestUrl, { signal });
-    if (!response.ok) throw new Error(`TMDB rating request failed (${response.status})`);
-    const data = await response.json();
-    await setCache(requestUrl, data);
-    return data;
+    try {
+        const response = await fetch(requestUrl, { signal });
+        if (!response.ok) throw new Error(`TMDB rating request failed (${response.status})`);
+        const data = await response.json();
+        if (!data || typeof data !== 'object' || !Array.isArray(data.results)) throw new Error('Invalid rating response');
+        await setCache(requestUrl, data);
+        recordCatalogStatus(requestUrl, 'fresh');
+        return data;
+    } catch (error) {
+        if (error?.name === 'AbortError' || signal?.aborted) throw error;
+        // The same fail-closed US rating policy still runs on cached ratings.
+        if (cachedItem?.data && Array.isArray(cachedItem.data.results)) {
+            recordCatalogStatus(requestUrl, 'stale');
+            return cachedItem.data;
+        }
+        recordCatalogStatus(requestUrl, 'unavailable');
+        throw error;
+    }
 }
 
 async function isKidsRatedItem(item, fallbackType, signal) {
@@ -190,7 +280,8 @@ export async function fetchFromTMDB(endpoint, options = {}) {
     const cachedItem = await getCache(requestUrl);
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
     // 12 hours cache
-    if (cachedItem && (Date.now() - cachedItem.timestamp) < 43200000) {
+    if (isFreshCache(cachedItem) && !shouldForceCatalogRefresh(options)) {
+        recordCatalogStatus(requestUrl, 'cached');
         const cachedResult = cachedItem.data.results || cachedItem.data || [];
         return profile?.isKid && Array.isArray(cachedResult)
             ? filterItemsForActiveProfile(cachedResult, inferMediaTypeFromEndpoint(endpoint), { signal })
@@ -199,19 +290,26 @@ export async function fetchFromTMDB(endpoint, options = {}) {
 
     try {
         const res = await fetch(requestUrl, { signal });
-        if(res.status === 401) {
-            console.error("API Key Required or Invalid");
-            return [];
-        }
+        if (!res.ok) throw new Error(`TMDB request failed (${res.status})`);
         const data = await res.json();
+        if (!data || typeof data !== 'object') throw new Error('Invalid TMDB response');
         await setCache(requestUrl, data);
+        recordCatalogStatus(requestUrl, 'fresh');
         const result = data.results ? data.results : data;
         return profile?.isKid && Array.isArray(result)
             ? filterItemsForActiveProfile(result, inferMediaTypeFromEndpoint(endpoint), { signal })
             : result;
     } catch (e) {
-        if (e?.name === 'AbortError') throw e;
+        if (e?.name === 'AbortError' || signal?.aborted) throw e;
         console.error("TMDB error:", e);
+        if (cachedItem?.data && typeof cachedItem.data === 'object') {
+            recordCatalogStatus(requestUrl, 'stale');
+            const result = cachedItem.data.results || cachedItem.data || [];
+            return profile?.isKid && Array.isArray(result)
+                ? filterItemsForActiveProfile(result, inferMediaTypeFromEndpoint(endpoint), { signal })
+                : result;
+        }
+        recordCatalogStatus(requestUrl, 'unavailable');
         return [];
     }
 }
@@ -227,13 +325,26 @@ export async function fetchTmdbSearchPage(term, page = 1, options = {}) {
     const requestUrl = `${BASE_URL}${endpoint}&api_key=${TMDB_API_KEY}`;
     const cachedItem = await getCache(requestUrl);
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
-    let data = cachedItem && Date.now() - cachedItem.timestamp < 43200000 ? cachedItem.data : null;
+    let data = isFreshCache(cachedItem) && !shouldForceCatalogRefresh(options) ? cachedItem.data : null;
     if (!data) {
-        const response = await fetch(requestUrl, { signal });
-        if (!response.ok) throw new Error(`Search unavailable (${response.status})`);
-        data = await response.json();
-        if (!Array.isArray(data?.results)) throw new Error('Invalid search response');
-        await setCache(requestUrl, data);
+        try {
+            const response = await fetch(requestUrl, { signal });
+            if (!response.ok) throw new Error(`Search unavailable (${response.status})`);
+            data = await response.json();
+            if (!Array.isArray(data?.results)) throw new Error('Invalid search response');
+            await setCache(requestUrl, data);
+            recordCatalogStatus(requestUrl, 'fresh');
+        } catch (error) {
+            if (error?.name === 'AbortError' || signal?.aborted) throw error;
+            if (!Array.isArray(cachedItem?.data?.results)) {
+                recordCatalogStatus(requestUrl, 'unavailable');
+                throw error;
+            }
+            data = cachedItem.data;
+            recordCatalogStatus(requestUrl, 'stale');
+        }
+    } else {
+        recordCatalogStatus(requestUrl, 'cached');
     }
     if (!Array.isArray(data?.results)) throw new Error('Invalid cached search response');
     let results = data.results.filter(item => item && ['movie', 'tv', 'person'].includes(item.media_type) && item.adult !== true);

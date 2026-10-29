@@ -1,8 +1,8 @@
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=146';
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=146';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=146';
-import { navigateTo, navigateBack } from './router.js?v=146';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=146';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=147';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=147';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=147';
+import { navigateTo, navigateBack } from './router.js?v=147';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=147';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -2191,4 +2191,9 @@ globalThis.addEventListener('hashchange', () => {
     if (extractionAbortController && globalThis.location.hash !== '#links') {
         cancelActiveExtraction();
     }
+});
+
+// Refresh the visible title after a catalog retry without interrupting playback.
+globalThis.addEventListener('streamy-catalog-retry', () => {
+    if (globalThis.location.hash.startsWith('#details') && currentMovieContext) openDetails(currentMovieContext);
 });
