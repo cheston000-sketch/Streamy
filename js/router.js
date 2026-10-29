@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=141';
+import { NavigationManager } from './navigation.js?v=142';
 
 let currentRouteKey = null;
 const routeStack = [];
@@ -9,18 +9,8 @@ function normalizedHash(hash = globalThis.location.hash) {
 
 function routeKeyForHash(hash) {
     const normalized = normalizedHash(hash);
-    return ['#search', '#live-tv', '#player', '#details', '#links', '#category', '#settings', '#watchlist', '#tv', '#movies', '#home']
+    return ['#search', '#player', '#details', '#links', '#category', '#settings', '#watchlist', '#tv', '#movies', '#home']
         .find(route => normalized.startsWith(route)) || '#home';
-}
-
-function isKidsProfileActive() {
-    try {
-        const activeId = globalThis.localStorage.getItem('streamy_active_profile');
-        const profiles = JSON.parse(globalThis.localStorage.getItem('streamy_profiles') || '[]');
-        return profiles.some(profile => profile?.id === activeId && profile.isKid === true);
-    } catch (error) {
-        return false;
-    }
 }
 
 export function navigateBack() {
@@ -105,6 +95,7 @@ export function navigateTo(hash) {
 }
 
 function stopVideoPlayback() {
+    globalThis.dispatchEvent(new Event('streamy-stop-web-playback'));
     const vp = document.getElementById('video-player');
     if (vp) {
         vp.pause();
@@ -135,7 +126,8 @@ function updateNavUI(activeHash) {
 
 export function handleRoute() {
     let hash = globalThis.location.hash || '#home';
-    if (hash.startsWith('#live-tv') && isKidsProfileActive()) {
+    // Old bookmarks and unsupported routes should land on an active view.
+    if (routeKeyForHash(hash) === '#home' && !hash.startsWith('#home')) {
         globalThis.history.replaceState(null, '', '#home');
         hash = '#home';
     }
@@ -145,7 +137,6 @@ export function handleRoute() {
 
     const routeMap = {
         '#search': { view: 'view-search', tab: 'search', focus: 'search-input' },
-        '#live-tv': { view: 'view-live-tv', tab: 'live-tv', event: 'load-live-tv' },
         '#player': { view: 'view-player' },
         '#details': { view: 'view-details' },
         '#links': { view: 'view-links' },
@@ -186,8 +177,6 @@ export function handleRoute() {
     setTimeout(() => {
         if (hash.startsWith('#search')) {
             NavigationManager.restoreFocus(routeKey, '#search-input');
-        } else if (hash.startsWith('#live-tv')) {
-             NavigationManager.restoreFocus(routeKey, '#live-channel-grid .live-card');
         } else if (hash.startsWith('#details')) {
              NavigationManager.restoreFocus(routeKey, '#play-btn');
         } else if (hash.startsWith('#links')) {

@@ -6,8 +6,8 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, '..');
 const sourceDir = path.join(rootDir, 'www');
 const targetDir = path.join(rootDir, 'app-dist');
-const runtimeFiles = ['index.html', 'styles.css', 'manifest.json', 'icon.svg', 'tunnel_url.txt'];
-const runtimeDirectories = ['js', 'css', 'vendor'];
+const runtimeFiles = ['index.html', 'styles.css', 'tellyvo.css', 'manifest.json', 'icon.svg', 'tellyvo-wordmark.svg', 'tunnel_url.txt'];
+const runtimeDirectories = ['js', 'vendor'];
 const maxBundleBytes = 20 * 1024 * 1024;
 
 if (path.dirname(targetDir) !== rootDir || path.basename(targetDir) !== 'app-dist') {

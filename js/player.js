@@ -1,9 +1,12 @@
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=141';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=141';
-import { navigateTo, navigateBack } from './router.js?v=141';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=142';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=142';
+import { navigateTo, navigateBack } from './router.js?v=142';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=142';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
+let activeWebHls = null;
+let webPlaybackSessionId = 0;
 let nearEndPromptDismissed = false;
 let nearEndPromptShown = false;
 let currentNextEpisodeTarget = null;
@@ -63,6 +66,7 @@ function getPlaybackMetadataPayload() {
         imdbId: getImdbId(currentMovieContext),
         season: currentPlaybackSeason,
         episode: currentPlaybackEpisode,
+        playbackOptimization: getPlaybackSettings().playbackOptimization,
         introMarker: currentMovieContext?.type === 'tv' ? currentIntroMarker : null,
         recapMarker: currentMovieContext?.type === 'tv' ? currentRecapMarker : null
     });
@@ -233,6 +237,38 @@ function bindWebPlaybackProgress(video) {
         }
     }, 10000);
 }
+
+function stopWebPlayback() {
+    webPlaybackSessionId++;
+    clearBrowserFailoverTimer();
+    const video = DOM.videoPlayer;
+    // pause events are asynchronous; save explicitly before removing callbacks.
+    if (video && webPlaybackSaveTimer !== null) syncWebPlaybackProgress(video);
+    if (video) video.onpause = null;
+    if (video && !video.paused) video.pause();
+    if (webPlaybackSaveTimer) globalThis.clearInterval(webPlaybackSaveTimer);
+    webPlaybackSaveTimer = null;
+    if (video) {
+        video.onloadedmetadata = null;
+        video.onerror = null;
+        video.ontimeupdate = null;
+        video.onpause = null;
+        video.onended = null;
+        video.onvolumechange = null;
+        video.onplay = null;
+        video.oncanplay = null;
+    }
+    if (activeWebHls) {
+        activeWebHls.destroy();
+        activeWebHls = null;
+    }
+    if (video) {
+        video.removeAttribute('src');
+        video.load();
+    }
+}
+
+globalThis.addEventListener('streamy-stop-web-playback', stopWebPlayback);
 
 async function maybeShowNextEpisodePrompt(video) {
     if (!currentMovieContext || currentMovieContext.type !== 'tv' || nearEndPromptDismissed || nearEndPromptShown) return;
@@ -517,6 +553,7 @@ export function getPlaybackSettings() {
         && Number(stored.backupSourcesOptInVersion || 0) >= 102;
     return {
         sourcePreference: stored.sourcePreference || 'extractor',
+        playbackOptimization: normalizePlaybackOptimization(stored.playbackOptimization),
         autoplaySources: stored.autoplaySources !== false,
         autoplayNextEpisode: stored.autoplayNextEpisode !== false,
         includeBackupSources: backupSourcesOptedIn,
@@ -530,6 +567,7 @@ export function savePlaybackSettings(nextSettings = {}) {
         ...current,
         ...nextSettings,
         sourcePreference: nextSettings.sourcePreference || current.sourcePreference || 'extractor',
+        playbackOptimization: normalizePlaybackOptimization(nextSettings.playbackOptimization ?? current.playbackOptimization),
         autoplaySources: typeof nextSettings.autoplaySources === 'boolean'
             ? nextSettings.autoplaySources
             : current.autoplaySources,
@@ -1077,6 +1115,7 @@ export function getPlaybackDiagnosticsText() {
         `Status: ${diag.status || 'idle'}`,
         `Reason: ${diag.reason || 'none'}`,
         `Native Media: ${diag.nativeMediaStatus || 'waiting/not reported'}`,
+        `Stream Optimization: ${getPlaybackSettings().playbackOptimization}`,
         `URL: ${diag.sourceUrl || 'none'}`,
         '',
         'Recent Source Health:',
@@ -1295,6 +1334,7 @@ export async function openDetails(movie) {
     }
 
     cancelActiveExtraction();
+    stopWebPlayback();
     const requestId = ++detailsSessionId;
     episodeLoadId++;
     episodeFocusRequested = false;
@@ -1486,6 +1526,7 @@ async function loadEpisodes(tvId, seasonNum, progressRecord = null, requestId = 
 
 async function startScrapingSession(targetS = null, targetE = null) {
     if (!currentMovieContext) return;
+    stopWebPlayback();
     cancelActiveExtraction();
     const sessionId = extractionSessionId;
     const sessionMovie = currentMovieContext;
@@ -1719,6 +1760,7 @@ async function startScrapingSession(targetS = null, targetE = null) {
 // =============================================
 
 function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybackSourceIndex) {
+    stopWebPlayback();
     clearAutoplayCountdown();
     nearEndPromptDismissed = false;
     nearEndPromptShown = false;
@@ -1822,6 +1864,7 @@ function playIframeFallback(iframeUrl, link = null, sourceIndex = currentPlaybac
 }
 
 function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSourceIndex) {
+    stopWebPlayback();
     clearAutoplayCountdown();
     nearEndPromptDismissed = false;
     nearEndPromptShown = false;
@@ -1965,14 +2008,18 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
     forceMaxVolume();
     DOM.videoPlayer.onvolumechange = forceMaxVolume;
 
-    const isM3U8 = streamUrl.includes('.m3u8');
-    const canPlayNativeHLS = DOM.videoPlayer.canPlayType('application/vnd.apple.mpegurl');
+    const webSessionId = webPlaybackSessionId;
+    const isCurrentWebSession = () => webSessionId === webPlaybackSessionId;
+    const isM3U8 = inferDirectStreamType(streamUrl, link?.type) === 'hls';
 
-    if (isM3U8 && !canPlayNativeHLS && globalThis.Hls && Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(streamUrl);
-        hls.attachMedia(DOM.videoPlayer);
+    if (isM3U8 && globalThis.Hls?.isSupported?.()) {
+        const Hls = globalThis.Hls;
+        const mode = getPlaybackSettings().playbackOptimization;
+        const hls = new Hls(createHlsPlaybackConfig(mode));
+        activeWebHls = hls;
+        configureHlsPlayback(hls, Hls, mode);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
+            if (!isCurrentWebSession()) return;
             clearBrowserFailoverTimer();
             markSourceResult(link, 'success', 'Browser HLS manifest parsed');
             recordPlaybackDiagnostic({ status: 'playing-browser-hls', reason: 'manifest-parsed', nativeMediaStatus: 'browser-playback', link });
@@ -1987,15 +2034,20 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
             DOM.videoPlayer.play().catch(e => console.warn(e));
         });
         hls.on(Hls.Events.ERROR, function(event, data) {
+            if (!isCurrentWebSession()) return;
             if (data?.fatal) {
                 markSourceResult(link, 'failed', `Fatal HLS error: ${data.type || 'unknown'}`);
                 recordPlaybackDiagnostic({ status: 'source-error', reason: `Fatal HLS error: ${data.type || 'unknown'}`, nativeMediaStatus: 'browser-error', link });
                 playNextSource('fatal-hls-error');
             }
         });
+        hls.attachMedia(DOM.videoPlayer);
+        hls.loadSource(streamUrl);
     } else {
         DOM.videoPlayer.src = streamUrl;
-        DOM.videoPlayer.addEventListener('loadedmetadata', function() {
+        DOM.videoPlayer.onloadedmetadata = function() {
+            if (!isCurrentWebSession()) return;
+            DOM.videoPlayer.onloadedmetadata = null;
             clearBrowserFailoverTimer();
             markSourceResult(link, 'success', 'Browser metadata loaded');
             recordPlaybackDiagnostic({ status: 'playing-browser-video', reason: 'loadedmetadata', nativeMediaStatus: 'browser-playback', link });
@@ -2008,15 +2060,16 @@ function playNativeVideo(streamUrl, link = null, sourceIndex = currentPlaybackSo
             }
             forceMaxVolume();
             DOM.videoPlayer.play().catch(e => console.warn("Autoplay block:", e));
-        }, {once: true});
+        };
     }
     DOM.videoPlayer.onerror = () => {
+        if (!isCurrentWebSession()) return;
         markSourceResult(link, 'failed', 'Browser video element error');
         recordPlaybackDiagnostic({ status: 'source-error', reason: 'Browser video element error', nativeMediaStatus: 'browser-error', link });
         playNextSource('browser-video-error');
     };
-    DOM.videoPlayer.addEventListener('play', forceMaxVolume, { once: true });
-    DOM.videoPlayer.addEventListener('canplay', forceMaxVolume, { once: true });
+    DOM.videoPlayer.onplay = forceMaxVolume;
+    DOM.videoPlayer.oncanplay = forceMaxVolume;
     bindWebPlaybackProgress(DOM.videoPlayer);
 }
 

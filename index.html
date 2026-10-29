@@ -16,8 +16,8 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=141">
-    <link rel="stylesheet" href="tellyvo.css?v=141">
+    <link rel="stylesheet" href="styles.css?v=142">
+    <link rel="stylesheet" href="tellyvo.css?v=142">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -27,7 +27,6 @@
         <a href="#home" class="brand" aria-label="Tellyvo" tabindex="-1">Tellyvo</a>
         <nav class="nav-tabs" aria-label="Primary navigation">
             <a href="#home" class="nav-tab active" data-view="home" tabindex="0"><i class="fa-solid fa-house"></i><span>Home</span></a>
-            <a href="#live-tv" class="nav-tab" data-view="live-tv" tabindex="0"><i class="fa-solid fa-tower-broadcast"></i><span>Live TV</span></a>
             <a href="#movies" class="nav-tab" data-view="movies" tabindex="0"><i class="fa-solid fa-film"></i><span>Movies</span></a>
             <a href="#tv" class="nav-tab" data-view="tv" tabindex="0"><i class="fa-solid fa-tv"></i><span>Shows</span></a>
             <a href="#watchlist" class="nav-tab" data-view="watchlist" tabindex="0"><i class="fa-solid fa-bookmark"></i><span>My Tellyvo</span></a>
@@ -120,7 +119,7 @@
                     <div class="hero-eyebrow">A TELLYVO FEATURE</div>
                     <h1 id="hero-title">A brighter way to watch</h1>
                     <div id="hero-meta" class="meta">Loading Database Metadata...</div>
-                    <p id="hero-desc">Movies, shows, and live television—beautifully organized and ready when you are.</p>
+                    <p id="hero-desc">Movies and shows—beautifully organized and ready when you are.</p>
                 </div>
             </div>
 
@@ -128,49 +127,6 @@
             <div id="rows-container"></div>
 
         </div>
-
-        <!-- LIVE TV VIEW -->
-        <section id="view-live-tv" class="view hidden" aria-labelledby="live-tv-title">
-            <header class="live-heading">
-                <div>
-                    <div class="live-kicker">Free direct streams</div>
-                    <h1 class="live-title" id="live-tv-title">Live TV</h1>
-                </div>
-                <div class="live-heading-actions">
-                    <span id="live-channel-count" class="live-channel-count" aria-live="polite">Loading</span>
-                    <div class="live-tabs" role="tablist" aria-label="Live TV views">
-                        <button id="live-channels-tab" class="btn-secondary live-tab active" role="tab" aria-selected="true" tabindex="0"><i class="fa-solid fa-border-all"></i> Channels</button>
-                        <button id="live-guide-tab" class="btn-secondary live-tab" role="tab" aria-selected="false" tabindex="0"><i class="fa-solid fa-list"></i> Guide</button>
-                    </div>
-                </div>
-            </header>
-            <div class="live-toolbar">
-                <label class="sr-only" for="live-search-input">Search live channels</label>
-                <i class="fa-solid fa-magnifying-glass live-search-icon" aria-hidden="true"></i>
-                <input id="live-search-input" class="live-search" type="search" placeholder="Search channels or programs" autocomplete="off" tabindex="0">
-                <button id="live-refresh-btn" class="btn-secondary" tabindex="0"><i class="fa-solid fa-rotate"></i> Refresh</button>
-            </div>
-            <div id="live-categories" class="live-categories" aria-label="Channel categories"></div>
-            <div class="live-layout">
-                <aside class="live-preview" aria-label="Now playing">
-                    <div class="live-video-wrap">
-                        <video id="live-video" playsinline></video>
-                        <img id="live-preview-logo" class="live-preview-logo hidden" alt="">
-                        <div id="live-video-empty" class="live-video-empty"><div><i class="fa-solid fa-tower-broadcast"></i><strong>Choose a channel</strong><span>Move through the channel cards, then press Select to watch.</span></div></div>
-                    </div>
-                    <div class="live-now">
-                        <h2 id="live-now-title">Live television</h2>
-                        <p id="live-now-meta">Direct web-compatible channels with native playback on Android TV and Fire TV.</p>
-                        <p id="live-now-next" class="live-now-next">Select a channel to see what is playing.</p>
-                        <div class="live-remote-hint"><span><i class="fa-solid fa-circle-dot"></i> Select to watch</span><span><i class="fa-solid fa-arrow-left"></i> Back to return</span></div>
-                    </div>
-                </aside>
-                <div>
-                    <div id="live-channel-grid" class="live-grid" aria-live="polite"></div>
-                    <div id="sports-guide" class="sports-guide hidden" aria-live="polite"></div>
-                </div>
-            </div>
-        </section>
 
         <!-- SEARCH VIEW -->
         <div id="view-search" class="view hidden" style="padding: 120px 40px 40px;">
@@ -218,6 +174,15 @@
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
                     <h2 style="font-size: 1.8rem; margin-bottom: 20px; color: #fff;">Playback Behavior</h2>
                     <div class="settings-panel">
+                        <label class="settings-field" for="setting-playback-optimization">
+                            <span>Stream optimization</span>
+                            <select id="setting-playback-optimization" class="settings-select" tabindex="0" aria-describedby="playback-optimization-help">
+                                <option value="auto">Smart Auto (recommended)</option>
+                                <option value="data-saver">Data Saver — prefer up to 720p</option>
+                                <option value="original">Standard player behavior</option>
+                            </select>
+                            <small id="playback-optimization-help" class="settings-help">Smart Auto adapts quality to your connection and buffers ahead to reduce interruptions. Data Saver prefers smaller streams when available. Applies when you next start playback. Single-quality files and embedded players may not offer quality adjustment.</small>
+                        </label>
                         <label class="settings-field" for="setting-source-preference">
                             <span>Default source preference</span>
                             <select id="setting-source-preference" class="settings-select" tabindex="0">
@@ -251,7 +216,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v141.0</span>
+                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v142.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -382,7 +347,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=141"></script>
+    <script type="module" src="js/app.js?v=142"></script>
 </body>
 
 </html>

@@ -1,18 +1,14 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Vela</string>
-    <string name="title_activity_main">Vela</string>
+    <string name="app_name">Tellyvo</string>
+    <string name="title_activity_main">Tellyvo</string>
     <string name="package_name">org.streamy.app</string>
     <string name="custom_url_scheme">org.streamy.app</string>
     <string name="up_next">Up next</string>
-    <string name="up_next_episode">Up next: S%1$d E%2$d</string>
-    <string name="up_next_episode_autoplay">Up next: S%1$d E%2$d\nPlays automatically when this episode ends</string>
+    <string name="up_next_episode">Up next · S%1$d E%2$d</string>
+    <string name="up_next_episode_autoplay">Up next · S%1$d E%2$d · Auto-plays</string>
     <string name="next_episode">Next Episode</string>
     <string name="not_now">Not Now</string>
-    <string name="intro_skip_title">Intro detected</string>
-    <string name="recap_skip_title">Recap detected</string>
-    <string name="segment_skip_detail">Episode marker ready</string>
-    <string name="segment_skip_detail_format">Skip ahead to %1$s</string>
     <string name="skip_intro">Skip Intro</string>
     <string name="skip_recap">Skip Recap</string>
     <string name="audio_button">Audio</string>

@@ -16,6 +16,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.util.Log;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.OptIn;
@@ -31,11 +33,14 @@ import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.dash.DashMediaSource;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection;
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.ui.PlayerView;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -76,8 +81,6 @@ public class PlayerActivity extends AppCompatActivity {
     private Button nextEpisodeButton;
     private Button nextEpisodeCancelButton;
     private LinearLayout segmentSkipPrompt;
-    private TextView segmentSkipTitle;
-    private TextView segmentSkipDetail;
     private Button segmentSkipButton;
     private Button segmentSkipCancelButton;
     private View audioTrackScrim;
@@ -131,8 +134,6 @@ public class PlayerActivity extends AppCompatActivity {
         nextEpisodeButton = findViewById(R.id.native_next_episode_button);
         nextEpisodeCancelButton = findViewById(R.id.native_next_episode_cancel);
         segmentSkipPrompt = findViewById(R.id.native_segment_skip_prompt);
-        segmentSkipTitle = findViewById(R.id.native_segment_skip_title);
-        segmentSkipDetail = findViewById(R.id.native_segment_skip_detail);
         segmentSkipButton = findViewById(R.id.native_segment_skip_button);
         segmentSkipCancelButton = findViewById(R.id.native_segment_skip_cancel);
         audioTrackScrim = findViewById(R.id.native_audio_track_scrim);
@@ -174,6 +175,7 @@ public class PlayerActivity extends AppCompatActivity {
         autoplayNextEpisode = getIntent().getBooleanExtra("autoplayNextEpisode", true);
         sourceJson = getIntent().getStringExtra("sourceJson");
         playbackMetadataJson = getIntent().getStringExtra("playbackMetadataJson");
+        PlaybackOptimizationPolicy.Mode optimizationMode = readPlaybackOptimization();
         parseEpisodeMarkers(playbackMetadataJson);
         sourceIndex = getIntent().getIntExtra("sourceIndex", -1);
         resumeSeekApplied = false;
@@ -222,7 +224,7 @@ public class PlayerActivity extends AppCompatActivity {
             mediaSource = new ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem);
         }
 
-        player = new ExoPlayer.Builder(this).build();
+        player = createPlayer(optimizationMode);
         applySavedAudioLanguagePreference();
         playerView.setPlayer(player);
         player.addListener(new Player.Listener() {
@@ -269,6 +271,53 @@ public class PlayerActivity extends AppCompatActivity {
         player.setPlayWhenReady(true);
         player.setVolume(1f);
         player.prepare();
+    }
+
+    private PlaybackOptimizationPolicy.Mode readPlaybackOptimization() {
+        if (playbackMetadataJson == null || playbackMetadataJson.isEmpty()) {
+            return PlaybackOptimizationPolicy.Mode.AUTO;
+        }
+        try {
+            JSONObject metadata = new JSONObject(playbackMetadataJson);
+            return PlaybackOptimizationPolicy.parseMode(metadata.optString("playbackOptimization", "auto"));
+        } catch (Exception error) {
+            Log.w(TAG, "Using automatic playback optimization for malformed metadata", error);
+            return PlaybackOptimizationPolicy.Mode.AUTO;
+        }
+    }
+
+    private ExoPlayer createPlayer(PlaybackOptimizationPolicy.Mode mode) {
+        ExoPlayer.Builder builder = new ExoPlayer.Builder(this);
+        PlaybackOptimizationPolicy.BufferingProfile buffering =
+            PlaybackOptimizationPolicy.bufferingProfile(mode);
+        if (buffering != null) {
+            AdaptiveTrackSelection.Factory adaptiveSelection = new AdaptiveTrackSelection.Factory(
+                PlaybackOptimizationPolicy.QUALITY_INCREASE_BUFFER_MS,
+                PlaybackOptimizationPolicy.QUALITY_DECREASE_BUFFER_MS,
+                PlaybackOptimizationPolicy.RETAIN_BUFFER_AFTER_DISCARD_MS,
+                PlaybackOptimizationPolicy.BANDWIDTH_FRACTION
+            );
+            DefaultTrackSelector trackSelector = new DefaultTrackSelector(this, adaptiveSelection);
+            if (mode == PlaybackOptimizationPolicy.Mode.DATA_SAVER) {
+                // These are preferences for existing variants, not a transcode. Keep Media3's
+                // fallback enabled so single-quality MP4s and HLS streams still play.
+                trackSelector.setParameters(trackSelector.buildUponParameters()
+                    .setMaxVideoSize(PlaybackOptimizationPolicy.DATA_SAVER_MAX_WIDTH,
+                        PlaybackOptimizationPolicy.DATA_SAVER_MAX_HEIGHT)
+                    .setMaxVideoBitrate(PlaybackOptimizationPolicy.DATA_SAVER_MAX_BITRATE)
+                    .setExceedVideoConstraintsIfNecessary(true));
+            }
+            builder.setTrackSelector(trackSelector);
+            builder.setLoadControl(new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(buffering.minBufferMs, buffering.maxBufferMs,
+                    buffering.startBufferMs, buffering.rebufferMs)
+                .setTargetBufferBytes(buffering.targetBytes)
+                // Keep buffering bounded on Fire TV even for high-bitrate sources.
+                .setPrioritizeTimeOverSizeThresholds(false)
+                .build());
+        }
+        Log.i(TAG, "Playback optimization=" + mode);
+        return builder.build();
     }
 
     private JSONObject getSourceAt(int index) {
@@ -648,7 +697,7 @@ public class PlayerActivity extends AppCompatActivity {
         button.setMinHeight(dpToPx(58));
         button.setPadding(dpToPx(20), dpToPx(12), dpToPx(20), dpToPx(12));
 
-        int normalBg = Color.parseColor(selected ? "#186F70" : "#142735");
+        int normalBg = Color.parseColor(selected ? "#E50914" : "#25282D");
         int focusedBg = Color.WHITE;
         applyAudioTrackOptionStyle(button, false, selected, normalBg, focusedBg);
         button.setOnFocusChangeListener((view, hasFocus) ->
@@ -873,8 +922,8 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
 
-        configurePromptButton(segmentSkipButton, true);
-        configurePromptButton(segmentSkipCancelButton, false);
+        configurePlaybackPromptButton(segmentSkipButton, true);
+        configurePlaybackPromptButton(segmentSkipCancelButton, false);
         segmentSkipButton.setOnClickListener(v -> skipActiveSegment());
         segmentSkipCancelButton.setOnClickListener(v -> dismissSegmentSkipPrompt());
     }
@@ -926,12 +975,6 @@ public class PlayerActivity extends AppCompatActivity {
         activeSkipMarker = marker;
         segmentSkipPromptShown = true;
         boolean isRecap = "recap".equals(marker.type);
-        if (segmentSkipTitle != null) {
-            segmentSkipTitle.setText(isRecap ? R.string.recap_skip_title : R.string.intro_skip_title);
-        }
-        if (segmentSkipDetail != null) {
-            segmentSkipDetail.setText(getString(R.string.segment_skip_detail_format, formatPlaybackPosition(marker.endMs)));
-        }
         segmentSkipButton.setText(isRecap ? R.string.skip_recap : R.string.skip_intro);
         segmentSkipPrompt.setVisibility(View.VISIBLE);
         segmentSkipPrompt.bringToFront();
@@ -981,11 +1024,6 @@ public class PlayerActivity extends AppCompatActivity {
         updateAudioTrackButtonVisibility();
     }
 
-    private String formatPlaybackPosition(long positionMs) {
-        long totalSeconds = Math.max(0L, positionMs) / 1000L;
-        return String.format(Locale.US, "%d:%02d", totalSeconds / 60L, totalSeconds % 60L);
-    }
-
     private void setupNextEpisodePrompt() {
         if (nextEpisodePrompt == null) {
             return;
@@ -1006,8 +1044,8 @@ public class PlayerActivity extends AppCompatActivity {
             nextSeason,
             nextEpisode
         ));
-        configurePromptButton(nextEpisodeButton, true);
-        configurePromptButton(nextEpisodeCancelButton, false);
+        configurePlaybackPromptButton(nextEpisodeButton, true);
+        configurePlaybackPromptButton(nextEpisodeCancelButton, false);
         nextEpisodeButton.setOnClickListener(v -> launchNextEpisode());
         nextEpisodeCancelButton.setOnClickListener(v -> {
             nextPromptDismissed = true;
@@ -1066,10 +1104,10 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
 
-        final int normalBg = Color.parseColor(primary ? "#1B3A41" : "#10202B");
-        final int focusedBg = Color.parseColor(primary ? "#58F4D5" : "#FFFFFF");
+        final int normalBg = Color.parseColor(primary ? "#2A2A2A" : "#1A1A1A");
+        final int focusedBg = Color.parseColor(primary ? "#E50914" : "#FFFFFF");
         final int normalText = Color.WHITE;
-        final int focusedText = Color.parseColor("#05222A");
+        final int focusedText = Color.parseColor(primary ? "#FFFFFF" : "#000000");
 
         button.setAllCaps(true);
         button.setTextSize(18f);
@@ -1078,6 +1116,50 @@ public class PlayerActivity extends AppCompatActivity {
         button.setOnFocusChangeListener((view, hasFocus) ->
             applyPromptButtonStyle(button, hasFocus, normalBg, focusedBg, normalText, focusedText)
         );
+    }
+
+    private void configurePlaybackPromptButton(Button button, boolean primary) {
+        if (button == null) {
+            return;
+        }
+
+        button.setAllCaps(false);
+        button.setTextSize(17f);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setMinHeight(dp(56));
+        button.setPadding(dp(24), 0, dp(24), 0);
+        applyPlaybackPromptButtonStyle(button, primary, false);
+        button.setOnFocusChangeListener((view, hasFocus) ->
+            applyPlaybackPromptButtonStyle(button, primary, hasFocus)
+        );
+    }
+
+    private void applyPlaybackPromptButtonStyle(Button button, boolean primary, boolean focused) {
+        GradientDrawable background = primary
+            ? new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                focused
+                    ? new int[] { Color.parseColor("#20D6C7"), Color.parseColor("#7C5CFF") }
+                    : new int[] { Color.parseColor("#6D50E8"), Color.parseColor("#7C5CFF") }
+            )
+            : new GradientDrawable();
+
+        if (!primary) {
+            background.setColor(Color.parseColor(focused ? "#F7F8FC" : "#2A3144"));
+        }
+        background.setCornerRadius(dp(999));
+        background.setStroke(dp(focused ? 3 : 1), Color.parseColor(focused ? "#FFFFFF" : "#55617A"));
+        button.setBackgroundTintList(null);
+        button.setBackground(background);
+        button.setTextColor(Color.parseColor(!primary && focused ? "#111522" : "#FFFFFF"));
+        button.setScaleX(focused ? 1.05f : 1f);
+        button.setScaleY(focused ? 1.05f : 1f);
+        button.setElevation(dp(focused ? 12 : 4));
+        button.setAlpha(1f);
+    }
+
+    private int dp(float value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private void applyPromptButtonStyle(Button button, boolean focused, int normalBg, int focusedBg, int normalText, int focusedText) {

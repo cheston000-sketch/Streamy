@@ -56,6 +56,8 @@ try {
     assert.equal(health.build, expectedBuild);
     assert.equal(health.providerApi, true);
     assert.equal(health.introMarkers, true);
+    assert.equal(Object.hasOwn(health, 'liveTvChannels'), false);
+    assert.equal(Object.hasOwn(health, 'liveTvGuide'), false);
 
     const providersResponse = await fetch(`${baseUrl}/api/providers`);
     assert.equal(providersResponse.status, 200);
@@ -73,6 +75,16 @@ try {
 
     const invalidSegmentsResponse = await fetch(`${baseUrl}/api/segments?imdb=bad&season=1&episode=1`);
     assert.equal(invalidSegmentsResponse.status, 400);
+
+    for (const retiredEndpoint of [
+        '/api/live-tv/channels',
+        '/api/live-tv/channels?country=US&limit=1',
+        '/api/live-tv/guide',
+        '/api/live-tv/guide?channelIds=ABCNewsLive.us&from=bad&to=worse'
+    ]) {
+        const response = await fetch(`${baseUrl}${retiredEndpoint}`);
+        assert.equal(response.status, 404, `${retiredEndpoint} must no longer be available`);
+    }
 
     assert.equal((await fetch(`${baseUrl}/server/index.js`)).status, 404);
     assert.equal((await fetch(`${baseUrl}/package.json`)).status, 404);

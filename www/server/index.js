@@ -95,7 +95,6 @@ const SFX_SOURCE_ENDPOINTS = parseEndpointList(process.env.SFX_SOURCE_ENDPOINTS 
 const STREAMEX_SOURCE_ENDPOINTS = parseEndpointList(process.env.STREAMEX_SOURCE_ENDPOINTS || process.env.STREAMEX_PROVIDER_ENDPOINTS || '');
 const CINEMAOS_SOURCE_ENDPOINTS = parseEndpointList(process.env.CINEMAOS_SOURCE_ENDPOINTS || process.env.CINEMAOS_PROVIDER_ENDPOINTS || '');
 const VID2_SOURCE_ENDPOINTS = parseEndpointList(process.env.VID2_SOURCE_ENDPOINTS || process.env.VID2_PROVIDER_ENDPOINTS || '');
-const VIDEASY_SOURCE_ENDPOINTS = parseEndpointList(process.env.VIDEASY_SOURCE_ENDPOINTS || process.env.VIDEASY_PROVIDER_ENDPOINTS || '');
 const VIDPRO_SOURCE_ENDPOINTS = parseEndpointList(process.env.VIDPRO_SOURCE_ENDPOINTS || process.env.VIDPRO_PROVIDER_ENDPOINTS || '');
 const STREMIO_ADDON_URLS = parseEndpointList(process.env.STREMIO_ADDON_URLS || process.env.STREAMOS_STREMIO_ADDONS || '');
 const ENABLE_BEE_COMPAT_SOURCES = String(process.env.ENABLE_BEE_COMPAT_SOURCES || 'true').toLowerCase() !== 'false';
@@ -122,7 +121,6 @@ const SOURCE_ENDPOINT_GROUPS = [
     { label: 'StreameX Provider', tier: 'streamex', endpoints: STREAMEX_SOURCE_ENDPOINTS },
     { label: 'CinemaOS Provider', tier: 'cinemaos', endpoints: CINEMAOS_SOURCE_ENDPOINTS },
     { label: 'Vid2 Provider', tier: 'vid2', endpoints: VID2_SOURCE_ENDPOINTS },
-    { label: 'Videasy Provider', tier: 'videasy', endpoints: VIDEASY_SOURCE_ENDPOINTS },
     { label: 'VidPro Provider', tier: 'vidpro', endpoints: VIDPRO_SOURCE_ENDPOINTS },
     ...CUSTOM_SOURCE_PROVIDER_GROUPS
 ].filter(group => group.endpoints.length);
@@ -363,7 +361,9 @@ async function fetchStremioAddonLinks(params) {
 
 async function fetchDirectSourceLinks(params) {
     if (!SOURCE_ENDPOINT_GROUPS.length) return [];
-    const jobs = SOURCE_ENDPOINT_GROUPS.flatMap(group => group.endpoints.map(endpointTemplate => ({ group, endpointTemplate })));
+    const jobs = SOURCE_ENDPOINT_GROUPS.flatMap(group => group.endpoints
+        .filter(endpointTemplate => !endpointTemplate.toLowerCase().includes('videasy'))
+        .map(endpointTemplate => ({ group, endpointTemplate })));
     const settled = await Promise.all(jobs.map(async ({ group, endpointTemplate }) => {
         const endpoint = fillTemplate(endpointTemplate, params);
         let timeout;
@@ -446,8 +446,8 @@ function buildFallbackLinks({ tmdb, type, season = 1, episode = 1 }, includeExtr
     const links = [{
         server: 'Vidlink',
         url: isTv
-            ? `https://vidlink.pro/tv/${tmdb}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`
-            : `https://vidlink.pro/movie/${tmdb}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=fontawesome&player=v2&autoplay=true&volume=1.0&muted=0`,
+            ? `https://vidlink.pro/tv/${tmdb}/${season}/${episode}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`
+            : `https://vidlink.pro/movie/${tmdb}?primaryColor=6366f1&secondaryColor=a5b4fc&iconColor=ffffff&icons=vid&player=default&title=false&poster=true&autoplay=true`,
         type: 'iframe'
     }];
 
@@ -487,6 +487,10 @@ function dedupeLinks(links = []) {
         seen.add(link.url);
         return true;
     });
+}
+
+function excludeRetiredSources(links = []) {
+    return links.filter(link => !`${link?.server || ''} ${link?.url || ''} ${link?.providerTier || ''}`.toLowerCase().includes('videasy'));
 }
 
 function buildProviderStatus(directLinkCount, warnings = [], elapsedMs = 0) {
@@ -629,7 +633,7 @@ app.get('/api/stream', async (req, res) => {
                 : Promise.resolve({ marker: null })
         ]);
 
-        let finalLinks = dedupeLinks([...directLinks, ...stremioLinks, ...builtInLinks]);
+        let finalLinks = dedupeLinks(excludeRetiredSources([...directLinks, ...stremioLinks, ...builtInLinks]));
         const hasDirectLinks = finalLinks.some(link => link.type !== 'iframe');
         finalLinks = dedupeLinks([
             ...finalLinks,

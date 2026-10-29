@@ -1,7 +1,7 @@
 {
   "name": "streamos",
-  "version": "123.0.0",
-  "description": "StreamOS web application and OTA backend",
+  "version": "142.0.0",
+  "description": "Tellyvo web application and OTA backend",
   "main": "index.js",
   "scripts": {
     "start": "node server/index.js",

@@ -24,10 +24,6 @@ Comma-separated or newline-separated endpoint templates for CinemaOS-style direc
 
 Comma-separated or newline-separated endpoint templates for Vid2-style direct-link providers.
 
-`VIDEASY_SOURCE_ENDPOINTS` or `VIDEASY_PROVIDER_ENDPOINTS`
-
-Comma-separated or newline-separated endpoint templates for Videasy-style direct-link providers.
-
 `VIDPRO_SOURCE_ENDPOINTS` or `VIDPRO_PROVIDER_ENDPOINTS`
 
 Comma-separated or newline-separated endpoint templates for VidPro-style direct-link providers.

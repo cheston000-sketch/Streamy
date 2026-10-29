@@ -4,35 +4,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vela</title>
+    <title>Tellyvo</title>
     <!-- Serverless OTA Distribution Metadata arrays -->
-    <meta name="apk-version" content="123">
+    <meta name="apk-version" content="140">
     <meta name="apk-download-url" content="/api/ota/download">
     <!-- PWA / Web App Manifest Data -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#05070a">
+    <meta name="theme-color" content="#0A0F2E">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=123">
+    <link rel="stylesheet" href="styles.css?v=142">
+    <link rel="stylesheet" href="tellyvo.css?v=142">
     <script src="vendor/hls.min.js"></script>
-    <link rel="stylesheet" href="css/vela.css?v=123">
-    <link rel="icon" href="icon.svg" type="image/svg+xml">
 </head>
 
 <body>
-    <!-- TOP NAVIGATION BAR -->
+    <!-- TELLYVO NAVIGATION BAR -->
     <header id="top-bar" class="hidden">
-        <div class="brand" aria-label="Vela"><img src="icon.svg" alt="" width="36" height="36"><span>vela</span></div>
-        <nav class="nav-tabs">
-            <a href="#movies" class="nav-tab active" data-view="movies" tabindex="0">Movies</a>
-            <a href="#tv" class="nav-tab" data-view="tv" tabindex="0">TV Shows</a>
-            <a href="#watchlist" class="nav-tab" data-view="watchlist" tabindex="0"><i class="fa-solid fa-bookmark"></i>
-                Watchlist</a>
-            <a href="#search" class="nav-tab" data-view="search" tabindex="0"><i
-                    class="fa-solid fa-magnifying-glass"></i> Search</a>
+        <a href="#home" class="brand" aria-label="Tellyvo" tabindex="-1">Tellyvo</a>
+        <nav class="nav-tabs" aria-label="Primary navigation">
+            <a href="#home" class="nav-tab active" data-view="home" tabindex="0"><i class="fa-solid fa-house"></i><span>Home</span></a>
+            <a href="#movies" class="nav-tab" data-view="movies" tabindex="0"><i class="fa-solid fa-film"></i><span>Movies</span></a>
+            <a href="#tv" class="nav-tab" data-view="tv" tabindex="0"><i class="fa-solid fa-tv"></i><span>Shows</span></a>
+            <a href="#watchlist" class="nav-tab" data-view="watchlist" tabindex="0"><i class="fa-solid fa-bookmark"></i><span>My Tellyvo</span></a>
+            <span class="nav-spacer"></span>
+            <a href="#search" class="nav-tab" data-view="search" tabindex="0" aria-label="Search"><i
+                    class="fa-solid fa-magnifying-glass"></i><span class="desktop-only">Search</span></a>
             <select id="genre-filter" class="nav-tab hidden" aria-label="Filter titles by category"
                 style="background:transparent; border:none; color:white; padding: 10px 5px; border-radius: 4px; font-weight:bold; cursor:pointer; outline:none;"
                 tabindex="0">
@@ -44,8 +44,8 @@
                 <option value="878" style="background:#141414;">Sci-Fi</option>
                 <option value="10751" style="background:#141414;">Family</option>
             </select>
-            <a href="#settings" class="nav-tab" data-view="settings" tabindex="0"><i class="fa-solid fa-gear"></i>
-                Settings</a>
+            <a href="#settings" class="nav-tab" data-view="settings" tabindex="0" aria-label="Settings"><i class="fa-solid fa-gear"></i>
+                <span class="desktop-only">Settings</span></a>
             <button class="nav-tab" id="switch-profile-tab" tabindex="0"
                 style="border: 2px solid #555; outline:none;"><i id="current-profile-icon" class="fa-solid fa-user"></i>
                 <span id="current-profile-name">User</span></button>
@@ -53,15 +53,14 @@
     </header>
 
     <!-- PROFILES OVERLAY -->
-    <div id="profile-selection-screen" class="view" data-selection-required="true">
-        <div class="profile-brand" aria-label="Vela"><img src="icon.svg" alt="" width="48" height="48"><span>vela</span></div>
-        <p class="profile-eyebrow">YOUR NIGHT. YOUR NEXT FAVORITE.</p>
-        <h1>Who's watching?</h1>
-        <p class="profile-subtitle">A little more you. A lot more to discover.</p>
-        <div id="profiles-grid">
+    <div id="profile-selection-screen" class="view"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #141414; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <h1 style="font-size: 3rem; margin-bottom: 50px; text-shadow: 2px 2px 10px black;">Who's watching?</h1>
+        <div id="profiles-grid"
+            style="display: flex; gap: 40px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 60px;">
             <!-- Profiles dynamically appended here -->
         </div>
-        <div id="profile-actions">
+        <div id="profile-actions" style="display: flex; gap: 20px;">
             <button id="add-profile-btn" class="nav-tab" tabindex="0"
                 style="padding: 15px 30px; font-size: 1.2rem; border: 2px solid #555; background: transparent;"><i
                     class="fa-solid fa-plus"></i> Add Profile</button>
@@ -109,7 +108,7 @@
     </div>
 
     <!-- MAIN VIEW PANELS -->
-    <main id="main-content" class="hidden">
+    <main id="main-content">
         <!-- HOME (NETFLIX ROWS) VIEW -->
         <div id="view-home" class="view active">
 
@@ -117,10 +116,10 @@
             <div id="hero-banner">
                 <div class="hero-vignette"></div>
                 <div class="hero-content">
-                    <h1 id="hero-title">Find your next favorite.</h1>
+                    <div class="hero-eyebrow">A TELLYVO FEATURE</div>
+                    <h1 id="hero-title">A brighter way to watch</h1>
                     <div id="hero-meta" class="meta">Loading Database Metadata...</div>
-                    <p id="hero-desc">Navigate vertically and horizontally across the categories below to instantly
-                        preview stunning high-definition backdrops natively in your theater.</p>
+                    <p id="hero-desc">Movies and shows—beautifully organized and ready when you are.</p>
                 </div>
             </div>
 
@@ -172,13 +171,18 @@
                             class="fa-solid fa-download"></i> Check for Updates</button>
                 </div>
 
-                <div id="install-permission-row" class="install-permission-row hidden">
-                    <p id="install-permission-status" role="status"></p>
-                    <button id="setting-install-permission" class="setting-btn" tabindex="0">Enable update installation</button>
-                </div>
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
                     <h2 style="font-size: 1.8rem; margin-bottom: 20px; color: #fff;">Playback Behavior</h2>
                     <div class="settings-panel">
+                        <label class="settings-field" for="setting-playback-optimization">
+                            <span>Stream optimization</span>
+                            <select id="setting-playback-optimization" class="settings-select" tabindex="0" aria-describedby="playback-optimization-help">
+                                <option value="auto">Smart Auto (recommended)</option>
+                                <option value="data-saver">Data Saver — prefer up to 720p</option>
+                                <option value="original">Standard player behavior</option>
+                            </select>
+                            <small id="playback-optimization-help" class="settings-help">Smart Auto adapts quality to your connection and buffers ahead to reduce interruptions. Data Saver prefers smaller streams when available. Applies when you next start playback. Single-quality files and embedded players may not offer quality adjustment.</small>
+                        </label>
                         <label class="settings-field" for="setting-source-preference">
                             <span>Default source preference</span>
                             <select id="setting-source-preference" class="settings-select" tabindex="0">
@@ -197,10 +201,6 @@
                             <small class="settings-help">Optional advanced override. The app works automatically from the backend source broker; this accepts comma-separated provider endpoints you control that return direct .m3u8/.mp4 links. Tokens: {tmdb}, {type}, {title}, {year}, {season}, {episode}.</small>
                         </label>
                         <label class="settings-toggle">
-                            <input id="setting-autoplay-sources" type="checkbox" tabindex="0">
-                            <span>Auto-play best source after links load</span>
-                        </label>
-                        <label class="settings-toggle">
                             <input id="setting-autoplay-next-episode" type="checkbox" tabindex="0">
                             <span>Auto-play next episode for TV shows</span>
                         </label>
@@ -216,7 +216,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Vela version: <span id="setting-build-version">122.0</span>
+                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v142.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -285,16 +285,26 @@
             </div>
         </div>
 
-        <!-- LINKS FULL-SCREEN VIEW -->
-        <div id="view-links" class="view hidden">
-            <div class="source-screen-kicker">Vela Source Finder</div>
-            <h2 id="links-title">Available Data Streams</h2>
-            <p class="source-screen-copy">Pick the fastest working source, or let Vela auto-play the best match.</p>
-            <div id="source-filter-controls" class="source-filter-controls hidden"></div>
-            <div id="scraper-status" class="scraper-status" role="status" aria-live="polite">
-                <i class="fa-solid fa-spinner fa-spin"></i> Preparing background extractors...
+        <!-- BRANDED PLAYBACK LOADING VIEW -->
+        <div id="view-links" class="view hidden" aria-label="Preparing playback">
+            <button id="loading-back-btn" class="loading-back-btn" tabindex="0" aria-label="Return to title details">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back
+            </button>
+            <div class="tellyvo-loading-atmosphere" aria-hidden="true"></div>
+            <div class="tellyvo-loading-shell">
+                <div class="tellyvo-loading-mark" aria-label="Tellyvo"></div>
+                <h1>Always Something<br>Worth Watching.</h1>
+                <div class="tellyvo-loading-meter" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                </div>
+                <p class="tellyvo-loading-copy">Loading your show…</p>
+                <h2 id="links-title" class="sr-only">Preparing playback</h2>
+                <div id="scraper-status" class="scraper-status tellyvo-loading-status" role="status" aria-live="polite">
+                    Preparing your stream…
+                </div>
             </div>
-            <ul id="server-list" class="server-list"></ul>
+            <div id="source-filter-controls" class="source-filter-controls hidden" aria-hidden="true"></div>
+            <ul id="server-list" class="server-list hidden" aria-hidden="true"></ul>
         </div>
 
         <!-- PLAYER FULL-SCREEN VIEW (WEB) -->
@@ -308,8 +318,8 @@
                     <button id="player-reload-source-btn" class="btn-secondary"><i class="fa-solid fa-rotate-right"></i> Reload Source</button>
                     <button id="player-next-source-btn" class="btn-secondary"><i class="fa-solid fa-forward"></i> Try Next Source</button>
                     <button id="player-details-btn" class="btn-secondary"><i class="fa-solid fa-circle-info"></i> Details</button>
-                    <button id="player-server-cycle-btn" class="btn-secondary"><i class="fa-solid fa-server"></i>
-                        Source List</button>
+                    <button id="player-server-cycle-btn" class="btn-secondary"><i class="fa-solid fa-shuffle"></i>
+                        Switch Source</button>
                     <button id="player-fullscreen-btn" class="btn-secondary"><i class="fa-solid fa-expand"></i>
                         Fullscreen</button>
                 </div>
@@ -337,7 +347,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=123"></script>
+    <script type="module" src="js/app.js?v=142"></script>
 </body>
 
 </html>
