@@ -16,8 +16,8 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=145">
-    <link rel="stylesheet" href="tellyvo.css?v=145">
+    <link rel="stylesheet" href="styles.css?v=146">
+    <link rel="stylesheet" href="tellyvo.css?v=146">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -129,13 +129,27 @@
         </div>
 
         <!-- SEARCH VIEW -->
-        <div id="view-search" class="view hidden" style="padding: 120px 40px 40px;">
-            <div style="display:flex; gap:15px; margin-bottom:30px;">
-                <label class="sr-only" for="search-input">Search movies and TV shows</label>
-                <input type="text" id="search-input" placeholder="Search for movies, tv shows, actors..." autocomplete="off" spellcheck="false"
-                    style="width:100%; max-width:600px; padding:15px 20px; font-size:1.2rem; background:#141414; border:1px solid #333; color:white; border-radius:8px; outline:none;">
+        <div id="view-search" class="view hidden search-view">
+            <div id="search-results-view">
+                <div class="search-heading"><span class="search-eyebrow">DISCOVER TELLYVO</span><h1>Find your next favorite</h1><p>Search for a title or explore an actor’s work.</p></div>
+                <label class="sr-only" for="search-input">Search movies, TV shows and actors</label>
+                <input type="text" id="search-input" class="search-query" placeholder="Search movies, shows, actors…" autocomplete="off" spellcheck="false">
+                <div class="search-filters" aria-label="Filter search results">
+                    <label>TYPE<select id="search-type"><option value="all">All results</option><option value="movie">Movies</option><option value="tv">Shows</option><option value="person">Actors</option></select></label>
+                    <label>YEAR<select id="search-year"><option value="">Any year</option></select></label>
+                    <label>GENRE<select id="search-genre"><option value="">Any genre</option><option value="28">Action</option><option value="12">Adventure</option><option value="16">Animation</option><option value="35">Comedy</option><option value="80">Crime</option><option value="99">Documentary</option><option value="18">Drama</option><option value="10751">Family</option><option value="14">Fantasy</option><option value="27">Horror</option><option value="10402">Music</option><option value="9648">Mystery</option><option value="10749">Romance</option><option value="878">Science fiction</option><option value="53">Thriller</option><option value="10752">War</option><option value="37">Western</option><option value="10759">Action & adventure (TV)</option><option value="10765">Sci-fi & fantasy (TV)</option></select></label>
+                </div>
+                <p id="search-status" class="search-summary" role="status" aria-live="polite"></p>
+                <div id="search-grid" class="grid"></div>
+                <button id="search-load-more" data-grid-footer="search-grid" class="setting-btn search-more hidden" type="button">Load more results</button>
             </div>
-            <div id="search-grid" class="grid" aria-live="polite"></div>
+            <div id="search-actor-view" class="hidden">
+                <button id="search-actor-back" class="search-back" type="button">← Back to search</button>
+                <div class="actor-heading"><img id="search-actor-image" alt="" hidden><div><span class="search-eyebrow">ACTOR</span><h1 id="search-actor-name"></h1><p>Movies and shows</p></div></div>
+                <p id="search-actor-status" class="search-summary" role="status" aria-live="polite"></p>
+                <div id="search-actor-grid" class="grid"></div>
+                <button id="search-actor-more" data-grid-footer="search-actor-grid" class="setting-btn search-more hidden" type="button">Load more titles</button>
+            </div>
         </div>
 
         <!-- SETTINGS VIEW -->
@@ -217,7 +231,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v145.0</span>
+                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v146.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -348,7 +362,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=145"></script>
+    <script type="module" src="js/app.js?v=146"></script>
 </body>
 
 </html>

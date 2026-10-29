@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import { matchesSearchFilters, dedupeActorCredits } from '../www/js/search-view.js';
+const movie = {id:1,media_type:'movie',genre_ids:[28,18],release_date:'2005-02-03',certification:'PG'};
+const tv = {id:2,media_type:'tv',genre_ids:[18],first_air_date:'2001-02-03',certification:'TV-G'};
+const actor = {id:3,media_type:'person',name:'Actor',known_for:[movie]};
+assert.equal(matchesSearchFilters(movie,{type:'movie',year:'2005',genre:'28'}), true);
+assert.equal(matchesSearchFilters(tv,{type:'movie'}), false);
+assert.equal(matchesSearchFilters(tv,{type:'tv',year:'2005'}), false);
+assert.equal(matchesSearchFilters(actor,{type:'all'}), true);
+assert.equal(matchesSearchFilters(actor,{type:'person',genre:'18'}), false);
+const deduped = dedupeActorCredits([movie,{...movie,vote_count:1},tv,{id:9,media_type:'movie',adult:true}]);
+assert.deepEqual(deduped.map(x=>x.id),[1,2]);
+const store = new Map([['streamy_active_profile','kid'],['streamy_profiles',JSON.stringify([{id:'kid',isKid:true},{id:'adult',isKid:false}])]]);
+globalThis.localStorage = { getItem:k=>store.get(k)||null };
+const { fetchTmdbSearchPage } = await import('../www/js/api.js');
+const originalFetch = globalThis.fetch;
+const originalWarn = console.warn;
+console.warn=()=>{};
+let requestUrl;
+try {
+    globalThis.fetch = async url => {requestUrl=String(url);return {ok:true,json:async()=>({total_pages:8,results:[movie,tv,actor,{id:4,media_type:'movie',certification:'R'},{id:5,media_type:'person',name:'Unsafe',known_for:[{id:6,media_type:'movie',certification:'R'}]},{id:7,media_type:'person',name:'Unknown',known_for:[]}]})};};
+    const result=await fetchTmdbSearchPage('Example',2);
+    assert.equal(result.page,2);assert.equal(result.totalPages,8);
+    assert.deepEqual(result.results.map(x=>x.id),[1,2,3]);
+    assert.match(requestUrl,/page=2/);assert.match(requestUrl,/include_adult=false/);
+    store.set('streamy_active_profile','adult');
+    const adultResult=await fetchTmdbSearchPage('Example',1);
+    assert.equal(adultResult.results.length,6);
+    globalThis.fetch=async()=>({ok:false,status:503});
+    await assert.rejects(()=>fetchTmdbSearchPage('Failure'),/Search unavailable/);
+    const aborted=new AbortController();aborted.abort();
+    await assert.rejects(()=>fetchTmdbSearchPage('Failure',1,{signal:aborted.signal}),{name:'AbortError'});
+} finally { globalThis.fetch=originalFetch;console.warn=originalWarn; }
+console.log('Search filters, pagination, actor credits and kids safety tests passed.');

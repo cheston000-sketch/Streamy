@@ -490,3 +490,26 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
+
+/* Search: a compact discovery desk sized for TV remotes. */
+.search-view { padding: 120px 40px 60px; }
+.search-heading { margin-bottom: 24px; }
+.search-eyebrow { color: #6cdbf8; font-size: .76rem; font-weight: 800; letter-spacing: .2em; }
+.search-heading h1, .actor-heading h1 { margin: 6px 0; font-family: 'Barlow Condensed', sans-serif; font-size: clamp(2.6rem, 4vw, 4rem); line-height: 1; letter-spacing: .01em; }
+.search-heading p, .actor-heading p { color: var(--text-secondary); margin: 10px 0 0; }
+.search-query { width: min(100%, 760px); padding: 17px 20px; font-size: 1.25rem; background: #111831; border: 1px solid #44516b; color: white; border-radius: 10px; }
+.search-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+.search-filters label { display: grid; gap: 6px; font-size: .68rem; font-weight: 800; letter-spacing: .14em; color: var(--text-muted); }
+.search-filters select { min-width: 160px; min-height: 46px; padding: 8px 14px; border: 1px solid #44516b; border-radius: 8px; background: #111831; color: white; font-size: 1rem; }
+.search-query:focus, .search-filters select:focus, .search-back:focus, .search-more:focus { outline: 3px solid white; outline-offset: 3px; }
+.search-summary { min-height: 1.4em; color: var(--text-secondary); margin: 16px 0; }
+.search-more { margin-top: 26px; }
+.search-person-card { position: relative; padding: 0; overflow: hidden; border: 0; color: white; text-align: left; cursor: pointer; background: #1a2338; }
+.search-person-card img { width: 100%; height: 100%; object-fit: cover; }
+.search-person-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #6cdbf8; font-size: 3rem; background: linear-gradient(140deg,#1d3155,#111831); }
+.search-person-info { position: absolute; inset: auto 0 0; display: grid; gap: 5px; padding: 30px 12px 13px; background: linear-gradient(transparent,rgba(2,5,17,.94)); }
+.search-person-info strong { font-size: 1rem; }.search-person-info small { font-size: .6rem; letter-spacing: .1em; color: #83def4; }
+.search-back { color: white; background: #1a2338; border: 1px solid #44516b; border-radius: 8px; padding: 12px 17px; font-size: 1rem; }
+.actor-heading { display: flex; align-items: center; gap: 24px; margin: 24px 0; }
+.actor-heading img { width: 110px; height: 145px; object-fit: cover; border-radius: 10px; }
+@media (max-width: 650px) { .search-view { padding: 100px 20px 40px; } .search-filters label { flex: 1 1 140px; } .search-filters select { width: 100%; min-width: 0; } }

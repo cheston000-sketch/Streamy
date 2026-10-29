@@ -1,9 +1,10 @@
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=145';
-import { CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=145';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=145';
-import { setupRouter, navigateTo, navigateBack } from './router.js?v=145';
-import { NavigationManager } from './navigation.js?v=145';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=145';
+import { initSearchView } from './search-view.js?v=146';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=146';
+import { fetchTmdbSearchPage, CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=146';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=146';
+import { setupRouter, navigateTo, navigateBack } from './router.js?v=146';
+import { NavigationManager } from './navigation.js?v=146';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=146';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -15,7 +16,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 145;
+const PACKAGED_APP_VERSION = 146;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
@@ -918,52 +919,9 @@ globalThis.addEventListener('hashchange', () => {
 });
 
 function initSearch() {
-    let timeoutId;
-    let requestId = 0;
-    let activeController = null;
-
-    const cancelSearch = () => {
-        requestId++;
-        clearTimeout(timeoutId);
-        activeController?.abort();
-        activeController = null;
-    };
-
-    DOM.searchInput.addEventListener('input', (e) => {
-        cancelSearch();
-        const currentRequestId = requestId;
-        const term = e.target.value.trim();
-        if (term.length < 3) {
-            DOM.searchGrid.innerHTML = '';
-            return;
-        }
-        timeoutId = setTimeout(async () => {
-            const controller = new AbortController();
-            activeController = controller;
-            DOM.searchGrid.innerHTML = '<div class="search-state" role="status"><i class="fa-solid fa-spinner fa-spin"></i> Searching...</div>';
-
-            try {
-                const searchUrl = `/search/multi?query=${encodeURIComponent(term)}&page=1`;
-                const results = await fetchFromTMDB(searchUrl, { signal: controller.signal });
-                if (currentRequestId !== requestId || DOM.searchInput.value.trim() !== term) return;
-
-                const valid = results.filter(r => r.media_type === 'movie' || r.media_type === 'tv');
-                renderGridItems(valid, DOM.searchGrid, 'movie', openDetails);
-                if (!valid.length) {
-                    DOM.searchGrid.innerHTML = '<div class="search-state" role="status">No matching movies or TV shows.</div>';
-                }
-            } catch (error) {
-                if (error?.name === 'AbortError' || currentRequestId !== requestId) return;
-                DOM.searchGrid.innerHTML = '<div class="search-state search-state-error" role="alert">Search is temporarily unavailable. Please try again.</div>';
-            } finally {
-                if (activeController === controller) activeController = null;
-            }
-        }, 500);
-    });
-
-    globalThis.addEventListener('hashchange', () => {
-        if (!globalThis.location.hash.startsWith('#search')) cancelSearch();
-    });
+    initSearchView({input:DOM.searchInput, grid:DOM.searchGrid, fetchPage:fetchTmdbSearchPage,
+        fetchDetails:fetchFromTMDB, filterTitles:filterItemsForActiveProfile, renderGridItems,
+        openDetails, navigateTo, navigateBack, imageUrl:'https://image.tmdb.org/t/p/w500'});
 }
 
 function setupDpadLogic() {

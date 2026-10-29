@@ -4,7 +4,7 @@ import {
     getUsRatingsFromPayload,
     hasKidsSafeCatalogShape,
     resolveMediaType
-} from './kids-safety.js?v=145';
+} from './kids-safety.js?v=146';
 
 export const TMDB_API_KEY = 'a9b4a682953630df7df70fb2178528b8';
 export const BASE_URL = 'https://api.themoviedb.org/3';
@@ -214,6 +214,41 @@ export async function fetchFromTMDB(endpoint, options = {}) {
         console.error("TMDB error:", e);
         return [];
     }
+}
+
+// Search needs the unfiltered page count: a kids-safe or filtered page can be
+// empty even when later pages still contain results.
+export async function fetchTmdbSearchPage(term, page = 1, options = {}) {
+    const { signal } = options;
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+    const safePage = Math.min(500, Math.max(1, Number.parseInt(page, 10) || 1));
+    const profile = getActiveProfile();
+    const endpoint = `/search/multi?query=${encodeURIComponent(String(term || '').trim())}&page=${safePage}${profile?.isKid ? '&include_adult=false' : ''}`;
+    const requestUrl = `${BASE_URL}${endpoint}&api_key=${TMDB_API_KEY}`;
+    const cachedItem = await getCache(requestUrl);
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+    let data = cachedItem && Date.now() - cachedItem.timestamp < 43200000 ? cachedItem.data : null;
+    if (!data) {
+        const response = await fetch(requestUrl, { signal });
+        if (!response.ok) throw new Error(`Search unavailable (${response.status})`);
+        data = await response.json();
+        if (!Array.isArray(data?.results)) throw new Error('Invalid search response');
+        await setCache(requestUrl, data);
+    }
+    if (!Array.isArray(data?.results)) throw new Error('Invalid cached search response');
+    let results = data.results.filter(item => item && ['movie', 'tv', 'person'].includes(item.media_type) && item.adult !== true);
+    if (profile?.isKid) {
+        const titles = results.filter(item => item.media_type !== 'person');
+        const people = results.filter(item => item.media_type === 'person');
+        const known = people.flatMap(person => Array.isArray(person.known_for) ? person.known_for : []);
+        const approved = await filterItemsForActiveProfile([...titles, ...known], '', { signal });
+        const keys = new Set(approved.map(item => `${item.media_type}:${item.id}`));
+        results = results.filter(item => item.media_type === 'person'
+            ? (Array.isArray(item.known_for) ? item.known_for : []).some(title => keys.has(`${title?.media_type}:${title?.id}`))
+            : keys.has(`${item.media_type}:${item.id}`));
+    }
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+    return { results, page: safePage, totalPages: Math.min(500, Math.max(0, Number(data.total_pages) || 0)) };
 }
 
 export async function discoverByCategory(type, payload, page = 1, options = {}) {
