@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 let focused;
+let groupSelector = ".profile-edit-actions";
 const items = [];
 const group = { querySelectorAll: () => items };
 const modal = { querySelectorAll: () => [...items, avatar] };
@@ -9,7 +10,7 @@ function element(id, left, top, width, height, inGroup = true) {
         id, offsetParent: {}, disabled: false, dataset: {},
         getBoundingClientRect: () => ({ left, top, width, height }),
         closest(selector) {
-            if (inGroup && selector.includes('.profile-edit-actions')) return group;
+            if (inGroup && selector.includes(groupSelector)) return group;
             return null;
         },
         focus() { focused = this; document.activeElement = this; }
@@ -33,4 +34,13 @@ assert.equal(focused, cancel, 'Right from Save must reach Cancel, not a nearby a
 assert.equal(prevented, true);
 NavigationManager.handleDpad({ key: 'ArrowLeft', preventDefault() {} });
 assert.equal(focused, save, 'Left from Cancel returns to Save');
-console.log('Profile dialog remote navigation tests passed.');
+groupSelector = '.settings-action-row';
+const refresh = element('refresh', 80, 970, 830, 110);
+const copy = element('copy', 935, 970, 780, 110);
+items.splice(0, items.length, refresh, copy);
+refresh.focus();
+NavigationManager.handleDpad({ key: 'ArrowRight', preventDefault() {} });
+assert.equal(focused, copy, 'Right from Refresh must reach Copy, not a distant menu item');
+NavigationManager.handleDpad({ key: 'ArrowLeft', preventDefault() {} });
+assert.equal(focused, refresh, 'Left from Copy returns to Refresh');
+console.log('Profile and settings remote navigation tests passed.');
