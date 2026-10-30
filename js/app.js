@@ -1,12 +1,12 @@
-import { initCatalogStatusNotice } from './catalog-status.js?v=147';
-import { hasParentPin, isValidParentPin, setParentPin, verifyParentPin, removeParentPin } from './parent-pin.js?v=147';
-import { initSearchView } from './search-view.js?v=147';
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=147';
-import { fetchTmdbSearchPage, CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=147';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=147';
-import { setupRouter, navigateTo, navigateBack } from './router.js?v=147';
-import { NavigationManager } from './navigation.js?v=147';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=147';
+import { initCatalogStatusNotice } from './catalog-status.js?v=148';
+import { hasParentPin, isValidParentPin, setParentPin, verifyParentPin, removeParentPin } from './parent-pin.js?v=148';
+import { initSearchView } from './search-view.js?v=148';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=148';
+import { fetchTmdbSearchPage, CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=148';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=148';
+import { setupRouter, navigateTo, navigateBack } from './router.js?v=148';
+import { NavigationManager } from './navigation.js?v=148';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=148';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -18,7 +18,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 147;
+const PACKAGED_APP_VERSION = 148;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;
@@ -741,8 +741,18 @@ async function loadHomeRows() {
     const histKey = 'streamy_history_' + (activeProfile ? activeProfile.id : 'default');
     const storedHistory = JSON.parse(globalThis.localStorage.getItem(histKey) || '[]')
         .filter(item => !isCompletedHistoryItem(item));
+    let historyRendered = false;
+    const historyPromise = filterItemsForActiveProfile(storedHistory).then(history => {
+        if (renderToken === activeRowsRenderToken && history.length) {
+            DOM.rowsContainer.innerHTML = '';
+            buildRow({ title: 'Continue Watching', items: history.slice(0, 18), isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
+            historyRendered = true;
+            focusFirstRowCard(renderToken);
+        }
+        return history;
+    });
     const [history, trendingMovies, recentMovies, popularShows] = await Promise.all([
-        filterItemsForActiveProfile(storedHistory),
+        historyPromise,
         discoverByCategory('movie', 'trending', 1),
         discoverByCategory('movie', 'now_playing', 1),
         discoverByCategory('tv', 'popular', 1)
@@ -757,8 +767,8 @@ async function loadHomeRows() {
         }
     }
 
-    DOM.rowsContainer.innerHTML = '';
-    if (history.length) {
+    if (!historyRendered) DOM.rowsContainer.innerHTML = '';
+    if (history.length && !historyRendered) {
         buildRow({ title: 'Continue Watching', items: history.slice(0, 18), isWatchlistDict: true, typeFallback: 'movie', isFirstRow: true, onCardClick: openDetails });
     }
     if (trendingMovies.length) {

@@ -523,3 +523,17 @@ body::before {
 .catalog-status-retry:focus { outline: 3px solid #fff; outline-offset: 3px; }
 .catalog-status-retry:disabled { opacity: .6; }
 @media (max-width: 600px) { .catalog-status-notice { margin: 8px; align-items: flex-start; flex-wrap: wrap; } }
+
+/* Keep details and controls within Fire TV's reported viewport. */
+#view-details .details-content { width: 100%; min-width: 0; }
+#view-details .details-right { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+#view-details .details-recommendations, #view-details .row-posters { min-width: 0; max-width: 100%; }
+#action-buttons-container { max-width: 100%; }
+@media (min-width: 701px) and (max-width: 1100px) {
+  #view-details { padding: 80px 28px 30px; }
+  #view-details .details-content { padding-inline: 16px; gap: 24px; }
+  #view-details .details-left { width: 190px; }
+  #details-title { font-size: clamp(2rem, 4vw, 3rem); }
+  #details-desc { font-size: .95rem; line-height: 1.4; }
+  #action-buttons-container .btn-play, #action-buttons-container .btn-secondary { font-size: .82rem; padding: 11px 17px; }
+}

@@ -1,4 +1,4 @@
-import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=147';
+import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=148';
 
 const FOCUSABLE_SELECTOR = [
     'button',
@@ -336,6 +336,20 @@ export const NavigationManager = {
 
         if (isOwnedNavigationScope(active)) {
             return;
+        }
+
+        // Keep left/right movement on the title action row before considering
+        // nearby posters, whose centers can otherwise appear closer on TV.
+        const actions = active.closest('#action-buttons-container');
+        if (actions && (direction === 'left' || direction === 'right')) {
+            const buttons = getFocusableItems(actions);
+            const index = buttons.indexOf(active);
+            const next = buttons[index + (direction === 'right' ? 1 : -1)];
+            if (index >= 0 && next) {
+                next.focus();
+                e.preventDefault();
+                return;
+            }
         }
 
         if (handleGridNavigation(active, direction)) {
