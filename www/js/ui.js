@@ -1,4 +1,4 @@
-import { IMAGE_URL, BACKDROP_URL } from './api.js?v=151';
+import { IMAGE_URL, BACKDROP_URL } from './api.js?v=152';
 
 export const DOM = {
     topBar: document.getElementById('top-bar'),
