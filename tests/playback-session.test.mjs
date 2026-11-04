@@ -68,6 +68,23 @@ const context = vm.createContext({
 });
 vm.runInContext(source, context);
 const run = code => vm.runInContext(code, context);
+// A slow request for an older episode must not overwrite the newer next-episode action.
+let episodeProgress = { last_season: 4, last_episode: 1 };
+context.getSeriesProgress = () => episodeProgress;
+const episodeRequests = [];
+context.fetchTVEpisodeList = () => new Promise(resolve => episodeRequests.push(resolve));
+context.DOM.nextEpisodeBtn = { classList, innerHTML: '' };
+run("currentMovieContext = { id: 42, type: 'tv', title: 'Sample' }");
+const olderUpdate = run('updateNextEpisodeButton()');
+episodeProgress = { last_season: 4, last_episode: 4 };
+const newerUpdate = run('updateNextEpisodeButton()');
+episodeRequests[1]([{episode_number: 5}]);
+await newerUpdate;
+assert.match(context.DOM.nextEpisodeBtn.innerHTML, /S4:E5/);
+episodeRequests[0]([{episode_number: 2}]);
+await olderUpdate;
+assert.match(context.DOM.nextEpisodeBtn.innerHTML, /S4:E5/, 'stale episode lookup must not replace the latest label');
+context.getSeriesProgress = () => ({ last_season: 1, last_episode: 2 });
 run("currentMovieContext = { id: 42, type: 'movie', title: 'Sample' }");
 assert.equal(run('getPlaybackSettings().playbackOptimization'), 'auto');
 run("savePlaybackSettings({ playbackOptimization: 'data-saver', autoplayNextEpisode: false })");

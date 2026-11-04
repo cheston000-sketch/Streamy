@@ -1,8 +1,8 @@
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=154';
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=154';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=154';
-import { navigateTo, navigateBack } from './router.js?v=154';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=154';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=155';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=155';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=155';
+import { navigateTo, navigateBack } from './router.js?v=155';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=155';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -25,6 +25,7 @@ let extractionSessionId = 0;
 let extractionAbortController = null;
 let detailsSessionId = 0;
 let episodeLoadId = 0;
+let nextEpisodeButtonRequestId = 0;
 let episodeFocusRequested = false;
 const NEXT_EPISODE_PROMPT_THRESHOLD_MS = 120000;
 const BROWSER_SOURCE_TIMEOUT_MS = 45000;
@@ -365,6 +366,7 @@ async function getNextEpisodeTarget() {
 async function updateNextEpisodeButton() {
     if (!DOM.nextEpisodeBtn) return;
     const requestMovie = currentMovieContext;
+    const requestId = ++nextEpisodeButtonRequestId;
 
     if (!currentMovieContext || currentMovieContext.type !== 'tv') {
         DOM.nextEpisodeBtn.classList.add('hidden');
@@ -372,7 +374,7 @@ async function updateNextEpisodeButton() {
     }
 
     const nextTarget = await getNextEpisodeTarget();
-    if (currentMovieContext !== requestMovie) return;
+    if (currentMovieContext !== requestMovie || requestId !== nextEpisodeButtonRequestId) return;
     if (!nextTarget) {
         DOM.nextEpisodeBtn.classList.add('hidden');
         return;
@@ -1564,6 +1566,8 @@ async function startScrapingSession(targetS = null, targetE = null) {
             e = progress.last_episode || 1;
         }
         saveSeriesProgress(sessionMovie.id, s, e);
+        // Refresh the details action after selecting an episode, even if playback fails.
+        updateNextEpisodeButton();
         try {
             currentNextEpisodeTarget = await resolveNextEpisodeTarget(s, e, sessionMovie, controller.signal);
         } catch (error) {
