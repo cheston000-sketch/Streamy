@@ -44,8 +44,12 @@ export function registryLinks(registry, {tmdb, imdb = '', type, season = 1, epis
     return registry.providers.filter(p => p.enabled).map(p => {
         const template = type === 'tv' || type === 'show' ? p.tv : p.movie;
         if (template.includes('{imdb}') && !imdb) return null;
-        const tokens = {tmdb, imdb, season, episode};
-        return {server:p.name, providerId:p.id, providerTier:p.id, registryPrimary:p.primary, type:'iframe',
+        // Verified on Fire TV: this source groups these two catalog stories in one file.
+        // Keep the exception limited to the requested, verified catalog episode.
+        const pairedEpisode = p.id === 'vidfast' && String(tmdb) === '127635'
+            && (type === 'tv' || type === 'show') && Number(season) === 4 && Number(episode) === 4;
+        const tokens = {tmdb, imdb, season, episode: pairedEpisode ? 2 : episode};
+        return {server:pairedEpisode ? p.name + ' (Giant-Sized Lizard / Rhino\'s Wild Bunch)' : p.name, pairedEpisode, providerId:p.id, providerTier:p.id, registryPrimary:p.primary, type:'iframe',
             url:template.replace(/\{([^}]+)\}/g, (_, token) => encodeURIComponent(tokens[token]))};
     }).filter(link => link && registryAllows(link, registry));
 }

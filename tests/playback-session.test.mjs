@@ -68,6 +68,17 @@ const context = vm.createContext({
 });
 vm.runInContext(source, context);
 const run = code => vm.runInContext(code, context);
+// The verified replacement wins the default ranking but yields after failures.
+run("savePlaybackSettings({ sourcePreference: 'extractor' })");
+const vidfast={server:'VidFast',type:'iframe',url:'https://vidfast.vc/tv/127635/4/2',pairedEpisode:true};
+context.verifiedSource=vidfast;
+assert.ok(run('getSourceScore(verifiedSource) < getSourceScore({server:"Vidlink",type:"iframe",url:"https://vidlink.pro/tv/127635/4/4"})'));
+storage.set('streamy_source_health_v1', JSON.stringify({vidfast:{consecutiveFailures:2,cooldownUntil:Date.now()+60000,lastUpdatedAt:Date.now()}}));
+assert.ok(run('getSourceScore(verifiedSource) > getSourceScore({server:"Vidlink",type:"iframe",url:"https://vidlink.pro/tv/127635/4/4"})'));
+storage.delete('streamy_source_health_v1');
+run('currentPlaybackLinks = [verifiedSource]');
+assert.equal(JSON.parse(run('getPlayableSourcePayload()'))[0].pairedEpisode,true);
+run('currentPlaybackLinks = []');
 // A slow request for an older episode must not overwrite the newer next-episode action.
 let episodeProgress = { last_season: 4, last_episode: 1 };
 context.getSeriesProgress = () => episodeProgress;

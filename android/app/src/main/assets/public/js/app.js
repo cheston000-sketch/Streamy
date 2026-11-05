@@ -1,12 +1,12 @@
-import { initCatalogStatusNotice } from './catalog-status.js?v=156';
-import { hasParentPin, isValidParentPin, setParentPin, verifyParentPin, removeParentPin } from './parent-pin.js?v=156';
-import { initSearchView } from './search-view.js?v=156';
-import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=156';
-import { fetchTmdbSearchPage, CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=156';
-import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=156';
-import { setupRouter, navigateTo, navigateBack } from './router.js?v=156';
-import { NavigationManager } from './navigation.js?v=156';
-import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=156';
+import { initCatalogStatusNotice } from './catalog-status.js?v=157';
+import { hasParentPin, isValidParentPin, setParentPin, verifyParentPin, removeParentPin } from './parent-pin.js?v=157';
+import { initSearchView } from './search-view.js?v=157';
+import { DOM, buildRow, renderGridItems, enableDragScroll, getWatchlistItems, isCompletedHistoryItem, normalizeItem, updateHeroBanner } from './ui.js?v=157';
+import { fetchTmdbSearchPage, CACHE_DB_NAME, buildBackendFetchOptions, discoverByCategory, discoverBackendHost, fetchFromTMDB, filterItemsForActiveProfile, getProxyHost, getManualBackendHost, rememberDiscoveredBackendHost, setManualBackendHost, getDiscoveryLogs } from './api.js?v=157';
+import { openDetails, getPlaybackDiagnosticsText, copyPlaybackDiagnostics, getPlaybackSettings, savePlaybackSettings, resetSourceHealth } from './player.js?v=157';
+import { setupRouter, navigateTo, navigateBack } from './router.js?v=157';
+import { NavigationManager } from './navigation.js?v=157';
+import { normalizeBuildVersion, resolveInstalledBuildVersion, resolveUpdateDownloadUrl, shouldEnforceUpdate } from './update-policy.js?v=157';
 
 let activeProfile = null;
 let currentFullCategory = null; // { type: 'movie', val: '28', page: 1, title: 'Action' }
@@ -18,7 +18,7 @@ let focusedRowsRenderToken = -1;
 
 // Navigation Manager is now imported
 
-const PACKAGED_APP_VERSION = 156;
+const PACKAGED_APP_VERSION = 157;
 const UPDATE_SERVER = 'https://streamy-vez5.onrender.com';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 let requiredUpdate = null;

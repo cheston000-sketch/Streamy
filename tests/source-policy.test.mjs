@@ -16,10 +16,10 @@ for(const bad of ['http://unsafe.example/movie/{tmdb}','https://{tmdb}.example/m
 }
 const data=new Map();const storage={getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)};
 let reply={ok:true,text:async()=>JSON.stringify(changed)};
-assert.equal((await refreshRegistry({host:'https://backend.example',storage,fetcher:async()=>reply})).version,2);
+assert.equal((await refreshRegistry({host:'https://backend.example',storage,fetcher:async()=>reply})).version,changed.version);
 reply={ok:true,text:async()=>JSON.stringify(registry)};
-assert.equal((await refreshRegistry({host:'https://backend.example',storage,fetcher:async()=>reply})).version,2,'older remote registry must not restore removed providers');
-assert.equal((await refreshRegistry({host:'https://backend.example',storage,fetcher:async()=>{throw Error('offline')}})).version,2);
+assert.equal((await refreshRegistry({host:'https://backend.example',storage,fetcher:async()=>reply})).version,changed.version,'older remote registry must not restore removed providers');
+assert.equal((await refreshRegistry({host:'https://backend.example',storage,fetcher:async()=>{throw Error('offline')}})).version,changed.version);
 const cache=JSON.parse(data.get(REGISTRY_CACHE_KEY));cache.savedAt=Date.now()-REGISTRY_MAX_AGE-1;data.set(REGISTRY_CACHE_KEY,JSON.stringify(cache));
 assert.equal(cachedRegistry(storage),null);
 let h=updateSourceHealth({},'success',1000,2000);assert.equal(h.successes,1);
@@ -28,3 +28,11 @@ assert.ok(sourceHealthPenalty(h,3001)>1000,'two failures should temporarily demo
 h=updateSourceHealth(h,'success',4000,4000);assert.equal(h.consecutiveFailures,0);assert.equal(h.cooldownUntil,0);
 assert.ok(sourceHealthPenalty(h,4001)<1000,'success should restore source eligibility');
 console.log('Remote source registry and playback health tests passed.');
+
+const spidey=registryLinks(registry,{tmdb:127635,type:'tv',season:4,episode:4}).find(x=>x.providerId==='vidfast');
+assert.equal(spidey.url,'https://vidfast.vc/tv/127635/4/2?autoPlay=true');
+assert.equal(spidey.pairedEpisode,true);
+assert.match(spidey.server,/Giant-Sized Lizard \/ Rhino's Wild Bunch/);
+assert.equal(episode.find(x=>x.providerId==='vidfast').url,'https://vidfast.vc/tv/1399/2/3?autoPlay=true');
+assert.equal(registryLinks(registry,{tmdb:127635,type:'tv',season:3,episode:4}).find(x=>x.providerId==='vidfast').url,'https://vidfast.vc/tv/127635/3/4?autoPlay=true');
+assert.equal(movie.find(x=>x.providerId==='vidfast').url,'https://vidfast.vc/movie/550?autoPlay=true');

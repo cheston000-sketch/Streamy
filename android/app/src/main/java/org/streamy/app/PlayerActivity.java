@@ -179,8 +179,8 @@ public class PlayerActivity extends AppCompatActivity {
         sourceJson = getIntent().getStringExtra("sourceJson");
         playbackMetadataJson = getIntent().getStringExtra("playbackMetadataJson");
         PlaybackOptimizationPolicy.Mode optimizationMode = readPlaybackOptimization();
-        parseEpisodeMarkers(playbackMetadataJson);
         sourceIndex = getIntent().getIntExtra("sourceIndex", -1);
+        parseEpisodeMarkers(playbackMetadataJson);
         resumeSeekApplied = false;
         failedOverAfterError = false;
         Log.i(TAG, "onCreate mediaKey=" + mediaKey + " pendingStartPositionMs=" + pendingStartPositionMs + " next=S" + nextSeason + "E" + nextEpisode + " autoplayNext=" + autoplayNextEpisode + " title=" + title);
@@ -898,6 +898,9 @@ public class PlayerActivity extends AppCompatActivity {
     private void parseEpisodeMarkers(String metadataJson) {
         recapMarker = null;
         introMarker = null;
+        // Catalog timestamps describe a single story, not a combined source file.
+        JSONObject selectedSource = getSourceAt(sourceIndex);
+        if (selectedSource != null && selectedSource.optBoolean("pairedEpisode", false)) return;
         if (metadataJson == null || metadataJson.isEmpty() || mediaKey == null || !mediaKey.contains(":tv:")) {
             return;
         }

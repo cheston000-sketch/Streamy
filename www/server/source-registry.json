@@ -1,7 +1,15 @@
 {
   "schemaVersion": 1,
-  "version": 1,
+  "version": 2,
   "providers": [
+    {
+      "id": "vidfast",
+      "name": "VidFast",
+      "enabled": true,
+      "primary": true,
+      "movie": "https://vidfast.vc/movie/{tmdb}?autoPlay=true",
+      "tv": "https://vidfast.vc/tv/{tmdb}/{season}/{episode}?autoPlay=true"
+    },
     {
       "id": "vidlink",
       "name": "Vidlink",

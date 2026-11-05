@@ -1,8 +1,8 @@
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=156';
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=156';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=156';
-import { navigateTo, navigateBack } from './router.js?v=156';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=156';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=157';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=157';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=157';
+import { navigateTo, navigateBack } from './router.js?v=157';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=157';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -638,6 +638,7 @@ function isTrustedEmbedSource(link) {
     const source = `${link?.server || ''} ${link?.url || ''}`.toLowerCase();
     return [
         'vidlink',
+        'vidfast.vc',
         'movietvapi.stream',
         'vidrock',
         'vsembed',
@@ -874,11 +875,12 @@ function recordPlaybackDiagnostic(update = {}) {
 }
 
 function getSourceScore(link) {
-    // Keep Vidlink preferred when healthy, while allowing confirmed failures to demote it.
+    // Prefer the Fire TV-tested replacement, while allowing failures to demote any source.
 
     const settings = getPlaybackSettings();
     const health = getSourceHealth(link);
-    let baseScore = isVidlinkSource(link) ? -70 : link?.type !== 'iframe' ? -20 : getIframeHostPriority(link);
+    const isVidFast = (() => { try { return new URL(link?.url).hostname === 'vidfast.vc'; } catch { return false; } })();
+    let baseScore = isVidFast ? -100 : isVidlinkSource(link) ? -70 : link?.type !== 'iframe' ? -20 : getIframeHostPriority(link);
     if (isNamedDirectProvider(link)) baseScore -= 18;
 
     if (settings.sourcePreference === 'extractor') {
@@ -1090,7 +1092,8 @@ function getPlayableSourcePayload() {
         referer: link.referer || '',
         origin: link.origin || '',
         cookie: link.cookie || '',
-        quality: link.quality || ''
+        quality: link.quality || '',
+        pairedEpisode: link.pairedEpisode === true
     })));
 }
 
