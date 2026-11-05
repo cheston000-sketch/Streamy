@@ -44,15 +44,41 @@ export function registryLinks(registry, {tmdb, imdb = '', type, season = 1, epis
     return registry.providers.filter(p => p.enabled).map(p => {
         const template = type === 'tv' || type === 'show' ? p.tv : p.movie;
         if (template.includes('{imdb}') && !imdb) return null;
-        // Verified on Fire TV: this source groups these two catalog stories in one file.
-        // Keep the exception limited to the requested, verified catalog episode.
-        const pairedEpisode = p.id === 'vidfast' && String(tmdb) === '127635'
-            && (type === 'tv' || type === 'show') && Number(season) === 4 && Number(episode) === 4;
-        // This series uses different numbering here; expose only the verified mapping.
-        if (p.id === 'vidfast' && String(tmdb) === '127635'
-            && (type === 'tv' || type === 'show') && !pairedEpisode) return null;
-        const tokens = {tmdb, imdb, season, episode: pairedEpisode ? 2 : episode};
-        return {server:pairedEpisode ? p.name + ' (Giant-Sized Lizard / Rhino\'s Wild Bunch)' : p.name, pairedEpisode, providerId:p.id, providerTier:p.id, registryPrimary:p.primary, type:'iframe',
+        // Disney's broadcast season 4 groups two catalog stories into each file.
+        // The first two tested files confirmed this provider uses that ordering.
+        const pairs = [
+            'Voyage to Spider Island / Superhero Soak',
+            "Giant-Sized Lizard / Rhino's Wild Bunch",
+            'The Bots vs. Ock / The Battery Boost',
+            'King Lizard / Go Rhino Go',
+            'Campout Chaos / Panther Pod to the Rescue',
+            'Two Teleporters Too Many / Dinos Are Forever',
+            'The Lost Lair of Web-Beard / Captain Gobby',
+            'Mixing Up Trouble / To Catch a Cat',
+            'How to Catch a Caterpillar / A Jellyfish Tale',
+            'Night of the Goblins / Bat Attitude',
+            'Saving Spider Island / A Ribbiting Rescue',
+            'A Squirrel Girl and Tippy Toe Pirate Adventure / Knight at the Museum',
+            'The Greedy Goose / Playpen Pandemonium',
+            'The Candlelight Christmas Walk / The Santa Trap',
+            'The Treasure of Billie the Pirate / Big City, Little Land Shark',
+            'A Helping Handful / Adventures Down the Drain',
+            "Dolphin Rescue / Gobby's Trash Day Takeover",
+            'Motorcycle Madness / Oops! I Shrank WEB-Quarters',
+            'The Return of Web-Beard / Sandman vs Hydro-Man'
+        ];
+        const groupedSeries = p.id === 'vidfast' && String(tmdb) === '127635'
+            && (type === 'tv' || type === 'show');
+        const pairIndex = Math.floor((Number(episode) - 1) / 2);
+        const pairedEpisode = groupedSeries && Number(season) === 4
+            && Number.isInteger(Number(episode)) && Number(episode) > 0 && pairIndex < pairs.length;
+        // Other seasons need their own numbering verification.
+        if (groupedSeries && !pairedEpisode) return null;
+        const tokens = {tmdb, imdb, season, episode: pairedEpisode ? pairIndex + 1 : episode};
+        return {server:pairedEpisode ? p.name + ' (' + pairs[pairIndex] + ')' : p.name,
+            pairedEpisode, pairedLastEpisode:pairedEpisode ? (pairIndex + 1) * 2 : 0,
+            pairedSeasonEnd:pairedEpisode && pairIndex === pairs.length - 1,
+            providerId:p.id, providerTier:p.id, registryPrimary:p.primary, type:'iframe',
             url:template.replace(/\{([^}]+)\}/g, (_, token) => encodeURIComponent(tokens[token]))};
     }).filter(link => link && registryAllows(link, registry));
 }

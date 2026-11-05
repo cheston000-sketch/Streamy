@@ -180,6 +180,11 @@ public class PlayerActivity extends AppCompatActivity {
         playbackMetadataJson = getIntent().getStringExtra("playbackMetadataJson");
         PlaybackOptimizationPolicy.Mode optimizationMode = readPlaybackOptimization();
         sourceIndex = getIntent().getIntExtra("sourceIndex", -1);
+        JSONObject selectedSource = getSourceAt(sourceIndex);
+        if (selectedSource != null) {
+            nextSeason = selectedSource.optInt("nextSeason", nextSeason);
+            nextEpisode = selectedSource.optInt("nextEpisode", nextEpisode);
+        }
         parseEpisodeMarkers(playbackMetadataJson);
         resumeSeekApplied = false;
         failedOverAfterError = false;

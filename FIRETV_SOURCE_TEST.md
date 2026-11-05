@@ -1,22 +1,9 @@
-# Spidey S4:E4 playback investigation
+# Fire TV source test
 
-Device: Fire TV AFTR, 192.168.4.25. Tested 2026-11-04.
+Version 159 corrects the v158 restriction that excluded VidFast except for Spidey S4:E4. Device logs showed the viewer requesting S4:E8 and receiving only the old providers. Season 4 now follows the paired broadcast ordering listed at https://disneynow.com/show/03f2c0d6-967e-4868-929a-8f2089ce7a85/season-4. Catalog episode n maps to provider episode ceil(n/2), for the 38 catalog stories in the listed 19 broadcast pairs.
 
-The app requested TMDB 127635, season 4, episode 4 (Rhino’s Wild Bunch).
-The backend returned no direct links, only web-player sources.
-The initial web player failed with “Verification failed. Please reload.”
-Testing alternate sources reached the native player, but the returned media failed with ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED. The player exhausted its available source list. Successful playback was not observed.
+Paired source labels identify both stories. Per-source next targets skip the sibling story already included in the file, and survive WebView extraction and native failover. At the final pair, an unresolved next season target is not guessed. Other seasons still need separate verification. The source plays the full pair from its beginning; no unverified midpoint offset is used. Single-story intro/recap markers remain disabled for paired files.
 
-Version 155 fixed stale next-episode actions after selecting another episode; the show now displays S4:E5 as next. Added an asynchronous regression test.
-Version 156 adds a Fire TV Menu-button playback dialog with Reload source, Try another source, and Back to title. Verified opening it and choosing another source on the affected TV.
+Full npm test and npm run build:android passed. The corrected S4:E8 provider file /tv/127635/4/4 reached native playback on 192.168.4.25 and its timer advanced. Earlier viewer confirmation established that this file contains King Lizard.
 
-Validation: npm test and npm run build:android passed. Version 156 installed successfully. No claim that episode playback is repaired.
-
-
-## Version 157: verified replacement
-
-VidFast at https://vidfast.vc/tv/127635/4/4 played on the affected TV, but the viewer described the King Lizard story. Testing /4/2 also played; the viewer confirmed one of Giant-Sized Lizard / Rhino's Wild Bunch. This provider uses combined stories for the tested episode. Added VidFast as a primary source, preferred when healthy, with the explicit verified S4:E4 -> provider S4:E2 exception and a combined-story source label. No guessed start offset is applied. The file begins with Giant-Sized Lizard and contains Rhino's Wild Bunch afterward. Other episode mappings have not been verified.
-
-Single-story intro/recap markers are suppressed for this paired source, including native source failover. Version 157 installed on 192.168.4.25; native playback starts with duration 24:05. Full npm test and npm run build:android passed. Screenshots cannot capture the video surface, so picture confirmation relies on the viewer's replies above.
-
-Final v158 also excludes VidFast for unverified Spidey episodes; other providers remain available for those episodes. Targeted JS/mapping/playback checks and Android assembly passed after this guard.
+Installed v159, opened the show in the app, and requested catalog S4E8 through its native episode-selection action. Logs confirm the app selected VidFast (King Lizard / Go Rhino Go), requested /tv/127635/4/4?autoPlay=true, and retained next target S4E9.

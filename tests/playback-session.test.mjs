@@ -78,7 +78,13 @@ assert.ok(run('getSourceScore(verifiedSource) > getSourceScore({server:"Vidlink"
 storage.delete('streamy_source_health_v1');
 run('currentPlaybackLinks = [verifiedSource]');
 assert.equal(JSON.parse(run('getPlayableSourcePayload()'))[0].pairedEpisode,true);
-run('currentPlaybackLinks = []');
+run('currentPlaybackSeason = 4; currentNextEpisodeTarget = {season:4,episode:8}; verifiedSource.pairedLastEpisode = 8');
+assert.equal(JSON.parse(run('getPlayableSourcePayload()'))[0].nextEpisode,9,'a paired file must not autoplay the same pair again');
+run('currentPlaybackLinks.push({type:"iframe",url:"https://vidlink.pro/tv/127635/4/7"})');
+assert.equal(JSON.parse(run('getPlayableSourcePayload()'))[1].nextEpisode,8,'single-story failover keeps its own next target');
+run('verifiedSource.pairedLastEpisode = 38; verifiedSource.pairedSeasonEnd = true; currentNextEpisodeTarget = {season:4,episode:38}');
+assert.equal(JSON.parse(run('getPlayableSourcePayload()'))[0].nextEpisode,0,'do not invent an episode beyond the paired season');
+run('currentPlaybackLinks = []; currentNextEpisodeTarget = null; currentPlaybackSeason = 0');
 // A slow request for an older episode must not overwrite the newer next-episode action.
 let episodeProgress = { last_season: 4, last_episode: 1 };
 context.getSeriesProgress = () => episodeProgress;

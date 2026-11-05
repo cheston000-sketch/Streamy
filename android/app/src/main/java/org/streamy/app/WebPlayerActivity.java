@@ -94,6 +94,11 @@ public class WebPlayerActivity extends AppCompatActivity {
         nextSeason = parseIntExtra("nextSeason");
         nextEpisode = parseIntExtra("nextEpisode");
         autoplayNextEpisode = getIntent().getBooleanExtra("autoplayNextEpisode", true);
+        JSONObject selectedSource = getSourceAt(sourceIndex);
+        if (selectedSource != null) {
+            nextSeason = selectedSource.optInt("nextSeason", nextSeason);
+            nextEpisode = selectedSource.optInt("nextEpisode", nextEpisode);
+        }
         rootSite = getSiteKey(url);
         Log.i(TAG, "onCreate mediaKey=" + mediaKey + " startPositionMs=" + startPositionMs + " next=S" + nextSeason + "E" + nextEpisode + " title=" + title);
 
@@ -726,6 +731,8 @@ public class WebPlayerActivity extends AppCompatActivity {
 
             Log.i(TAG, "Failing over to source " + index + " (" + server + ") because " + reason);
             sourceIndex = index;
+            nextSeason = source.optInt("nextSeason", nextSeason);
+            nextEpisode = source.optInt("nextEpisode", nextEpisode);
             mainFrameFailed = false;
             promotedIframeUrl = null;
             hideCustomView();

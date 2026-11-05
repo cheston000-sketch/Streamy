@@ -1,8 +1,8 @@
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=158';
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=158';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=158';
-import { navigateTo, navigateBack } from './router.js?v=158';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=158';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=159';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=159';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=159';
+import { navigateTo, navigateBack } from './router.js?v=159';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=159';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -1084,6 +1084,15 @@ function renderSourceList(preferredBestLink = null) {
     });
 }
 
+function getSourceNextTarget(link) {
+    const target = currentNextEpisodeTarget;
+    if (!target || !link?.pairedEpisode || target.season !== currentPlaybackSeason
+        || target.episode > link.pairedLastEpisode) return target;
+    // The paired file already contains the following catalog story.
+    if (link.pairedSeasonEnd) return null;
+    return {...target, episode:link.pairedLastEpisode + 1};
+}
+
 function getPlayableSourcePayload() {
     return JSON.stringify(currentPlaybackLinks.map(link => ({
         server: link.server || 'Unknown',
@@ -1093,7 +1102,9 @@ function getPlayableSourcePayload() {
         origin: link.origin || '',
         cookie: link.cookie || '',
         quality: link.quality || '',
-        pairedEpisode: link.pairedEpisode === true
+        pairedEpisode: link.pairedEpisode === true,
+        nextSeason: getSourceNextTarget(link)?.season || 0,
+        nextEpisode: getSourceNextTarget(link)?.episode || 0
     })));
 }
 
