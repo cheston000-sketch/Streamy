@@ -21,6 +21,7 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
@@ -1032,6 +1033,22 @@ public class WebPlayerActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            if (event.getRepeatCount() == 0) {
+                new AlertDialog.Builder(this)
+                    .setTitle("Playback options")
+                    .setItems(new String[]{"Reload source", "Try another source", "Back to title"}, (dialog, which) -> {
+                        if (which == 0 && webView != null) {
+                            webView.reload();
+                        } else if (which == 1) {
+                            tryLaunchNextSource("Viewer requested another source");
+                        } else if (which == 2) {
+                            finish();
+                        }
+                    }).show();
+            }
+            return true;
+        }
         if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
             if (webView != null) {
                 webView.evaluateJavascript(

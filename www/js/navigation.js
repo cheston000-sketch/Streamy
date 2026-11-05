@@ -1,4 +1,4 @@
-import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=155';
+import { buildVisualGridRows, findGridTarget, findNearestGridItem } from './grid-navigation.js?v=156';
 
 const FOCUSABLE_SELECTOR = [
     'button',
