@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=157';
+import { NavigationManager } from './navigation.js?v=158';
 
 let currentRouteKey = null;
 const routeStack = [];

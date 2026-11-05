@@ -48,6 +48,9 @@ export function registryLinks(registry, {tmdb, imdb = '', type, season = 1, epis
         // Keep the exception limited to the requested, verified catalog episode.
         const pairedEpisode = p.id === 'vidfast' && String(tmdb) === '127635'
             && (type === 'tv' || type === 'show') && Number(season) === 4 && Number(episode) === 4;
+        // This series uses different numbering here; expose only the verified mapping.
+        if (p.id === 'vidfast' && String(tmdb) === '127635'
+            && (type === 'tv' || type === 'show') && !pairedEpisode) return null;
         const tokens = {tmdb, imdb, season, episode: pairedEpisode ? 2 : episode};
         return {server:pairedEpisode ? p.name + ' (Giant-Sized Lizard / Rhino\'s Wild Bunch)' : p.name, pairedEpisode, providerId:p.id, providerTier:p.id, registryPrimary:p.primary, type:'iframe',
             url:template.replace(/\{([^}]+)\}/g, (_, token) => encodeURIComponent(tokens[token]))};

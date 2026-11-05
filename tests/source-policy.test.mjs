@@ -34,5 +34,6 @@ assert.equal(spidey.url,'https://vidfast.vc/tv/127635/4/2?autoPlay=true');
 assert.equal(spidey.pairedEpisode,true);
 assert.match(spidey.server,/Giant-Sized Lizard \/ Rhino's Wild Bunch/);
 assert.equal(episode.find(x=>x.providerId==='vidfast').url,'https://vidfast.vc/tv/1399/2/3?autoPlay=true');
-assert.equal(registryLinks(registry,{tmdb:127635,type:'tv',season:3,episode:4}).find(x=>x.providerId==='vidfast').url,'https://vidfast.vc/tv/127635/3/4?autoPlay=true');
+assert.equal(registryLinks(registry,{tmdb:127635,type:'tv',season:3,episode:4}).some(x=>x.providerId==='vidfast'),false);
+assert.equal(registryLinks(registry,{tmdb:127635,type:'tv',season:4,episode:5}).some(x=>x.providerId==='vidfast'),false);
 assert.equal(movie.find(x=>x.providerId==='vidfast').url,'https://vidfast.vc/movie/550?autoPlay=true');

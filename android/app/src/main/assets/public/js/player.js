@@ -1,8 +1,8 @@
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=157';
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=157';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=157';
-import { navigateTo, navigateBack } from './router.js?v=157';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=157';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=158';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=158';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=158';
+import { navigateTo, navigateBack } from './router.js?v=158';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=158';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
