@@ -197,8 +197,23 @@ body::before {
   box-shadow: 0 0 32px rgba(0, 195, 255, .32);
 }
 
-#view-links #source-filter-controls,
-#view-links #server-list { display: none !important; }
+#view-links:not(.sources-ready) #source-filter-controls,
+#view-links:not(.sources-ready) #server-list { display: none !important; }
+#view-links.sources-ready {
+  display: block;
+  overflow-y: auto !important;
+  padding: 110px 6vw 40px !important;
+}
+#view-links.sources-ready .tellyvo-loading-shell { width: 100%; transform: none; }
+#view-links.sources-ready .tellyvo-loading-shell h1,
+#view-links.sources-ready .tellyvo-loading-meter,
+#view-links.sources-ready .tellyvo-loading-copy { display: none; }
+#view-links.sources-ready .tellyvo-loading-mark { width: 180px; margin-bottom: 12px; }
+#view-links.sources-ready #links-title { position: static; width: auto; height: auto; clip: auto; margin: 0 0 12px; font-size: 1.4rem; }
+#view-links.sources-ready #links-title::after { content: ' — sources ranked by playback reliability'; }
+#view-links.sources-ready #source-filter-controls { display: flex; margin: 12px auto; max-width: 1200px; }
+#view-links.sources-ready #server-list { display: flex; margin: 0 auto; padding: 10px; }
+#view-links.sources-ready #scraper-status.hidden { display: none; }
 
 @keyframes tellyvo-loading-pulse {
   0%, 65%, 100% { background: rgba(255, 255, 255, .13); box-shadow: none; transform: scaleX(.96); }

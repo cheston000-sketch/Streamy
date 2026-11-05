@@ -103,6 +103,11 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
 
         maybeHandleNativeAction(getIntent());
+        if (this.bridge != null) {
+            this.bridge.getWebView().post(() -> this.bridge.getWebView().evaluateJavascript(
+                "window.dispatchEvent(new Event('streamy-source-health-updated'));", null));
+        }
+
 
         if (awaitingInstallPermission) {
             awaitingInstallPermission = false;

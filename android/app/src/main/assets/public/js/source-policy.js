@@ -114,10 +114,12 @@ export async function refreshRegistry({host, storage, fetcher = fetch, options =
 export function updateSourceHealth(previous = {}, status, now = Date.now(), startupMs = 0) {
     const result = {...previous, lastStatus:status, lastUpdatedAt:now};
     if (status === 'failed') {
+        result.lastFailureAt = now;
         result.failures = (previous.failures || 0) + 1;
         result.consecutiveFailures = (previous.consecutiveFailures || 0) + 1;
         if (result.consecutiveFailures >= 2) result.cooldownUntil = now + 15 * 60 * 1000;
     } else if (status === 'success') {
+        result.lastSuccessAt = now;
         result.successes = (previous.successes || 0) + 1;
         result.consecutiveFailures = 0;
         result.cooldownUntil = 0;
@@ -126,12 +128,28 @@ export function updateSourceHealth(previous = {}, status, now = Date.now(), star
     return result;
 }
 
+export function sourceHealthTier(health = {}, now = Date.now()) {
+    const age = now - (health.lastUpdatedAt || 0);
+    if (age < 0 || age >= 7 * 24 * 60 * 60 * 1000) return 'untested';
+    if (health.cooldownUntil > now || (age < 24 * 60 * 60 * 1000
+        && (health.lastStatus === 'failed' || health.consecutiveFailures > 0))) return 'failed';
+    if (health.successes > 0 && !health.consecutiveFailures
+        && (health.lastStatus === 'success' || health.lastStatus === 'buffering')) return 'working';
+    return 'untested';
+}
+
 export function sourceHealthPenalty(health = {}, now = Date.now()) {
-    const recent = now - (health.lastUpdatedAt || 0) < 24 * 60 * 60 * 1000;
-    if (!recent) return 0;
-    return (health.cooldownUntil > now ? 10000 : 0)
-        + Math.min(200, (health.consecutiveFailures || 0) * 60)
-        + Math.min(25, (health.startupMs || 0) / 1000)
-        + Math.min(30, (health.bufferCount || 0) * 3)
-        - Math.min(15, (health.successes || 0) * 3);
+    const tier = sourceHealthTier(health, now);
+    // Tier gaps exceed every format/provider preference: observed reliability wins.
+    if (tier === 'untested') return 0;
+    const successes = Math.max(0, Number(health.successes) || 0);
+    const failures = Math.max(0, Number(health.failures) || 0);
+    const failureRate = failures / Math.max(1, successes + failures);
+    return (tier === 'failed' ? 2000 : -2000)
+        + (health.cooldownUntil > now ? 2000 : 0)
+        + failureRate * 200
+        + Math.min(200, (health.consecutiveFailures || 0) * 40)
+        + Math.min(60, (health.startupMs || 0) / 1000)
+        + Math.min(100, (health.bufferCount || 0) / Math.max(1, successes) * 10)
+        - Math.min(40, successes * 4);
 }

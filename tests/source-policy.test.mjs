@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {validateRegistry,registryLinks,registryAllows,refreshRegistry,cachedRegistry,REGISTRY_CACHE_KEY,REGISTRY_MAX_AGE,updateSourceHealth,sourceHealthPenalty} from '../www/js/source-policy.js';
+import {validateRegistry,registryLinks,registryAllows,refreshRegistry,cachedRegistry,REGISTRY_CACHE_KEY,REGISTRY_MAX_AGE,updateSourceHealth,sourceHealthPenalty,sourceHealthTier} from '../www/js/source-policy.js';
 const registry=validateRegistry(JSON.parse(await readFile(new URL('../www/server/source-registry.json',import.meta.url),'utf8')));
 const movie=registryLinks(registry,{tmdb:550,type:'movie'});
 const episode=registryLinks(registry,{tmdb:1399,type:'tv',season:2,episode:3});
@@ -42,3 +42,14 @@ for (let catalogEpisode=1;catalogEpisode<=38;catalogEpisode++) {
 }
 assert.match(registryLinks(registry,{tmdb:127635,type:'tv',season:4,episode:8}).find(x=>x.providerId==='vidfast').server,/King Lizard \/ Go Rhino Go/);
 assert.equal(movie.find(x=>x.providerId==='vidfast').url,'https://vidfast.vc/movie/550?autoPlay=true');
+
+const recent=1000000000;
+const worked=updateSourceHealth({},'success',recent,2000);
+const failed=updateSourceHealth(worked,'failed',recent+1);
+assert.equal(sourceHealthTier(failed,recent+2),'failed');
+assert.ok(sourceHealthPenalty(failed,recent+2)>sourceHealthPenalty({},recent+2));
+assert.ok(sourceHealthPenalty(worked,recent+2)<sourceHealthPenalty({},recent+2));
+assert.equal(sourceHealthTier(updateSourceHealth(failed,'success',recent+3,1500),recent+4),'working');
+assert.equal(sourceHealthTier(failed,recent+2*24*60*60*1000),'untested','old failures get another chance');
+assert.equal(sourceHealthTier(worked,recent+8*24*60*60*1000),'untested','old successes do not permanently pin a source');
+assert.ok(sourceHealthPenalty({...worked,bufferCount:8},recent+2)>sourceHealthPenalty(worked,recent+2));

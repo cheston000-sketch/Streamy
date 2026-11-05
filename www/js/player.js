@@ -1,8 +1,8 @@
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from './source-policy.js?v=159';
-import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=159';
-import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=159';
-import { navigateTo, navigateBack } from './router.js?v=159';
-import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=159';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty, sourceHealthTier } from './source-policy.js?v=160';
+import { DOM, getSeriesProgress, saveSeriesProgress, toggleWatchlist, isInWatchlist, markPlaybackCompleted, clearPlaybackCompleted, isCompletedHistoryItem, normalizeItem } from './ui.js?v=160';
+import { fetchTVEpisodeList, fetchTVSeasons, fetchFromTMDB, filterItemsForActiveProfile, IMAGE_URL, getProxyHost, getDiscoveryLogs, buildBackendFetchOptions, discoverBackendHost, invalidateBackendHost } from './api.js?v=160';
+import { navigateTo, navigateBack } from './router.js?v=160';
+import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from './playback-optimization.js?v=160';
 
 let currentMovieContext = null;
 let webPlaybackSaveTimer = null;
@@ -604,24 +604,21 @@ export function resetSourceHealth() {
 }
 
 function getSourceKey(link) {
-    const server = (link?.server || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const host = (() => {
-        try {
-            return new URL(link?.url || '').hostname.toLowerCase();
-        } catch (error) {
-            return '';
-        }
-    })();
-    return server || host || 'unknown-source';
+    // A provider keeps its observations when its episode label changes.
+    try { return new URL(link?.url).hostname.toLowerCase(); } catch {}
+    return String(link?.server || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown-source';
 }
 
 function getSourceHealth(link) {
     const db = readJsonObject(SOURCE_HEALTH_KEY);
-    try {
-        const native = JSON.parse(globalThis.NativeBridge?.getSourceHealth?.(getSourceKey(link)) || '{}');
-        if (native.lastUpdatedAt > (db[getSourceKey(link)]?.lastUpdatedAt || 0)) return native;
-    } catch {}
-    return db[getSourceKey(link)] || { failures: 0, successes: 0, lastStatus: 'unknown', lastReason: '' };
+    const key = getSourceKey(link);
+    const legacy = String(link?.server || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const base = String(link?.server || '').split(' (')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const candidates = [db[key], db[legacy], db[base]];
+    if (key === 'vidfast.vc') candidates.push(...Object.entries(db).filter(([k]) => k.startsWith('vidfast-')).map(([,v]) => v));
+    try { candidates.push(JSON.parse(globalThis.NativeBridge?.getSourceHealth?.(key) || '{}')); } catch {}
+    return candidates.filter(value => value && typeof value === 'object')
+        .sort((a,b) => (b.lastUpdatedAt || 0) - (a.lastUpdatedAt || 0))[0] || {};
 }
 
 function isVidlinkSource(link) {
@@ -845,7 +842,7 @@ function markSourceResult(link, status, reason = '') {
     if (!link) return;
     const key = getSourceKey(link);
     const db = readJsonObject(SOURCE_HEALTH_KEY);
-    const current = db[key] || { failures: 0, successes: 0 };
+    const current = getSourceHealth(link);
 
     db[key] = { ...updateSourceHealth(current, status, Date.now(), status === 'success' ? Date.now() - sourceOpenedAt : 0), lastReason: reason, lastError: status === 'failed' ? reason : current.lastError || '', server: link.server || key };
     writeJsonObject(SOURCE_HEALTH_KEY, db);
@@ -936,7 +933,13 @@ function getSourceBadge(link, isPreferred = false) {
         tone = 'unstable';
     }
 
-    if (health.lastStatus === 'failed') {
+    if (sourceHealthTier(health) === 'working') {
+        label = 'Played Successfully';
+        tone = 'recommended';
+    } else if (sourceHealthTier(health) === 'untested') {
+        label = 'Untested';
+        tone = 'backup';
+    } else if (sourceHealthTier(health) === 'failed') {
         label = 'Recently Failed';
         tone = 'unstable';
     }
@@ -985,7 +988,7 @@ function sourceMatchesActiveFilter(link) {
     if (activeSourceFilter === 'vidlink') return isVidlinkSource(link);
     if (activeSourceFilter === 'direct') return link?.type !== 'iframe';
     if (activeSourceFilter === 'browser') return link?.type === 'iframe';
-    if (activeSourceFilter === 'healthy') return getSourceHealth(link).lastStatus !== 'failed';
+    if (activeSourceFilter === 'healthy') return sourceHealthTier(getSourceHealth(link)) === 'working';
     return true;
 }
 
@@ -1000,6 +1003,7 @@ function renderSourceFilters(preferredBestLink) {
     ];
 
     DOM.sourceFilterControls.classList.remove('hidden');
+    DOM.sourceFilterControls.setAttribute('aria-hidden', 'false');
     DOM.sourceFilterControls.innerHTML = filters.map(filter => `
         <button class="source-filter-btn ${activeSourceFilter === filter.id ? 'active' : ''}" data-source-filter="${filter.id}" tabindex="0">
             <i class="fa-solid ${filter.icon}"></i> ${filter.label}
@@ -1021,11 +1025,14 @@ function renderSourceFilters(preferredBestLink) {
 }
 
 function renderSourceList(preferredBestLink = null) {
+    document.getElementById('view-links')?.classList.add('sources-ready');
+    DOM.serverList.classList.remove('hidden');
+    DOM.serverList.setAttribute('aria-hidden', 'false');
     DOM.serverList.innerHTML = '';
     renderSourceFilters(preferredBestLink);
 
-    const visibleLinks = currentPlaybackLinks
-        .map((link, index) => ({ link, index }))
+    const visibleLinks = sortStreamLinks(currentPlaybackLinks)
+        .map((link, rank) => ({ link, index:currentPlaybackLinks.indexOf(link), rank }))
         .filter(({ link }) => sourceMatchesActiveFilter(link));
 
     if (!visibleLinks.length) {
@@ -1033,19 +1040,20 @@ function renderSourceList(preferredBestLink = null) {
         return;
     }
 
-    visibleLinks.forEach(({ link, index }) => {
+    visibleLinks.forEach(({ link, index, rank }) => {
         const li = document.createElement('li');
         const btn = document.createElement('button');
         btn.className = `server-btn ${link?.type !== 'iframe' ? 'server-btn-direct' : 'server-btn-browser'}`;
         btn.tabIndex = 0;
-        const isPreferred = link === preferredBestLink;
+        const isPreferred = rank === 0;
         const health = getSourceHealth(link);
-        const lastStatus = health.lastStatus && health.lastStatus !== 'unknown'
-            ? `${health.lastStatus}${health.lastReason ? `: ${health.lastReason}` : ''}`
-            : 'No history yet';
+        const tier = sourceHealthTier(health);
+        const lastStatus = tier === 'working'
+            ? `Played successfully${health.startupMs ? ` · Starts in ${(health.startupMs / 1000).toFixed(1)}s` : ''}${health.bufferCount ? ` · ${health.bufferCount} buffering events` : ''}`
+            : tier === 'failed' ? 'Recent playback failure · Moved below other sources' : 'No recent playback confirmed';
 
         btn.innerHTML = `
-            <div class="source-rank">${String(index + 1).padStart(2, '0')}</div>
+            <div class="source-rank">${String(rank + 1).padStart(2, '0')}</div>
             <div class="source-card-body">
                 <div class="source-card-title">
                     <b>${link.server || 'Unknown Source'}</b>
@@ -1533,6 +1541,7 @@ async function loadEpisodes(tvId, seasonNum, progressRecord = null, requestId = 
 async function startScrapingSession(targetS = null, targetE = null) {
     if (!currentMovieContext) return;
     stopWebPlayback();
+    document.getElementById('view-links')?.classList.remove('sources-ready');
     cancelActiveExtraction();
     const sessionId = extractionSessionId;
     const sessionMovie = currentMovieContext;
@@ -1741,11 +1750,13 @@ async function startScrapingSession(targetS = null, targetE = null) {
             
             activeSourceFilter = 'all';
             renderSourceList(preferredBestLink);
-            if (preferredBestLink) {
+            if (preferredBestLink && getPlaybackSettings().autoplaySources) {
                 setTimeout(() => {
                     if (!isCurrentSession() || globalThis.location.hash !== '#links') return;
                     playSourceAt(preferredIndex, 'autoplay-best-source');
                 }, 800);
+            } else if (preferredBestLink) {
+                DOM.serverList.querySelector('button')?.focus();
             } else {
                 DOM.scraperStatus.classList.remove('hidden');
                 DOM.scraperStatus.innerHTML = '<div class="tellyvo-loading-error">We couldn’t prepare this title. Please go back and try again.</div>';
@@ -2215,3 +2226,14 @@ globalThis.addEventListener('hashchange', () => {
 globalThis.addEventListener('streamy-catalog-retry', () => {
     if (globalThis.location.hash.startsWith('#details') && currentMovieContext) openDetails(currentMovieContext);
 });
+
+function refreshSourceRanking() {
+    if (currentPlaybackLinks.length && globalThis.location.hash === '#links' && DOM.serverList) {
+        const activeLink = currentPlaybackLinks[currentPlaybackSourceIndex];
+        currentPlaybackLinks = sortStreamLinks(currentPlaybackLinks);
+        currentPlaybackSourceIndex = currentPlaybackLinks.indexOf(activeLink);
+        renderSourceList(currentPlaybackLinks[0]);
+    }
+}
+globalThis.addEventListener('streamy-source-health-updated', refreshSourceRanking);
+globalThis.addEventListener('focus', refreshSourceRanking);

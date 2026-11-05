@@ -1011,6 +1011,10 @@ public class WebPlayerActivity extends AppCompatActivity {
             "inspectMediaElements();" +
             "closeOverlays();" +
             "clickPlayButtons();" +
+            "try{var failureText=document.body&&document.body.innerText||'';" +
+            "var playing=Array.from(document.querySelectorAll('video')).some(function(v){return !v.paused&&v.currentTime>0;});" +
+            "if(!playing&&failureText.length<5000&&failureText.toLowerCase().indexOf('verification failed')>=0){" +
+            "window.StreamOSWebBridge.reportPageFailure(location.href,failureText);}}catch(e){}" +
             "reportLargestIframe();" +
             "};" +
             "if(!window.__streamosFullscreenPatched){" +
@@ -1113,6 +1117,18 @@ public class WebPlayerActivity extends AppCompatActivity {
     }
 
     private final class StreamOSWebBridge {
+        @JavascriptInterface
+        public void reportPageFailure(String pageUrl, String text) {
+            if (!SourcePageFailurePolicy.isVerificationFailure(text)) return;
+            runOnUiThread(() -> {
+                if (launchedNativePlayer || mainFrameFailed || !currentPageUrl.equals(pageUrl)) return;
+                mainFrameFailed = true;
+                String reason = "Source verification failed";
+                SourceHealthStore.record(WebPlayerActivity.this, getSourceAt(sourceIndex), "failed", 0, reason);
+                tryLaunchNextSource(reason);
+            });
+        }
+
         @JavascriptInterface
         public void reportIframe(String iframeUrl) {
             runOnUiThread(() -> promoteIframe(iframeUrl));

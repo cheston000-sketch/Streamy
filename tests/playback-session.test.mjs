@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty } from '../www/js/source-policy.js';
+import { refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty, sourceHealthTier } from '../www/js/source-policy.js';
 import { normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback } from '../www/js/playback-optimization.js';
 
 // Run the actual player module with small browser/bridge substitutes, so source
@@ -46,7 +46,7 @@ class FakeHls {
 }
 const context = vm.createContext({
     console, Event, URL, Hls: FakeHls,
-    normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback, refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty,
+    normalizePlaybackOptimization, createHlsPlaybackConfig, configureHlsPlayback, refreshRegistry, registryLinks, registryAllows, updateSourceHealth, sourceHealthPenalty, sourceHealthTier,
     DOM: { videoPlayer: video, autoplayOverlay: { classList }, playerNextEpBtn: { classList } },
     document: { getElementById() { return null; } },
     localStorage: {
@@ -85,6 +85,42 @@ assert.equal(JSON.parse(run('getPlayableSourcePayload()'))[1].nextEpisode,8,'sin
 run('verifiedSource.pairedLastEpisode = 38; verifiedSource.pairedSeasonEnd = true; currentNextEpisodeTarget = {season:4,episode:38}');
 assert.equal(JSON.parse(run('getPlayableSourcePayload()'))[0].nextEpisode,0,'do not invent an episode beyond the paired season');
 run('currentPlaybackLinks = []; currentNextEpisodeTarget = null; currentPlaybackSeason = 0');
+// Observed success wins over provider/format defaults; one failure goes below unknowns.
+const now=Date.now();
+context.rankLinks=[
+ {server:'VidFast (Different episode)',type:'iframe',url:'https://vidfast.vc/tv/127635/4/5'},
+ {server:'Vidlink',type:'iframe',url:'https://vidlink.pro/tv/127635/4/9'},
+ {server:'Working backup',type:'iframe',url:'https://backup.example/episode'},
+ {server:'Untested direct',type:'hls',url:'https://direct.example/episode.m3u8'}
+];
+storage.set('streamy_source_health_v1',JSON.stringify({
+ 'vidfast-king-lizard-go-rhino-go':{successes:2,lastStatus:'success',lastUpdatedAt:now,startupMs:2000},
+ 'vidlink.pro':{successes:20,failures:1,consecutiveFailures:1,lastStatus:'failed',lastUpdatedAt:now},
+ 'backup.example':{successes:3,lastStatus:'success',lastUpdatedAt:now,startupMs:1000}
+}));
+assert.equal(run('getSourceHealth(rankLinks[0]).successes'),2,'paired labels share existing provider history');
+assert.equal(run('sortStreamLinks(rankLinks).at(-1).server'),'Vidlink','one recent failure belongs below untested sources');
+assert.ok(run('getSourceScore(rankLinks[2]) < getSourceScore(rankLinks[3])'),'confirmed playback beats an untested direct source');
+context.NativeBridge={getSourceHealth:key=>key==='vidfast.vc'?JSON.stringify({lastStatus:'failed',consecutiveFailures:1,lastUpdatedAt:now+1}):'{}'};
+assert.equal(run('sourceHealthTier(getSourceHealth(rankLinks[0]))'),'failed','latest native results override older browser history');
+context.NativeBridge=undefined;
+run('activeSourceFilter="healthy"');
+assert.equal(run('sourceMatchesActiveFilter(rankLinks[3])'),false,'Working History excludes untested sources');
+run('activeSourceFilter="all"');
+storage.delete('streamy_source_health_v1');
+// Rendering a reordered list must retain the correct source click indices.
+const created=[];
+context.document.createElement=()=>({children:[],classList,appendChild(child){this.children.push(child);},setAttribute(){}});
+context.DOM.serverList={classList,setAttribute(){},appendChild(child){created.push(child);},innerHTML:''};
+context.rankLinks[2].server='Confirmed backup';
+storage.set('streamy_source_health_v1',JSON.stringify({'backup.example':{successes:1,lastStatus:'success',lastUpdatedAt:now}}));
+run('currentPlaybackLinks = rankLinks; renderSourceList(choosePreferredLink(rankLinks))');
+assert.match(created[0].children[0].innerHTML,/Confirmed backup/,'visible list puts the confirmed source first');
+run('globalThis.realPlaySourceAt=playSourceAt; playSourceAt=(index)=>globalThis.clickedIndex=index');
+created[0].children[0].onclick();
+assert.equal(context.clickedIndex,2,'click plays the displayed source even after sorting');
+run('playSourceAt=globalThis.realPlaySourceAt; currentPlaybackLinks=[]');
+storage.delete('streamy_source_health_v1');
 // A slow request for an older episode must not overwrite the newer next-episode action.
 let episodeProgress = { last_season: 4, last_episode: 1 };
 context.getSeriesProgress = () => episodeProgress;

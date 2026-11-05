@@ -1,4 +1,4 @@
-import { getCatalogStatus, retryCatalogRequests } from './api.js?v=159';
+import { getCatalogStatus, retryCatalogRequests } from './api.js?v=160';
 
 // A catalog notice is intentionally separate from playback: cached metadata
 // does not imply that the video itself is available without a connection.
