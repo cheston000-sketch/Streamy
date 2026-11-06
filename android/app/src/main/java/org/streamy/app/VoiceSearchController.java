@@ -52,6 +52,10 @@ final class VoiceSearchController {
     }
 
     void show() {
+        show(false);
+    }
+
+    void show(boolean listenImmediately) {
         if (dialog != null || activity.isFinishing() || !activity.hasWindowFocus()) return;
         dialog = new AlertDialog.Builder(activity)
             .setTitle("Voice search")
@@ -65,15 +69,18 @@ final class VoiceSearchController {
             recordingRequested = false;
         });
         dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> requestListening());
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+        if (listenImmediately) requestListening();
+    }
+
+    private void requestListening() {
             if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                 startListening();
             } else if (!permissionPending) {
                 permissionPending = true;
                 permissionRequest.launch(Manifest.permission.RECORD_AUDIO);
             }
-        });
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
     }
 
     private void startListening() {

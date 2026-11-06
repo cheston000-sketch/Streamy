@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=162';
+import { NavigationManager } from './navigation.js?v=163';
 
 let currentRouteKey = null;
 let focusSearchFromRemote = false;
@@ -70,10 +70,11 @@ function handleNativeBack() {
 globalThis.StreamOSNative = globalThis.StreamOSNative || {};
 globalThis.StreamOSNative.handleBack = handleNativeBack;
 globalThis.StreamOSNative.openSearch = () => {
-    if (globalThis.StreamOSUpdate?.isRequired?.() || ['#player', '#links'].includes(routeKeyForHash())) return;
-    if (document.querySelector('#parent-pin-modal:not(.hidden), #profile-edit-modal:not(.hidden), #profile-selection-screen:not(.hidden)')) return;
+    if (globalThis.StreamOSUpdate?.isRequired?.() || ['#player', '#links'].includes(routeKeyForHash())) return false;
+    if (document.querySelector('#parent-pin-modal:not(.hidden), #profile-edit-modal:not(.hidden), #profile-selection-screen:not(.hidden)')) return false;
     focusSearchFromRemote = true;
     navigateTo('#search');
+    return true;
 };
 
 export function setupRouter() {

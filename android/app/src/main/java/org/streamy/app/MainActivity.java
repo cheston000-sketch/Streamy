@@ -34,6 +34,7 @@ public class MainActivity extends BridgeActivity {
     private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
     private File pendingUpdateApk;
     private VoiceSearchController voiceSearch;
+    private boolean menuLongPress;
     private boolean awaitingInstallPermission;
     private boolean installerLaunched;
     private boolean nativeActionDispatchPending;
@@ -93,6 +94,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onPause() {
+        menuLongPress = false;
         if (voiceSearch != null) voiceSearch.pause();
         super.onPause();
     }
@@ -117,9 +119,22 @@ public class MainActivity extends BridgeActivity {
         boolean fireTvMenu = keyCode == KeyEvent.KEYCODE_MENU
             && getPackageManager().hasSystemFeature("amazon.hardware.fire_tv");
         if ((fireTvMenu || keyCode == KeyEvent.KEYCODE_SEARCH) && this.bridge != null) {
-            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
-                this.bridge.getWebView().evaluateJavascript(
-                    "window.StreamOSNative && window.StreamOSNative.openSearch && window.StreamOSNative.openSearch();", null);
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) menuLongPress = false;
+                if (fireTvMenu && event.isLongPress()) menuLongPress = true;
+            } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                boolean startVoice = fireTvMenu && (menuLongPress
+                    || event.getEventTime() - event.getDownTime() >= android.view.ViewConfiguration.getLongPressTimeout());
+                menuLongPress = false;
+                if (!event.isCanceled()) {
+                    this.bridge.getWebView().evaluateJavascript(
+                        "window.StreamOSNative && window.StreamOSNative.openSearch && window.StreamOSNative.openSearch();", result -> {
+                            if (startVoice && "true".equals(result) && voiceSearch != null
+                                    && !isFinishing() && !isDestroyed() && hasWindowFocus()) {
+                                voiceSearch.show(true);
+                            }
+                        });
+                }
             }
             return true;
         }

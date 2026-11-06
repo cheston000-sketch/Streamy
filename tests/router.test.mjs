@@ -94,17 +94,30 @@ assert.equal(location.hash, '#player', 'Back navigation must retain supported hi
 const searchInput = element();
 views.set('search-input', searchInput);
 location.hash = '#movies';
-run('StreamOSNative.openSearch(); handleRoute()');
+assert.equal(run('StreamOSNative.openSearch()'), true);
+run('handleRoute()');
 assert.equal(location.hash, '#search');
 assert.equal(searchInput.focused, true);
 assert.equal(run('navigateBack()'), true);
 assert.equal(location.hash, '#movies');
 context.StreamOSUpdate = {isRequired: () => true};
-run('StreamOSNative.openSearch()');
+assert.equal(run('StreamOSNative.openSearch()'), false);
 assert.equal(location.hash, '#movies', 'Remote search must respect required updates');
 context.StreamOSUpdate = undefined;
 location.hash = '#player';
-run('StreamOSNative.openSearch()');
+assert.equal(run('StreamOSNative.openSearch()'), false);
 assert.equal(location.hash, '#player', 'Remote search must not interrupt web playback');
 
 console.log('Routing and retired-link fallback tests passed.');
+
+for (const hash of ['#links', '#links/1']) {
+    location.hash = hash;
+    assert.equal(run('StreamOSNative.openSearch()'), false);
+    assert.equal(location.hash, hash);
+}
+location.hash = '#home';
+const originalQuerySelector = document.querySelector;
+document.querySelector = () => ({});
+assert.equal(run('StreamOSNative.openSearch()'), false, 'Voice shortcut must respect profile and PIN dialogs');
+assert.equal(location.hash, '#home');
+document.querySelector = originalQuerySelector;
