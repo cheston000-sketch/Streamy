@@ -108,6 +108,27 @@ export function initSearchView({input, grid, fetchPage, fetchDetails, filterTitl
         timer = setTimeout(() => { timer = null; if (id === generation) loadPage(1); }, 450);
     };
     input.addEventListener('input', restart);
+    const voice = document.getElementById('search-voice');
+    if (voice && typeof globalThis.NativeBridge?.openVoiceSearch === 'function') {
+        voice.classList.remove('hidden');
+        input.addEventListener('keydown', event => {
+            if (event.key === 'ArrowRight' && !event.isComposing && input.selectionEnd === input.value.length) {
+                event.preventDefault();
+                voice.focus();
+            }
+        });
+        voice.addEventListener('click', () => {
+            voice.focus();
+            globalThis.NativeBridge.openVoiceSearch();
+        });
+        globalThis.addEventListener('streamy-voice-search-result', event => {
+            if (!isSearch() || isActor() || globalThis.StreamOSUpdate?.isRequired?.()) return;
+            const term = typeof event.detail === 'string' ? event.detail.trim() : '';
+            if (!term) return;
+            input.value = term;
+            restart();
+        });
+    }
     [type, year, genre].forEach(control => control.addEventListener('change', () => {
         if (control === type && type.value === 'person') { year.value = ''; genre.value = ''; }
         year.disabled = genre.disabled = type.value === 'person';

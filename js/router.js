@@ -1,4 +1,4 @@
-import { NavigationManager } from './navigation.js?v=161';
+import { NavigationManager } from './navigation.js?v=162';
 
 let currentRouteKey = null;
 let focusSearchFromRemote = false;

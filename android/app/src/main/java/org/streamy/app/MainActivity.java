@@ -33,6 +33,7 @@ public class MainActivity extends BridgeActivity {
     private static final long MIN_UPDATE_APK_BYTES = 1024L * 1024L;
     private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
     private File pendingUpdateApk;
+    private VoiceSearchController voiceSearch;
     private boolean awaitingInstallPermission;
     private boolean installerLaunched;
     private boolean nativeActionDispatchPending;
@@ -64,6 +65,8 @@ public class MainActivity extends BridgeActivity {
 
         // ── Inject the native JS bridge so player.js can call Native Hardware Bridge ──────
         webView.addJavascriptInterface(new StreamBridge(this), "NativeBridge");
+        voiceSearch = new VoiceSearchController(this, query -> webView.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('streamy-voice-search-result', {detail:" + JSONObject.quote(query) + "}));", null));
 
         // An opaque surface prevents Fire OS from leaving the launch window visible
         // until the WebView receives a later redraw.
@@ -76,6 +79,22 @@ public class MainActivity extends BridgeActivity {
             }
         });
         maybeHandleNativeAction(getIntent());
+    }
+
+    void openVoiceSearch() {
+        runOnUiThread(() -> {
+            if (voiceSearch == null || isFinishing() || isDestroyed()) return;
+            this.bridge.getWebView().evaluateJavascript(
+                "location.hash === '#search' && document.activeElement?.id === 'search-voice'", result -> {
+                    if ("true".equals(result) && !isDestroyed()) voiceSearch.show();
+                });
+        });
+    }
+
+    @Override
+    public void onPause() {
+        if (voiceSearch != null) voiceSearch.pause();
+        super.onPause();
     }
 
     void onWebAppReady() {
@@ -369,6 +388,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
+        if (voiceSearch != null) voiceSearch.close();
         updateExecutor.shutdownNow();
         super.onDestroy();
     }

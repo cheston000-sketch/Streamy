@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { matchesSearchFilters, dedupeActorCredits } from '../www/js/search-view.js';
+import { matchesSearchFilters, dedupeActorCredits, initSearchView } from '../www/js/search-view.js';
 const movie = {id:1,media_type:'movie',genre_ids:[28,18],release_date:'2005-02-03',certification:'PG'};
 const tv = {id:2,media_type:'tv',genre_ids:[18],first_air_date:'2001-02-03',certification:'TV-G'};
 const actor = {id:3,media_type:'person',name:'Actor',known_for:[movie]};
@@ -32,3 +32,35 @@ try {
     await assert.rejects(()=>fetchTmdbSearchPage('Failure',1,{signal:aborted.signal}),{name:'AbortError'});
 } finally { globalThis.fetch=originalFetch;console.warn=originalWarn; }
 console.log('Search filters, pagination, actor credits and kids safety tests passed.');
+
+// The native transcript must use the normal search entry point and ignore other routes.
+const events = new Map();
+const elements = new Map();
+const element = () => ({
+    value: '', innerHTML: '', classList: {contains: () => true, add() {}, remove() {}, toggle() {}},
+    addEventListener() {}, appendChild() {}, querySelectorAll: () => []
+});
+globalThis.document = {
+    createElement: element,
+    getElementById(id) {
+        if (!elements.has(id)) elements.set(id, element());
+        return elements.get(id);
+    }
+};
+globalThis.addEventListener = (name, callback) => events.set(name, callback);
+globalThis.location = {hash: '#search'};
+globalThis.NativeBridge = {openVoiceSearch() {}};
+const input = element();
+const queries = [];
+initSearchView({input, grid: element(), fetchPage: async term => {
+    queries.push(term);
+    return {results: [], page: 1, totalPages: 1};
+}});
+events.get('streamy-voice-search-result')({detail: ' resident evil '});
+await new Promise(resolve => setTimeout(resolve, 500));
+assert.equal(input.value, 'resident evil');
+assert.deepEqual(queries, ['resident evil']);
+globalThis.location.hash = '#home';
+events.get('streamy-voice-search-result')({detail: 'late result'});
+assert.equal(input.value, 'resident evil');
+console.log('Native voice query follows the standard search route.');

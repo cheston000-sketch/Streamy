@@ -42,6 +42,11 @@ public class StreamBridge {
     @JavascriptInterface
     public void clearSourceHealth() { SourceHealthStore.clear(context); }
 
+    @JavascriptInterface
+    public void openVoiceSearch() {
+        if (context instanceof MainActivity) ((MainActivity) context).openVoiceSearch();
+    }
+
     /** Returns the version installed by Android rather than a web-bundle constant. */
     @JavascriptInterface
     public long getInstalledVersionCode() {

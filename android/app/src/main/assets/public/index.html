@@ -16,8 +16,8 @@
     <link rel="apple-touch-icon" href="/icon.svg">
 
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=161">
-    <link rel="stylesheet" href="tellyvo.css?v=161">
+    <link rel="stylesheet" href="styles.css?v=162">
+    <link rel="stylesheet" href="tellyvo.css?v=162">
     <script src="vendor/hls.min.js"></script>
 </head>
 
@@ -153,7 +153,10 @@
             <div id="search-results-view">
                 <div class="search-heading"><span class="search-eyebrow">DISCOVER TELLYVO</span><h1>Find your next favorite</h1><p>Search for a title or explore an actor’s work.</p></div>
                 <label class="sr-only" for="search-input">Search movies, TV shows and actors</label>
-                <input type="text" id="search-input" class="search-query" placeholder="Search movies, shows, actors…" autocomplete="off" spellcheck="false">
+                <div class="search-entry">
+                    <input type="text" id="search-input" class="search-query" placeholder="Search movies, shows, actors…" autocomplete="off" spellcheck="false">
+                    <button id="search-voice" class="setting-btn search-voice hidden" type="button"><i class="fa-solid fa-microphone" aria-hidden="true"></i> Voice search</button>
+                </div>
                 <div class="search-filters" aria-label="Filter search results">
                     <label>TYPE<select id="search-type"><option value="all">All results</option><option value="movie">Movies</option><option value="tv">Shows</option><option value="person">Actors</option></select></label>
                     <label>YEAR<select id="search-year"><option value="">Any year</option></select></label>
@@ -260,7 +263,7 @@
 
                 <div
                     style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #444; color: #888; font-size: 1rem;">
-                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v161.0</span>
+                    Tellyvo Version: <span id="setting-build-version" style="color: #ccc; font-weight: bold;">v162.0</span>
                 </div>
 
                 <div style="margin-top: 35px; padding-top: 30px; border-top: 1px solid #444;">
@@ -391,7 +394,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/app.js?v=161"></script>
+    <script type="module" src="js/app.js?v=162"></script>
 </body>
 
 </html>
