@@ -1,6 +1,7 @@
-import { NavigationManager } from './navigation.js?v=160';
+import { NavigationManager } from './navigation.js?v=161';
 
 let currentRouteKey = null;
+let focusSearchFromRemote = false;
 const routeStack = [];
 
 function normalizedHash(hash = globalThis.location.hash) {
@@ -68,6 +69,12 @@ function handleNativeBack() {
 
 globalThis.StreamOSNative = globalThis.StreamOSNative || {};
 globalThis.StreamOSNative.handleBack = handleNativeBack;
+globalThis.StreamOSNative.openSearch = () => {
+    if (globalThis.StreamOSUpdate?.isRequired?.() || ['#player', '#links'].includes(routeKeyForHash())) return;
+    if (document.querySelector('#parent-pin-modal:not(.hidden), #profile-edit-modal:not(.hidden), #profile-selection-screen:not(.hidden)')) return;
+    focusSearchFromRemote = true;
+    navigateTo('#search');
+};
 
 export function setupRouter() {
     globalThis.addEventListener('hashchange', () => handleRoute());
@@ -179,9 +186,14 @@ export function handleRoute() {
     const mainContent = document.getElementById('main-content');
     if (mainContent) mainContent.scrollTop = 0;
 
-    // Restore or set default focus
+    // A remote shortcut always targets the input, even if a result had focus last time.
+    const focusSearchInput = hash === '#search' && focusSearchFromRemote;
+    focusSearchFromRemote = false;
     setTimeout(() => {
-        if (hash.startsWith('#search')) {
+        if (normalizedHash() !== hash) return;
+        if (focusSearchInput) {
+            document.getElementById('search-input')?.focus();
+        } else if (hash.startsWith('#search')) {
             NavigationManager.restoreFocus(routeKey, '#search-input');
         } else if (hash.startsWith('#details')) {
              NavigationManager.restoreFocus(routeKey, '#play-btn');

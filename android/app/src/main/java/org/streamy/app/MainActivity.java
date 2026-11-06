@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -89,6 +90,21 @@ public class MainActivity extends BridgeActivity {
             });
             maybeHandleNativeAction(getIntent());
         });
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        boolean fireTvMenu = keyCode == KeyEvent.KEYCODE_MENU
+            && getPackageManager().hasSystemFeature("amazon.hardware.fire_tv");
+        if ((fireTvMenu || keyCode == KeyEvent.KEYCODE_SEARCH) && this.bridge != null) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                this.bridge.getWebView().evaluateJavascript(
+                    "window.StreamOSNative && window.StreamOSNative.openSearch && window.StreamOSNative.openSearch();", null);
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     @Override

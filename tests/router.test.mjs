@@ -91,4 +91,20 @@ assert.deepEqual(focusRestores.at(-1), ['#settings', '#setting-backend-input']);
 assert.equal(run('navigateBack()'), true);
 assert.equal(location.hash, '#player', 'Back navigation must retain supported history');
 
+const searchInput = element();
+views.set('search-input', searchInput);
+location.hash = '#movies';
+run('StreamOSNative.openSearch(); handleRoute()');
+assert.equal(location.hash, '#search');
+assert.equal(searchInput.focused, true);
+assert.equal(run('navigateBack()'), true);
+assert.equal(location.hash, '#movies');
+context.StreamOSUpdate = {isRequired: () => true};
+run('StreamOSNative.openSearch()');
+assert.equal(location.hash, '#movies', 'Remote search must respect required updates');
+context.StreamOSUpdate = undefined;
+location.hash = '#player';
+run('StreamOSNative.openSearch()');
+assert.equal(location.hash, '#player', 'Remote search must not interrupt web playback');
+
 console.log('Routing and retired-link fallback tests passed.');
